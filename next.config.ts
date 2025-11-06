@@ -13,8 +13,10 @@ const nextConfig: NextConfig = {
   // Compression
   compress: true,
 
-  // Performance optimizations
-  swcMinify: true,
+  // Experimental features for better performance
+  experimental: {
+    optimizePackageImports: ['@/components/ui'],
+  },
 
   // Security headers
   async headers() {

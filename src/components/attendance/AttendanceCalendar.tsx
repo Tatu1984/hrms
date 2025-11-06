@@ -65,6 +65,12 @@ export function AttendanceCalendar({ attendanceData, showEmployeeCount = false, 
     }
   };
 
+  const isWeekend = (day: number) => {
+    const date = new Date(year, month, day);
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+  };
+
   const renderCalendarDays = () => {
     const days = [];
 
@@ -79,6 +85,7 @@ export function AttendanceCalendar({ attendanceData, showEmployeeCount = false, 
       const isToday = new Date().getDate() === day &&
                       new Date().getMonth() === month &&
                       new Date().getFullYear() === year;
+      const weekendDay = isWeekend(day);
 
       days.push(
         <div
@@ -87,11 +94,17 @@ export function AttendanceCalendar({ attendanceData, showEmployeeCount = false, 
           className={`
             p-2 border rounded-lg cursor-pointer hover:shadow-md transition-all
             ${isToday ? 'ring-2 ring-blue-500' : ''}
-            ${attendance ? getStatusColor(attendance.status) : 'bg-gray-50 hover:bg-gray-100'}
+            ${weekendDay && !attendance ? 'bg-purple-100 border-purple-300' : ''}
+            ${weekendDay && attendance ? getStatusColor(attendance.status) + ' border-purple-400 ring-1 ring-purple-300' : ''}
+            ${!weekendDay && attendance ? getStatusColor(attendance.status) : ''}
+            ${!weekendDay && !attendance ? 'bg-gray-50 hover:bg-gray-100' : ''}
             ${onDateClick ? 'cursor-pointer' : 'cursor-default'}
           `}
         >
-          <div className="text-right font-semibold text-sm mb-1">{day}</div>
+          <div className="text-right font-semibold text-sm mb-1 flex items-center justify-between">
+            {weekendDay && <span className="text-purple-600 text-xs">🏖️</span>}
+            <span className={weekendDay && !attendance ? 'text-purple-700' : ''}>{day}</span>
+          </div>
           {attendance && !showEmployeeCount && (
             <div className="text-xs space-y-0.5">
               {attendance.totalHours !== undefined && attendance.totalHours !== null && (
@@ -164,6 +177,10 @@ export function AttendanceCalendar({ attendanceData, showEmployeeCount = false, 
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-blue-500"></div>
           <span>Leave</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-purple-100 border border-purple-300"></div>
+          <span>Weekend Holiday 🏖️</span>
         </div>
       </div>
     </div>

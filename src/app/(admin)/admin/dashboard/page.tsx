@@ -14,32 +14,68 @@ import Link from 'next/link';
 export default async function AdminDashboard() {
   const session = await getSession();
 
-  const employees = await prisma.employee.findMany();
-  const projects = await prisma.project.findMany();
-  const leaves = await prisma.leave.findMany();
-  const payroll = await prisma.payroll.findMany();
-  const leads = await prisma.lead.findMany();
-  const sales = await prisma.sale.findMany();
+  // Optimize queries by fetching only needed data in parallel
+  const [
+    employeeCount,
+    activeProjectsCount,
+    pendingLeavesCount,
+    monthlyPayrollSum,
+    leadsStats,
+    salesStats,
+    recentEmployees
+  ] = await Promise.all([
+    prisma.employee.count(),
+    prisma.project.count({ where: { status: 'ACTIVE' } }),
+    prisma.leave.count({ where: { status: 'PENDING' } }),
+    prisma.payroll.aggregate({
+      where: {
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear()
+      },
+      _sum: { netSalary: true }
+    }),
+    prisma.lead.groupBy({
+      by: ['status'],
+      _count: true
+    }),
+    prisma.sale.aggregate({
+      where: { status: { not: 'CANCELLED' } },
+      _sum: { netAmount: true },
+      _count: true
+    }),
+    prisma.employee.findMany({
+      select: {
+        id: true,
+        employeeId: true,
+        name: true,
+        designation: true,
+        department: true,
+        salary: true
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' }
+    })
+  ]);
 
-  const activeProjects = projects.filter(p => p.status === 'ACTIVE').length;
-  const pendingLeaves = leaves.filter(l => l.status === 'PENDING').length;
+  const employees = recentEmployees;
+  const activeProjects = activeProjectsCount;
+  const pendingLeaves = pendingLeavesCount;
+  const monthlyPayroll = monthlyPayrollSum._sum.netSalary || 0;
 
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const monthlyPayroll = payroll
-    .filter(p => p.month === currentMonth && p.year === currentYear)
-    .reduce((sum, p) => sum + p.netSalary, 0);
+  // Calculate leads stats
+  const activeLeads = leadsStats.filter((l: any) => !['CONVERTED', 'LOST'].includes(l.status)).reduce((sum: number, l: any) => sum + l._count, 0);
+  const convertedLeads = leadsStats.find((l: any) => l.status === 'CONVERTED')?._count || 0;
+  const totalLeads = leadsStats.reduce((sum: number, l: any) => sum + l._count, 0);
 
-  // Sales/CRM Stats
-  const activeLeads = leads.filter(l => !['CONVERTED', 'LOST'].includes(l.status)).length;
-  const convertedLeads = leads.filter(l => l.status === 'CONVERTED').length;
-  const totalSalesRevenue = sales.filter(s => s.status !== 'CANCELLED').reduce((sum, s) => sum + s.netAmount, 0);
-  const pendingSales = sales.filter(s => s.status === 'PENDING').length;
+  // Sales stats
+  const totalSalesRevenue = salesStats._sum.netAmount || 0;
+  const pendingSales = await prisma.sale.count({ where: { status: 'PENDING' } });
+  const totalSales = salesStats._count;
 
   const stats = [
     {
       label: 'Total Employees',
-      value: employees.length.toString(),
+      value: employeeCount.toString(),
       change: '+12%',
       icon: Users,
       color: 'bg-orange-500'
@@ -155,7 +191,7 @@ export default async function AdminDashboard() {
               <div className="flex items-center justify-between pt-2 border-t">
                 <span className="text-sm font-medium">Conversion Rate</span>
                 <Badge className="bg-amber-100 text-amber-700">
-                  {leads.length > 0 ? ((convertedLeads / leads.length) * 100).toFixed(1) : '0'}%
+                  {totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0'}%
                 </Badge>
               </div>
             </div>
@@ -185,7 +221,7 @@ export default async function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Total Sales</p>
-                  <p className="text-2xl font-bold">{sales.length}</p>
+                  <p className="text-2xl font-bold">{totalSales}</p>
                 </div>
                 <div className="bg-orange-100 p-3 rounded-lg">
                   <Receipt className="w-6 h-6 text-orange-600" />

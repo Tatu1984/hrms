@@ -122,7 +122,20 @@ export async function POST(request: NextRequest) {
 
       const presentDays = attendance.filter(a => a.status === 'PRESENT').length;
       const halfDays = attendance.filter(a => a.status === 'HALF_DAY').length;
-      const totalWorkingDays = endDate.getDate();
+
+      // Count weekends in the month (Saturdays and Sundays)
+      let weekendDays = 0;
+      for (let day = 1; day <= endDate.getDate(); day++) {
+        const date = new Date(year, month - 1, day);
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday = 0, Saturday = 6
+          weekendDays++;
+        }
+      }
+
+      // Total working days excludes weekends (weekends are holidays, not counted in salary calculation)
+      const totalDaysInMonth = endDate.getDate();
+      const totalWorkingDays = totalDaysInMonth - weekendDays;
       const effectiveDays = presentDays + (halfDays * 0.5);
       const absentDays = totalWorkingDays - effectiveDays;
 

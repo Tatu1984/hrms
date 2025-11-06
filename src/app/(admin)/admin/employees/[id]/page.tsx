@@ -8,9 +8,10 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
+export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const employee = await prisma.employee.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       user: {
         select: {

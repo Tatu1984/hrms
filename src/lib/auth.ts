@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import * as bcrypt from 'bcryptjs';
+import { cache } from 'react';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-key');
 
@@ -48,12 +49,12 @@ export async function decrypt(token: string): Promise<JWTPayload | null> {
   }
 }
 
-export async function getSession(): Promise<JWTPayload | null> {
+export const getSession = cache(async (): Promise<JWTPayload | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get('session')?.value;
   if (!token) return null;
   return decrypt(token);
-}
+});
 
 export async function setSession(payload: JWTPayload): Promise<void> {
   const token = await encrypt(payload);
