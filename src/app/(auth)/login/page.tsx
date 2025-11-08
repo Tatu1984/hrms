@@ -21,16 +21,24 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('Attempting login with:', { email, password: '***' });
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('Response status:', res.status);
+      console.log('Response OK:', res.ok);
+
       const data = await res.json();
+      console.log('Response data:', data);
 
       if (!res.ok) {
-        throw new Error(data.error || 'Login failed');
+        const errorMsg = data.error || 'Login failed';
+        const detailMsg = data.details ? ` (${data.details})` : '';
+        throw new Error(errorMsg + detailMsg);
       }
 
       const redirectMap = {
@@ -39,10 +47,14 @@ export default function LoginPage() {
         EMPLOYEE: '/employee/dashboard',
       };
 
-      router.push(redirectMap[data.role as keyof typeof redirectMap]);
+      const redirectUrl = redirectMap[data.role as keyof typeof redirectMap];
+      console.log('Redirecting to:', redirectUrl);
+
+      router.push(redirectUrl);
       router.refresh();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Login error:', err);
+      setError(err.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
