@@ -1,20 +1,66 @@
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'MANAGER', 'EMPLOYEE');
+
+-- CreateEnum
+CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE');
+
+-- CreateEnum
+CREATE TYPE "LeaveType" AS ENUM ('SICK', 'CASUAL', 'EARNED', 'UNPAID');
+
+-- CreateEnum
+CREATE TYPE "LeaveStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'HOLD');
+
+-- CreateEnum
+CREATE TYPE "ProjectStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'ON_HOLD', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "TaskStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'HOLD', 'COMPLETED');
+
+-- CreateEnum
+CREATE TYPE "Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
+
+-- CreateEnum
+CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "AccountType" AS ENUM ('INCOME', 'EXPENSE');
+
+-- CreateEnum
+CREATE TYPE "CRMLeadStatus" AS ENUM ('NEW', 'COLD_CALL_BACK', 'WARM', 'PROSPECT', 'SALE_MADE', 'HOLD', 'DORMANT', 'CONVERTED', 'LOST');
+
+-- CreateEnum
+CREATE TYPE "ProjectType" AS ENUM ('MILESTONE', 'RETAINER');
+
+-- CreateEnum
+CREATE TYPE "ReportType" AS ENUM ('APR', 'DSR', 'PERFORMANCE', 'SALES', 'ACCOUNTS');
+
+-- CreateEnum
+CREATE TYPE "SaleStatus" AS ENUM ('PENDING', 'CONFIRMED', 'DELIVERED', 'PAID', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "PayrollStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID');
+
+-- CreateEnum
+CREATE TYPE "HRDocType" AS ENUM ('POLICY', 'HOLIDAY_LIST', 'COMPANY_HIERARCHY', 'OTHER');
+
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "username" TEXT NOT NULL,
     "password" TEXT NOT NULL,
-    "role" TEXT NOT NULL DEFAULT 'EMPLOYEE',
+    "role" "Role" NOT NULL DEFAULT 'EMPLOYEE',
     "employeeId" TEXT,
     "permissions" JSONB,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "User_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Employee" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
@@ -22,14 +68,14 @@ CREATE TABLE "Employee" (
     "altPhone" TEXT,
     "address" TEXT NOT NULL,
     "designation" TEXT NOT NULL,
-    "salary" REAL NOT NULL,
-    "basicSalary" REAL,
-    "variablePay" REAL,
+    "salary" DOUBLE PRECISION NOT NULL,
+    "basicSalary" DOUBLE PRECISION,
+    "variablePay" DOUBLE PRECISION,
     "department" TEXT NOT NULL,
     "employeeType" TEXT,
-    "salesTarget" REAL,
+    "salesTarget" DOUBLE PRECISION,
     "reportingHeadId" TEXT,
-    "dateOfJoining" DATETIME NOT NULL,
+    "dateOfJoining" TIMESTAMP(3) NOT NULL,
     "profilePicture" TEXT,
     "documents" JSONB,
     "aadharNumber" TEXT,
@@ -40,147 +86,156 @@ CREATE TABLE "Employee" (
     "bankAddress" TEXT,
     "accountNumber" TEXT,
     "ifscCode" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Employee_reportingHeadId_fkey" FOREIGN KEY ("reportingHeadId") REFERENCES "Employee" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Employee_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Attendance" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
-    "date" DATETIME NOT NULL,
-    "punchIn" DATETIME,
-    "punchOut" DATETIME,
-    "breakStart" DATETIME,
-    "breakEnd" DATETIME,
-    "totalHours" REAL,
-    "breakDuration" REAL,
-    "idleTime" REAL,
-    "status" TEXT NOT NULL DEFAULT 'ABSENT',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Attendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "date" TIMESTAMP(3) NOT NULL,
+    "punchIn" TIMESTAMP(3),
+    "punchOut" TIMESTAMP(3),
+    "breakStart" TIMESTAMP(3),
+    "breakEnd" TIMESTAMP(3),
+    "totalHours" DOUBLE PRECISION,
+    "breakDuration" DOUBLE PRECISION,
+    "idleTime" DOUBLE PRECISION,
+    "status" "AttendanceStatus" NOT NULL DEFAULT 'ABSENT',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Attendance_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Leave" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
-    "leaveType" TEXT NOT NULL,
-    "startDate" DATETIME NOT NULL,
-    "endDate" DATETIME NOT NULL,
+    "leaveType" "LeaveType" NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3) NOT NULL,
     "days" INTEGER NOT NULL,
     "reason" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "status" "LeaveStatus" NOT NULL DEFAULT 'PENDING',
     "adminComment" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Leave_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Leave_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Project" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "sowDocument" TEXT,
-    "projectType" TEXT NOT NULL DEFAULT 'MILESTONE',
-    "totalBudget" REAL,
-    "upfrontPayment" REAL DEFAULT 0,
+    "projectType" "ProjectType" NOT NULL DEFAULT 'MILESTONE',
+    "totalBudget" DOUBLE PRECISION,
+    "upfrontPayment" DOUBLE PRECISION DEFAULT 0,
     "currency" TEXT NOT NULL DEFAULT 'USD',
-    "startDate" DATETIME NOT NULL,
-    "endDate" DATETIME,
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3),
+    "status" "ProjectStatus" NOT NULL DEFAULT 'ACTIVE',
     "milestones" JSONB,
     "successCriteria" TEXT,
     "leadId" TEXT,
     "saleId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ProjectMember" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "role" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ProjectMember_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "ProjectMember_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProjectMember_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Task" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT,
     "milestone" TEXT,
     "assignedTo" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "priority" TEXT NOT NULL DEFAULT 'MEDIUM',
-    "dueDate" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "Task_assignedTo_fkey" FOREIGN KEY ("assignedTo") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "status" "TaskStatus" NOT NULL DEFAULT 'PENDING',
+    "priority" "Priority" NOT NULL DEFAULT 'MEDIUM',
+    "dueDate" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "TaskUpdate" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "taskId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "createdBy" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "TaskUpdate_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TaskUpdate_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Payroll" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "month" INTEGER NOT NULL,
     "year" INTEGER NOT NULL,
     "workingDays" INTEGER NOT NULL DEFAULT 30,
     "daysPresent" INTEGER NOT NULL DEFAULT 0,
     "daysAbsent" INTEGER NOT NULL DEFAULT 0,
-    "basicSalary" REAL NOT NULL,
-    "variablePay" REAL NOT NULL DEFAULT 0,
-    "salesTarget" REAL,
-    "targetAchieved" REAL DEFAULT 0,
-    "basicPayable" REAL NOT NULL,
-    "variablePayable" REAL NOT NULL DEFAULT 0,
-    "grossSalary" REAL NOT NULL,
-    "professionalTax" REAL NOT NULL DEFAULT 200,
-    "tds" REAL NOT NULL DEFAULT 0,
-    "penalties" REAL NOT NULL DEFAULT 0,
-    "advancePayment" REAL NOT NULL DEFAULT 0,
-    "otherDeductions" REAL NOT NULL DEFAULT 0,
-    "totalDeductions" REAL NOT NULL DEFAULT 0,
-    "netSalary" REAL NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Payroll_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "basicSalary" DOUBLE PRECISION NOT NULL,
+    "variablePay" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "salesTarget" DOUBLE PRECISION,
+    "targetAchieved" DOUBLE PRECISION DEFAULT 0,
+    "basicPayable" DOUBLE PRECISION NOT NULL,
+    "variablePayable" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "grossSalary" DOUBLE PRECISION NOT NULL,
+    "professionalTax" DOUBLE PRECISION NOT NULL DEFAULT 200,
+    "tds" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "penalties" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "advancePayment" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "otherDeductions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalDeductions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "netSalary" DOUBLE PRECISION NOT NULL,
+    "status" "PayrollStatus" NOT NULL DEFAULT 'PENDING',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Payroll_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "SalaryConfig" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "pfPercentage" REAL NOT NULL DEFAULT 12,
-    "esiPercentage" REAL NOT NULL DEFAULT 0.75,
+    "id" TEXT NOT NULL,
+    "pfPercentage" DOUBLE PRECISION NOT NULL DEFAULT 12,
+    "esiPercentage" DOUBLE PRECISION NOT NULL DEFAULT 0.75,
     "taxSlabs" JSONB,
     "bonusRules" JSONB,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SalaryConfig_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "CompanyProfile" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "companyName" TEXT NOT NULL DEFAULT 'Infiniti Tech Partners',
     "address1" TEXT,
     "address2" TEXT,
@@ -195,12 +250,14 @@ CREATE TABLE "CompanyProfile" (
     "panNumber" TEXT,
     "gstNumber" TEXT,
     "cinNumber" TEXT,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CompanyProfile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "CompanyBankAccount" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "nickname" TEXT NOT NULL,
     "accountType" TEXT NOT NULL DEFAULT 'Indian',
@@ -215,36 +272,39 @@ CREATE TABLE "CompanyBankAccount" (
     "bankAddress" TEXT,
     "currency" TEXT NOT NULL DEFAULT 'INR',
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "CompanyBankAccount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "CompanyProfile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CompanyBankAccount_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Invoice" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "invoiceNumber" TEXT NOT NULL,
     "clientName" TEXT NOT NULL,
     "clientEmail" TEXT,
-    "amount" REAL NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'INR',
-    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "status" "InvoiceStatus" NOT NULL DEFAULT 'DRAFT',
     "items" JSONB,
-    "dueDate" DATETIME,
+    "dueDate" TIMESTAMP(3),
     "notes" TEXT,
     "skyDoSynced" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Invoice_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Account" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "type" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "type" "AccountType" NOT NULL,
     "categoryId" TEXT NOT NULL,
-    "amount" REAL NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'INR',
-    "date" DATETIME NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
     "description" TEXT NOT NULL,
     "reference" TEXT,
     "paymentPurpose" TEXT,
@@ -253,73 +313,83 @@ CREATE TABLE "Account" (
     "bankInfo" TEXT,
     "paymentTo" TEXT,
     "paymentCategory" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Account_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "AccountCategory" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "AccountCategory" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "type" "AccountType" NOT NULL,
     "subCategories" JSONB,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AccountCategory_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Message" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "senderId" TEXT NOT NULL,
     "recipientId" TEXT NOT NULL,
     "subject" TEXT,
     "content" TEXT NOT NULL,
     "read" BOOLEAN NOT NULL DEFAULT false,
     "tracked" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "Employee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "MessagingPermission" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "canMessagePeers" BOOLEAN NOT NULL DEFAULT true,
     "canMessageManager" BOOLEAN NOT NULL DEFAULT true,
     "canMessageDirector" BOOLEAN NOT NULL DEFAULT false,
     "allowedRecipients" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "MessagingPermission_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "SalesTarget" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "month" INTEGER NOT NULL,
     "year" INTEGER NOT NULL,
-    "targetAmount" REAL NOT NULL,
-    "achievedAmount" REAL NOT NULL DEFAULT 0,
-    "commission" REAL NOT NULL DEFAULT 0,
+    "targetAmount" DOUBLE PRECISION NOT NULL,
+    "achievedAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "commission" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "numberOfSales" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SalesTarget_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Report" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "reportType" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "reportType" "ReportType" NOT NULL,
     "month" INTEGER,
     "year" INTEGER,
     "data" JSONB NOT NULL,
     "generatedBy" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Report_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Lead" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "leadNumber" TEXT NOT NULL,
     "companyName" TEXT NOT NULL,
     "companyAddress" TEXT,
@@ -328,24 +398,25 @@ CREATE TABLE "Lead" (
     "phone" TEXT NOT NULL,
     "altPhone" TEXT,
     "projectType" TEXT,
-    "estimatedValue" REAL,
+    "estimatedValue" DOUBLE PRECISION,
     "source" TEXT,
     "executiveName" TEXT,
     "communicationDetails" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'NEW',
-    "callbackDateTime" DATETIME,
+    "status" "CRMLeadStatus" NOT NULL DEFAULT 'NEW',
+    "callbackDateTime" TIMESTAMP(3),
     "assignedTo" TEXT,
     "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "convertedAt" DATETIME,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "convertedAt" TIMESTAMP(3),
     "saleId" TEXT,
-    CONSTRAINT "Lead_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+
+    CONSTRAINT "Lead_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Sale" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "saleNumber" TEXT NOT NULL,
     "leadId" TEXT,
     "companyName" TEXT NOT NULL,
@@ -354,32 +425,34 @@ CREATE TABLE "Sale" (
     "phone" TEXT NOT NULL,
     "product" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 1,
-    "unitPrice" REAL NOT NULL,
-    "grossAmount" REAL NOT NULL,
-    "upfrontAmount" REAL NOT NULL,
-    "discount" REAL NOT NULL DEFAULT 0,
-    "taxPercentage" REAL NOT NULL DEFAULT 0,
-    "taxAmount" REAL NOT NULL DEFAULT 0,
-    "netAmount" REAL NOT NULL,
+    "unitPrice" DOUBLE PRECISION NOT NULL,
+    "grossAmount" DOUBLE PRECISION NOT NULL,
+    "upfrontAmount" DOUBLE PRECISION NOT NULL,
+    "discount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "taxPercentage" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "taxAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "netAmount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "status" "SaleStatus" NOT NULL DEFAULT 'PENDING',
     "closedBy" TEXT,
-    "closedAt" DATETIME,
+    "closedAt" TIMESTAMP(3),
     "month" INTEGER,
     "year" INTEGER,
-    "commission" REAL,
+    "commission" DOUBLE PRECISION,
     "notes" TEXT,
     "accountSynced" BOOLEAN NOT NULL DEFAULT false,
     "projectSynced" BOOLEAN NOT NULL DEFAULT false,
     "projectId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Sale_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "HRDocument" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "type" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "type" "HRDocType" NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "content" TEXT,
@@ -388,8 +461,10 @@ CREATE TABLE "HRDocument" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdBy" TEXT,
     "updatedBy" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "HRDocument_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -502,4 +577,46 @@ CREATE INDEX "Sale_month_year_idx" ON "Sale"("month", "year");
 
 -- CreateIndex
 CREATE INDEX "Sale_createdAt_idx" ON "Sale"("createdAt");
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Employee" ADD CONSTRAINT "Employee_reportingHeadId_fkey" FOREIGN KEY ("reportingHeadId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Leave" ADD CONSTRAINT "Leave_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectMember" ADD CONSTRAINT "ProjectMember_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectMember" ADD CONSTRAINT "ProjectMember_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_assignedTo_fkey" FOREIGN KEY ("assignedTo") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskUpdate" ADD CONSTRAINT "TaskUpdate_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Payroll" ADD CONSTRAINT "Payroll_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CompanyBankAccount" ADD CONSTRAINT "CompanyBankAccount_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "CompanyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Account" ADD CONSTRAINT "Account_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "AccountCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Message" ADD CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
