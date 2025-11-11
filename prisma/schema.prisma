@@ -171,6 +171,22 @@ model TaskUpdate {
   createdAt   DateTime  @default(now())
 }
 
+model DailyWorkUpdate {
+  id                String    @id @default(cuid())
+  employeeId        String
+  date              DateTime  // The specific day for this update
+  workCompleted     String    // What work was completed
+  obstaclesOvercome String?   // Obstacles that were overcome
+  tasksLeft         String?   // Tasks remaining to be done
+  taggedEmployees   String?   // JSON array of employee IDs tagged for assistance
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([employeeId, date], name: "employeeId_date")
+  @@index([employeeId])
+  @@index([date])
+}
+
 model Payroll {
   id                String        @id @default(cuid())
   employeeId        String
