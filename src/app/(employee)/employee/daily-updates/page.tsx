@@ -1,7 +1,7 @@
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
-import DailyWorkUpdate from '@/components/employee/DailyWorkUpdate';
+import DailyWorkUpdateCalendar from '@/components/employee/DailyWorkUpdateCalendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle } from 'lucide-react';
@@ -45,7 +45,7 @@ export default async function DailyUpdatesPage() {
       </div>
 
       {isDeveloper ? (
-        <DailyWorkUpdate />
+        <DailyWorkUpdateCalendar />
       ) : (
         <Card>
           <CardHeader>
