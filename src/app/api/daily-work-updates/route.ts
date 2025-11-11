@@ -73,15 +73,9 @@ export async function GET(req: Request) {
       },
     });
 
-    // Parse tagged employees for each update
-    const updatesWithParsedTags = updates.map(update => ({
-      ...update,
-      taggedEmployees: update.taggedEmployees ? JSON.parse(update.taggedEmployees) : [],
-    }));
-
     return NextResponse.json({
       success: true,
-      updates: updatesWithParsedTags,
+      updates,
     });
 
   } catch (error) {
@@ -105,7 +99,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { date, workCompleted, obstaclesOvercome, tasksLeft, taggedEmployees } = body;
+    const { date, workCompleted, obstaclesOvercome, tasksLeft } = body;
 
     // Validate required fields
     if (!date || !workCompleted) {
@@ -127,11 +121,6 @@ export async function POST(req: Request) {
     const updateDate = new Date(date);
     updateDate.setHours(0, 0, 0, 0);
 
-    // Convert tagged employees array to JSON string
-    const taggedEmployeesJson = taggedEmployees && Array.isArray(taggedEmployees) && taggedEmployees.length > 0
-      ? JSON.stringify(taggedEmployees)
-      : null;
-
     // Upsert (create or update) the daily work update
     const update = await prisma.dailyWorkUpdate.upsert({
       where: {
@@ -144,7 +133,6 @@ export async function POST(req: Request) {
         workCompleted,
         obstaclesOvercome: obstaclesOvercome || null,
         tasksLeft: tasksLeft || null,
-        taggedEmployees: taggedEmployeesJson,
       },
       create: {
         employeeId,
@@ -152,16 +140,12 @@ export async function POST(req: Request) {
         workCompleted,
         obstaclesOvercome: obstaclesOvercome || null,
         tasksLeft: tasksLeft || null,
-        taggedEmployees: taggedEmployeesJson,
       },
     });
 
     return NextResponse.json({
       success: true,
-      update: {
-        ...update,
-        taggedEmployees: update.taggedEmployees ? JSON.parse(update.taggedEmployees) : [],
-      },
+      update,
     });
 
   } catch (error) {
