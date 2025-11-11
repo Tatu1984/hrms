@@ -12,12 +12,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -41,6 +43,9 @@ export default function LoginPage() {
         throw new Error(errorMsg + detailMsg);
       }
 
+      // Show success message
+      setSuccess(`Welcome back, ${data.name}!`);
+
       const redirectMap = {
         ADMIN: '/admin/dashboard',
         MANAGER: '/manager/dashboard',
@@ -50,8 +55,11 @@ export default function LoginPage() {
       const redirectUrl = redirectMap[data.role as keyof typeof redirectMap];
       console.log('Redirecting to:', redirectUrl);
 
-      router.push(redirectUrl);
-      router.refresh();
+      // Redirect after showing success message
+      setTimeout(() => {
+        router.push(redirectUrl);
+        router.refresh();
+      }, 800);
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'An unexpected error occurred');
@@ -74,6 +82,12 @@ export default function LoginPage() {
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="bg-green-50 text-green-800 border-green-200">
+                <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
             

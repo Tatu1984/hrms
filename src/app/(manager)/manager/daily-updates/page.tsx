@@ -34,9 +34,9 @@ export default async function ManagerDailyUpdatesPage() {
     },
   });
 
-  // Get recent updates (last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // Get recent updates (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const teamMemberIds = teamMembers.map(tm => tm.id);
 
@@ -46,7 +46,7 @@ export default async function ManagerDailyUpdatesPage() {
         in: teamMemberIds,
       },
       date: {
-        gte: sevenDaysAgo,
+        gte: thirtyDaysAgo,
       },
     },
     orderBy: {
@@ -87,7 +87,7 @@ export default async function ManagerDailyUpdatesPage() {
                     </div>
                   </div>
                   <Badge variant={memberUpdates.length > 0 ? 'default' : 'secondary'}>
-                    {memberUpdates.length} updates (7 days)
+                    {memberUpdates.length} updates (30 days)
                   </Badge>
                 </div>
               </CardHeader>
