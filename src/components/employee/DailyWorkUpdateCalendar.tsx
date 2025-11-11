@@ -152,6 +152,11 @@ export default function DailyWorkUpdateCalendar() {
         // Update the map
         const dateKey = format(selectedDate, 'yyyy-MM-dd');
         setMonthUpdates(prev => new Map(prev).set(dateKey, data.update));
+
+        // Close dialog after 1.5 seconds to show success message
+        setTimeout(() => {
+          setIsDialogOpen(false);
+        }, 1500);
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save update' });
       }
