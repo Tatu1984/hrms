@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { verifyAuth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 
 // GET /api/daily-work-updates - Fetch daily work updates
 export async function GET(req: Request) {
   try {
-    const authResult = await verifyAuth(req);
-    if (!authResult.success || !authResult.payload) {
+    const session = await getSession();
+    if (!session || !session.employeeId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -19,10 +19,10 @@ export async function GET(req: Request) {
     const date = searchParams.get('date'); // Format: YYYY-MM-DD
 
     // If specific employee is requested, check permissions
-    const requestedEmployeeId = employeeId || authResult.payload.employeeId;
+    const requestedEmployeeId = employeeId || session.employeeId;
 
     // Only allow viewing own updates unless ADMIN or MANAGER
-    if (authResult.payload.role === 'EMPLOYEE' && requestedEmployeeId !== authResult.payload.employeeId) {
+    if (session.role === 'EMPLOYEE' && requestedEmployeeId !== session.employeeId) {
       return NextResponse.json(
         { error: 'You can only view your own work updates' },
         { status: 403 }
@@ -96,8 +96,8 @@ export async function GET(req: Request) {
 // POST /api/daily-work-updates - Create or update a daily work update
 export async function POST(req: Request) {
   try {
-    const authResult = await verifyAuth(req);
-    if (!authResult.success || !authResult.payload) {
+    const session = await getSession();
+    if (!session || !session.employeeId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const employeeId = authResult.payload.employeeId;
+    const employeeId = session.employeeId;
     if (!employeeId) {
       return NextResponse.json(
         { error: 'Employee ID not found' },
@@ -176,8 +176,8 @@ export async function POST(req: Request) {
 // DELETE /api/daily-work-updates - Delete a daily work update
 export async function DELETE(req: Request) {
   try {
-    const authResult = await verifyAuth(req);
-    if (!authResult.success || !authResult.payload) {
+    const session = await getSession();
+    if (!session || !session.employeeId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -206,7 +206,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    if (authResult.payload.role === 'EMPLOYEE' && existingUpdate.employeeId !== authResult.payload.employeeId) {
+    if (session.role === 'EMPLOYEE' && existingUpdate.employeeId !== session.employeeId) {
       return NextResponse.json(
         { error: 'You can only delete your own updates' },
         { status: 403 }
