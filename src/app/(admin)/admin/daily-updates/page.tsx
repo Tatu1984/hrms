@@ -33,20 +33,19 @@ export default async function AdminDailyUpdatesPage() {
     },
   });
 
-  // Get recent updates (last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // Get recent updates (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const recentUpdates = await prisma.dailyWorkUpdate.findMany({
     where: {
       date: {
-        gte: sevenDaysAgo,
+        gte: thirtyDaysAgo,
       },
     },
     orderBy: {
       date: 'desc',
     },
-    take: 50,
   });
 
   // Map updates by employee
@@ -82,7 +81,7 @@ export default async function AdminDailyUpdatesPage() {
                     </div>
                   </div>
                   <Badge variant={developerUpdates.length > 0 ? 'default' : 'secondary'}>
-                    {developerUpdates.length} updates (7 days)
+                    {developerUpdates.length} updates (30 days)
                   </Badge>
                 </div>
               </CardHeader>
