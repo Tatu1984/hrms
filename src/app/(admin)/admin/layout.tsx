@@ -12,6 +12,7 @@ const sidebarItems = [
   ]},
   { icon: 'FolderKanban', label: 'Projects', href: '/admin/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/admin/tasks' },
+    { icon: 'FileText', label: 'Daily Updates', href: '/admin/daily-updates' },
   ]},
   { icon: 'ShoppingCart', label: 'Sales', href: '/admin/sales', children: [
     { icon: 'TrendingUp', label: 'Leads', href: '/admin/leads' },

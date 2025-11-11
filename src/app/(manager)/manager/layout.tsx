@@ -10,6 +10,7 @@ const sidebarItems = [
   { icon: 'Calendar', label: 'Leave', href: '/manager/leave' },
   { icon: 'FolderKanban', label: 'Projects', href: '/manager/projects' },
   { icon: 'CheckSquare', label: 'Tasks', href: '/manager/tasks' },
+  { icon: 'FileText', label: 'Daily Updates', href: '/manager/daily-updates' },
   { icon: 'Receipt', label: 'Invoices', href: '/manager/invoices' },
   { icon: 'MessageSquare', label: 'Messages', href: '/manager/messages' },
   { icon: 'BarChart3', label: 'Reports', href: '/manager/reports' },
