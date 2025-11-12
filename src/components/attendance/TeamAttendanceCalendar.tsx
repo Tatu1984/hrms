@@ -51,6 +51,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dailyUpdate, setDailyUpdate] = useState<DailyWorkUpdate | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -71,12 +72,21 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
 
       try {
         console.log('Fetching attendance:', { startDate, endDate });
+        setError(null);
+
         const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
         console.log('Response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
           console.log('Attendance data received:', data.length, 'records');
+
+          if (!Array.isArray(data)) {
+            console.error('Expected array but got:', typeof data);
+            setError('Invalid data format received from server');
+            return;
+          }
+
           const attendanceMap = new Map<string, AttendanceRecord[]>();
 
           data.forEach((record: AttendanceRecord) => {
@@ -93,10 +103,13 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
           console.log('Attendance map size:', attendanceMap.size);
           setMonthAttendance(attendanceMap);
         } else {
-          console.error('Failed to fetch attendance:', response.statusText);
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          console.error('Failed to fetch attendance:', errorData);
+          setError(errorData.error || 'Failed to load attendance data');
         }
       } catch (error) {
         console.error('Error fetching attendance:', error);
+        setError(error instanceof Error ? error.message : 'An unexpected error occurred');
       } finally {
         setLoading(false);
       }
@@ -205,20 +218,22 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       {/* Calendar Grid */}
       <Card>
         <CardContent className="p-4">
-          {loading && (
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                <span className="font-semibold">Error loading attendance data:</span>
+              </div>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+          )}
+
+          {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
               <span className="ml-3 text-gray-600">Loading attendance data...</span>
             </div>
-          )}
-          {!loading && monthAttendance.size === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-lg font-semibold">No attendance data for this month</p>
-              <p className="text-sm mt-1">Employees need to punch in/out to generate attendance records</p>
-            </div>
-          )}
-          {!loading && (
+          ) : (
             <div className="grid grid-cols-7 gap-px bg-gray-200">
             {/* Day headers */}
             {dayNames.map((day) => (
@@ -282,6 +297,12 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
               );
             })}
           </div>
+          )}
+
+          {!loading && monthAttendance.size === 0 && (
+            <div className="mt-4 text-center text-sm text-gray-500 bg-blue-50 p-3 rounded">
+              ℹ️ No attendance records for this month. Days will be clickable once employees punch in/out.
+            </div>
           )}
         </CardContent>
       </Card>
