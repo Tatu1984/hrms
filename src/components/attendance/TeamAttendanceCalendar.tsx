@@ -70,9 +70,13 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       const endDate = format(monthEnd, 'yyyy-MM-dd');
 
       try {
+        console.log('Fetching attendance:', { startDate, endDate });
         const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
+        console.log('Response status:', response.status);
+
         if (response.ok) {
           const data = await response.json();
+          console.log('Attendance data received:', data.length, 'records');
           const attendanceMap = new Map<string, AttendanceRecord[]>();
 
           data.forEach((record: AttendanceRecord) => {
@@ -86,7 +90,10 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             });
           });
 
+          console.log('Attendance map size:', attendanceMap.size);
           setMonthAttendance(attendanceMap);
+        } else {
+          console.error('Failed to fetch attendance:', response.statusText);
         }
       } catch (error) {
         console.error('Error fetching attendance:', error);
@@ -95,7 +102,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       }
     };
     fetchMonthAttendance();
-  }, [currentMonth]);
+  }, [currentMonth, employeeMap]);
 
   const handlePreviousMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
@@ -198,7 +205,21 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       {/* Calendar Grid */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-7 gap-px bg-gray-200">
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <span className="ml-3 text-gray-600">Loading attendance data...</span>
+            </div>
+          )}
+          {!loading && monthAttendance.size === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-lg font-semibold">No attendance data for this month</p>
+              <p className="text-sm mt-1">Employees need to punch in/out to generate attendance records</p>
+            </div>
+          )}
+          {!loading && (
+            <div className="grid grid-cols-7 gap-px bg-gray-200">
             {/* Day headers */}
             {dayNames.map((day) => (
               <div key={day} className="bg-white p-2 text-center font-semibold text-sm text-gray-700">
@@ -221,10 +242,17 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
               return (
                 <div
                   key={date.toISOString()}
-                  className={`bg-white min-h-[100px] p-2 ${
-                    hasAttendance ? 'cursor-pointer hover:bg-gray-50' : ''
-                  } transition-colors ${isCurrentDay ? 'ring-2 ring-blue-500' : ''}`}
-                  onClick={() => hasAttendance && handleDateClick(date)}
+                  className={`bg-white min-h-[100px] p-2 border border-transparent transition-all ${
+                    hasAttendance
+                      ? 'cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm'
+                      : 'cursor-default'
+                  } ${isCurrentDay ? 'ring-2 ring-blue-500' : ''}`}
+                  onClick={() => {
+                    if (hasAttendance) {
+                      console.log('Date clicked:', format(date, 'yyyy-MM-dd'), 'Records:', attendanceForDay.length);
+                      handleDateClick(date);
+                    }
+                  }}
                 >
                   <div className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-blue-600 font-bold' : 'text-gray-700'}`}>
                     {format(date, 'd')}
@@ -245,10 +273,16 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                       )}
                     </div>
                   )}
+                  {!hasAttendance && (
+                    <div className="text-xs text-gray-400 text-center mt-4">
+                      No data
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+          )}
         </CardContent>
       </Card>
 
