@@ -228,13 +228,14 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             </div>
           )}
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              <span className="ml-3 text-gray-600">Loading attendance data...</span>
+          {loading && (
+            <div className="mb-4 flex items-center justify-center py-4 bg-blue-50 rounded">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+              <span className="ml-3 text-sm text-gray-600">Loading attendance data...</span>
             </div>
-          ) : (
-            <div className="grid grid-cols-7 gap-px bg-gray-200">
+          )}
+
+          <div className="grid grid-cols-7 gap-px bg-gray-200">
             {/* Day headers */}
             {dayNames.map((day) => (
               <div key={day} className="bg-white p-2 text-center font-semibold text-sm text-gray-700">
@@ -297,7 +298,6 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
               );
             })}
           </div>
-          )}
 
           {!loading && monthAttendance.size === 0 && (
             <div className="mt-4 text-center text-sm text-gray-500 bg-blue-50 p-3 rounded">
