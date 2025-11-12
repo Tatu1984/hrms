@@ -67,25 +67,38 @@ model Employee {
 }
 
 model Attendance {
-  id             String    @id @default(cuid())
+  id             String           @id @default(cuid())
   employeeId     String
-  employee       Employee  @relation(fields: [employeeId], references: [id])
+  employee       Employee         @relation(fields: [employeeId], references: [id])
   date           DateTime
   punchIn        DateTime?
   punchOut       DateTime?
   breakStart     DateTime?
   breakEnd       DateTime?
   totalHours     Float?
-  breakDuration  Float?    // Total break time in hours
-  idleTime       Float?    // Idle time in hours (logged in but inactive)
+  breakDuration  Float?           // Total break time in hours
+  idleTime       Float?           // Idle time in hours (logged in but inactive)
   status         AttendanceStatus @default(ABSENT)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  activityLogs   ActivityLog[]    // Track all activity heartbeats
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@unique([employeeId, date], name: "employeeId_date")
   @@index([employeeId])
   @@index([date])
   @@index([status])
+}
+
+model ActivityLog {
+  id           String     @id @default(cuid())
+  attendanceId String
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  timestamp    DateTime   // When the activity was detected
+  active       Boolean    @default(true) // Whether user was active at this timestamp
+  createdAt    DateTime   @default(now())
+
+  @@index([attendanceId])
+  @@index([timestamp])
 }
 
 model Leave {

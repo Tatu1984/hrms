@@ -2,6 +2,58 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+/**
+ * Calculate idle time based on activity logs
+ * @param attendanceId - The attendance record ID
+ * @param punchInTime - Punch in timestamp in milliseconds
+ * @param punchOutTime - Punch out timestamp in milliseconds
+ * @returns Idle time in hours
+ */
+async function calculateIdleTime(
+  attendanceId: string,
+  punchInTime: number,
+  punchOutTime: number
+): Promise<number> {
+  const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+  // Get all activity logs for this attendance
+  const activityLogs = await prisma.activityLog.findMany({
+    where: { attendanceId },
+    orderBy: { timestamp: 'asc' },
+  });
+
+  if (activityLogs.length === 0) {
+    // No activity logs means user was completely idle
+    const totalTimeMs = punchOutTime - punchInTime;
+    return totalTimeMs / (1000 * 60 * 60); // Convert to hours
+  }
+
+  let totalIdleMs = 0;
+  let lastActivityTime = punchInTime;
+
+  // Calculate gaps between activities
+  for (const log of activityLogs) {
+    const logTime = new Date(log.timestamp).getTime();
+    const gapMs = logTime - lastActivityTime;
+
+    // If gap is longer than threshold, consider it idle time
+    if (gapMs > IDLE_THRESHOLD_MS) {
+      totalIdleMs += gapMs - IDLE_THRESHOLD_MS; // Subtract threshold to be fair
+    }
+
+    lastActivityTime = logTime;
+  }
+
+  // Check gap between last activity and punch out
+  const finalGapMs = punchOutTime - lastActivityTime;
+  if (finalGapMs > IDLE_THRESHOLD_MS) {
+    totalIdleMs += finalGapMs - IDLE_THRESHOLD_MS;
+  }
+
+  // Convert to hours
+  return totalIdleMs / (1000 * 60 * 60);
+}
+
 // GET /api/attendance - Get attendance records
 export async function GET(request: NextRequest) {
   try {
@@ -174,9 +226,11 @@ export async function POST(request: NextRequest) {
         totalHours -= breakDuration;
       }
 
-      // Note: Idle time tracking requires client-side activity monitoring
-      // For now, we'll set it to 0 and can be updated separately via PUT request
-      const idleTime = 0;
+      // Calculate idle time based on activity logs
+      const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
+
+      // Subtract idle time from total hours for actual work time
+      const actualWorkHours = Math.max(0, totalHours - idleTime);
 
       attendance = await prisma.attendance.update({
         where: { id: attendance.id },
@@ -185,7 +239,7 @@ export async function POST(request: NextRequest) {
           totalHours: Math.round(totalHours * 100) / 100, // Round to 2 decimal places
           breakDuration: Math.round(breakDuration * 100) / 100,
           idleTime: Math.round(idleTime * 100) / 100,
-          status: totalHours >= 4 ? 'PRESENT' : 'HALF_DAY',
+          status: actualWorkHours >= 4 ? 'PRESENT' : 'HALF_DAY',
         },
         include: {
           employee: {

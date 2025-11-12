@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Clock, Coffee } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { ActivityTracker } from '@/components/attendance/ActivityTracker';
 
 interface AttendanceControlsProps {
   attendance: {
@@ -46,7 +47,11 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
   const onBreak = attendance?.breakStart && !attendance?.breakEnd;
 
   return (
-    <div className="flex items-center gap-4">
+    <>
+      {/* Activity Tracker - monitors user activity when punched in */}
+      <ActivityTracker isActive={!!hasPunchedIn} />
+
+      <div className="flex items-center gap-4">
       {!attendance?.punchIn ? (
         <Button
           onClick={() => handleAction('punch-in')}
@@ -96,6 +101,7 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
           </p>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
