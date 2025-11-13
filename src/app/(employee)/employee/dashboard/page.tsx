@@ -38,20 +38,14 @@ export default async function EmployeeDashboard() {
     },
   });
 
-  // Get today's attendance
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const todayAttendance = await prisma.attendance.findFirst({
+  // Get active attendance (punched in but not punched out yet)
+  // This supports cross-midnight work correctly
+  const activeAttendance = await prisma.attendance.findFirst({
     where: {
       employeeId: session!.employeeId!,
-      date: {
-        gte: today,
-        lt: tomorrow,
-      },
+      punchOut: null, // Still active (not punched out)
     },
+    orderBy: { punchIn: 'desc' },
   });
 
   // Calculate attendance percentage (last 30 days)
@@ -89,7 +83,7 @@ export default async function EmployeeDashboard() {
                 <p className="text-sm text-blue-100">Current Salary</p>
                 <p className="text-2xl font-bold">{formatCurrency(employee?.salary || 0)}</p>
               </div>
-              <AttendanceControls attendance={todayAttendance} />
+              <AttendanceControls attendance={activeAttendance} />
             </div>
           </div>
         </CardContent>
