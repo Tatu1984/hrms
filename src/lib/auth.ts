@@ -18,7 +18,7 @@ export async function encrypt(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('24h')
+    .setExpirationTime('7d') // 7 days instead of 24h to prevent auto-logout
     .sign(secret);
 }
 
@@ -62,7 +62,7 @@ export async function setSession(payload: JWTPayload): Promise<void> {
   cookieStore.set('session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24,
+    maxAge: 60 * 60 * 24 * 7, // 7 days to match JWT expiration
     path: '/',
   });
 }
