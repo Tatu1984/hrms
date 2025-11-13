@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -61,18 +61,22 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
   const firstDayOfWeek = monthStart.getDay();
   const leadingEmptyCells = Array(firstDayOfWeek).fill(null);
 
-  const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
+  // Use useMemo to prevent employeeMap from being recreated on every render
+  const employeeMap = useMemo(
+    () => new Map(employees.map(emp => [emp.id, emp])),
+    [employees]
+  );
 
   // Fetch attendance for the current month
   useEffect(() => {
     const fetchMonthAttendance = async () => {
       setLoading(true);
+      setError(null);
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
 
       try {
         console.log('Fetching attendance:', { startDate, endDate });
-        setError(null);
 
         const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
         console.log('Response status:', response.status);
@@ -84,6 +88,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
           if (!Array.isArray(data)) {
             console.error('Expected array but got:', typeof data);
             setError('Invalid data format received from server');
+            setLoading(false);
             return;
           }
 
@@ -109,13 +114,13 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
         }
       } catch (error) {
         console.error('Error fetching attendance:', error);
-        setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+        setError(error instanceof Error ? error.message : 'Network error - please check your connection');
       } finally {
         setLoading(false);
       }
     };
     fetchMonthAttendance();
-  }, [currentMonth, employeeMap]);
+  }, [currentMonth, monthStart, monthEnd, employeeMap]);
 
   const handlePreviousMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
