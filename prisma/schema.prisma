@@ -584,3 +584,215 @@ enum HRDocType {
   COMPANY_HIERARCHY
   OTHER
 }
+
+// ============================================
+// INTEGRATIONS: Azure DevOps & Asana
+// ============================================
+
+model IntegrationConnection {
+  id                String              @id @default(cuid())
+  platform          IntegrationType     // AZURE_DEVOPS, ASANA
+  name              String              // Friendly name (e.g., "My Azure DevOps", "Client Azure")
+
+  // Authentication
+  authType          String              // PAT, OAUTH
+  accessToken       String              // Encrypted token
+  refreshToken      String?             // For OAuth
+  tokenExpiry       DateTime?
+
+  // Platform-specific config
+  organizationUrl   String?             // Azure DevOps: https://dev.azure.com/orgname
+  organizationName  String?             // Azure DevOps organization name
+  workspaceId       String?             // Asana workspace ID
+
+  // Sync configuration
+  syncEnabled       Boolean             @default(true)
+  syncFrequency     String              @default("MANUAL") // MANUAL, HOURLY, DAILY
+  lastSyncAt        DateTime?
+  lastSyncStatus    String?             // SUCCESS, FAILED, PARTIAL
+  lastSyncError     String?
+
+  // User mapping
+  userMappings      IntegrationUserMapping[]
+  workItems         WorkItem[]
+  commits           DeveloperCommit[]
+
+  isActive          Boolean             @default(true)
+  createdBy         String?             // Employee ID
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([platform])
+  @@index([isActive])
+}
+
+model IntegrationUserMapping {
+  id              String                @id @default(cuid())
+  connectionId    String
+  connection      IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  // HRMS Employee
+  employeeId      String
+  employeeEmail   String
+
+  // External platform user
+  externalUserId  String                // Azure DevOps user ID or Asana user GID
+  externalEmail   String
+  externalName    String
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([connectionId, employeeId])
+  @@unique([connectionId, externalUserId])
+  @@index([employeeId])
+}
+
+model WorkItem {
+  id                String                @id @default(cuid())
+  connectionId      String
+  connection        IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  // External platform reference
+  externalId        String                // Work item ID from Azure/Asana
+  externalUrl       String                // Direct link to work item
+  platform          IntegrationType
+
+  // Basic info
+  title             String
+  description       String?
+  workItemType      String                // Azure: Story, Task, Bug, Epic | Asana: Task, Subtask
+  status            String                // Platform-specific status
+  priority          String?
+
+  // Assignment
+  assignedToId      String?               // HRMS Employee ID
+  assignedTo        String?               // External user ID
+  assignedToName    String?
+
+  // Dates
+  createdDate       DateTime
+  modifiedDate      DateTime?
+  completedDate     DateTime?
+  dueDate           DateTime?
+
+  // Project/Board reference
+  projectName       String?
+  projectId         String?               // External project/board ID
+
+  // Azure DevOps specific
+  areaPath          String?
+  iterationPath     String?
+  storyPoints       Int?
+
+  // Asana specific
+  sectionId         String?
+  sectionName       String?
+  tags              Json?                 // Array of tags
+
+  // Metadata
+  metadata          Json?                 // Additional platform-specific data
+  lastSyncedAt      DateTime              @default(now())
+
+  // Relations
+  commits           DeveloperCommit[]
+
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId])
+  @@index([assignedToId])
+  @@index([platform])
+  @@index([status])
+  @@index([createdDate])
+}
+
+model DeveloperCommit {
+  id              String                @id @default(cuid())
+  connectionId    String
+  connection      IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  // Employee reference
+  employeeId      String
+
+  // Commit details
+  commitHash      String
+  commitMessage   String
+  commitUrl       String?
+
+  // Repository info
+  repositoryName  String
+  repositoryId    String?
+  branchName      String?
+
+  // Changes
+  filesChanged    Int                   @default(0)
+  linesAdded      Int                   @default(0)
+  linesDeleted    Int                   @default(0)
+
+  // Dates
+  commitDate      DateTime
+  authorDate      DateTime?
+
+  // Work item linkage
+  workItemId      String?
+  workItem        WorkItem?             @relation(fields: [workItemId], references: [id])
+  linkedWorkItems Json?                 // Array of work item IDs mentioned in commit
+
+  // Author info
+  authorName      String
+  authorEmail     String
+
+  lastSyncedAt    DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+
+  @@unique([connectionId, commitHash])
+  @@index([employeeId])
+  @@index([commitDate])
+  @@index([repositoryName])
+}
+
+model PullRequest {
+  id              String                @id @default(cuid())
+  connectionId    String
+
+  // PR details
+  externalId      String                // PR number/ID
+  externalUrl     String
+  title           String
+  description     String?
+  status          String                // Active, Completed, Abandoned
+
+  // Repository
+  repositoryName  String
+  repositoryId    String?
+  sourceBranch    String
+  targetBranch    String
+
+  // People
+  createdById     String?               // HRMS Employee ID
+  createdByName   String
+  reviewers       Json?                 // Array of reviewer info
+
+  // Dates
+  createdDate     DateTime
+  closedDate      DateTime?
+  mergedDate      DateTime?
+
+  // Stats
+  commitsCount    Int                   @default(0)
+  filesChanged    Int                   @default(0)
+
+  lastSyncedAt    DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+
+  @@unique([connectionId, externalId])
+  @@index([createdById])
+  @@index([createdDate])
+}
+
+enum IntegrationType {
+  AZURE_DEVOPS
+  ASANA
+}
