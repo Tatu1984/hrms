@@ -45,12 +45,14 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedAttendanceRecord, setSelectedAttendanceRecord] = useState<AttendanceRecord | null>(null);
   const [monthAttendance, setMonthAttendance] = useState<Map<string, AttendanceRecord[]>>(new Map());
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dailyUpdate, setDailyUpdate] = useState<DailyWorkUpdate | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
@@ -69,26 +71,30 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
 
   // Fetch attendance for the current month
   useEffect(() => {
+    let isMounted = true;
+
     const fetchMonthAttendance = async () => {
+      if (!isMounted) return;
+
       setLoading(true);
       setError(null);
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
 
       try {
-        console.log('Fetching attendance:', { startDate, endDate });
-
         const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
-        console.log('Response status:', response.status);
+
+        if (!isMounted) return;
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Attendance data received:', data.length, 'records');
 
           if (!Array.isArray(data)) {
             console.error('Expected array but got:', typeof data);
-            setError('Invalid data format received from server');
-            setLoading(false);
+            if (isMounted) {
+              setError('Invalid data format received from server');
+              setLoading(false);
+            }
             return;
           }
 
@@ -105,21 +111,32 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             });
           });
 
-          console.log('Attendance map size:', attendanceMap.size);
-          setMonthAttendance(attendanceMap);
+          if (isMounted) {
+            setMonthAttendance(attendanceMap);
+            setLoading(false);
+          }
         } else {
           const errorData = await response.json().catch(() => ({ error: response.statusText }));
           console.error('Failed to fetch attendance:', errorData);
-          setError(errorData.error || 'Failed to load attendance data');
+          if (isMounted) {
+            setError(errorData.error || 'Failed to load attendance data');
+            setLoading(false);
+          }
         }
       } catch (error) {
         console.error('Error fetching attendance:', error);
-        setError(error instanceof Error ? error.message : 'Network error - please check your connection');
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setError(error instanceof Error ? error.message : 'Network error - please check your connection');
+          setLoading(false);
+        }
       }
     };
+
     fetchMonthAttendance();
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentMonth, monthStart, monthEnd, employeeMap]);
 
   const handlePreviousMonth = () => {
@@ -145,7 +162,11 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
 
   const handleEmployeeClick = async (employee: Employee, attendanceRecord: AttendanceRecord) => {
     setSelectedEmployee(employee);
-    setLoading(true);
+    setSelectedAttendanceRecord(attendanceRecord);
+    setDetailsLoading(true);
+    setActivityLogs([]);
+    setDailyUpdate(null);
+    setIsEmployeeDialogOpen(true);
 
     try {
       // Fetch activity logs
@@ -153,6 +174,8 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
         setActivityLogs(activityData.activityLogs || []);
+      } else {
+        console.error('Failed to fetch activity logs');
       }
 
       // Fetch daily work update
@@ -161,14 +184,14 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       if (updateResponse.ok) {
         const updateData = await updateResponse.json();
         setDailyUpdate(updateData.updates?.[0] || null);
+      } else {
+        console.error('Failed to fetch daily work update');
       }
     } catch (error) {
       console.error('Error fetching employee details:', error);
     } finally {
-      setLoading(false);
+      setDetailsLoading(false);
     }
-
-    setIsEmployeeDialogOpen(true);
   };
 
   const getAttendanceForDate = (date: Date): AttendanceRecord[] => {
@@ -223,7 +246,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
       {/* Calendar Grid */}
       <Card>
         <CardContent className="p-4">
-          {error && (
+          {!loading && error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5" />
@@ -234,7 +257,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
           )}
 
           {loading && (
-            <div className="mb-4 flex items-center justify-center py-4 bg-blue-50 rounded">
+            <div className="mb-4 flex items-center justify-center py-4 bg-blue-50 rounded-lg">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
               <span className="ml-3 text-sm text-gray-600">Loading attendance data...</span>
             </div>
@@ -394,81 +417,99 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             </DialogDescription>
           </DialogHeader>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            </div>
-          ) : (
-            <div className="space-y-6 py-4">
-              {/* Daily Work Update */}
-              {dailyUpdate && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Daily Work Update</h3>
-                  <div className="space-y-3">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-sm text-gray-700 mb-2">Work Completed:</h4>
-                      <p className="text-sm text-gray-600">{dailyUpdate.workCompleted}</p>
-                    </div>
-                    {dailyUpdate.obstaclesOvercome && (
-                      <div className="bg-yellow-50 p-4 rounded-lg">
-                        <h4 className="font-semibold text-sm text-gray-700 mb-2">Obstacles Overcome:</h4>
-                        <p className="text-sm text-gray-600">{dailyUpdate.obstaclesOvercome}</p>
-                      </div>
-                    )}
-                    {dailyUpdate.tasksLeft && (
-                      <div className="bg-orange-50 p-4 rounded-lg">
-                        <h4 className="font-semibold text-sm text-gray-700 mb-2">Tasks Left:</h4>
-                        <p className="text-sm text-gray-600">{dailyUpdate.tasksLeft}</p>
-                      </div>
-                    )}
+          <div className="space-y-6 py-4">
+            {/* Daily Work Update Section */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Daily Work Update</h3>
+              {detailsLoading ? (
+                <div className="space-y-3">
+                  <div className="bg-gray-100 p-4 rounded-lg animate-pulse">
+                    <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
+                    <div className="h-3 bg-gray-300 rounded w-3/4"></div>
+                  </div>
+                  <div className="bg-gray-100 p-4 rounded-lg animate-pulse">
+                    <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
+                    <div className="h-3 bg-gray-300 rounded w-2/3"></div>
                   </div>
                 </div>
+              ) : dailyUpdate ? (
+                <div className="space-y-3">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Work Completed:</h4>
+                    <p className="text-sm text-gray-600">{dailyUpdate.workCompleted}</p>
+                  </div>
+                  {dailyUpdate.obstaclesOvercome && (
+                    <div className="bg-yellow-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-sm text-gray-700 mb-2">Obstacles Overcome:</h4>
+                      <p className="text-sm text-gray-600">{dailyUpdate.obstaclesOvercome}</p>
+                    </div>
+                  )}
+                  {dailyUpdate.tasksLeft && (
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-sm text-gray-700 mb-2">Tasks Left:</h4>
+                      <p className="text-sm text-gray-600">{dailyUpdate.tasksLeft}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                  <p className="text-sm">No daily work update submitted</p>
+                </div>
               )}
-
-              {/* Activity Timeline */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">
-                  Activity Timeline ({activityLogs.length} heartbeats)
-                </h3>
-                {activityLogs.length > 0 ? (
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto bg-gray-50 p-4 rounded-lg">
-                    {activityLogs.map((log, index) => {
-                      const nextLog = activityLogs[index + 1];
-                      const gap = nextLog
-                        ? (new Date(nextLog.timestamp).getTime() - new Date(log.timestamp).getTime()) / (1000 * 60)
-                        : 0;
-                      const isLongGap = gap > 5;
-
-                      return (
-                        <div key={log.id}>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-mono text-blue-600">
-                              {format(new Date(log.timestamp), 'HH:mm:ss')}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              Active
-                            </Badge>
-                          </div>
-                          {isLongGap && (
-                            <div className="flex items-center gap-2 my-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                              <AlertCircle className="w-3 h-3" />
-                              <span>{gap.toFixed(0)} minute gap (possible idle time)</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No activity logs found</p>
-                    <p className="text-xs">Employee may have been idle the entire shift</p>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
+
+            {/* Activity Timeline Section */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">
+                Activity Timeline {!detailsLoading && `(${activityLogs.length} heartbeats)`}
+              </h3>
+              {detailsLoading ? (
+                <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between animate-pulse">
+                      <div className="h-4 bg-gray-300 rounded w-24"></div>
+                      <div className="h-6 bg-gray-300 rounded w-16"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : activityLogs.length > 0 ? (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto bg-gray-50 p-4 rounded-lg">
+                  {activityLogs.map((log, index) => {
+                    const nextLog = activityLogs[index + 1];
+                    const gap = nextLog
+                      ? (new Date(nextLog.timestamp).getTime() - new Date(log.timestamp).getTime()) / (1000 * 60)
+                      : 0;
+                    const isLongGap = gap > 5;
+
+                    return (
+                      <div key={log.id}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-mono text-blue-600">
+                            {format(new Date(log.timestamp), 'HH:mm:ss')}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            Active
+                          </Badge>
+                        </div>
+                        {isLongGap && (
+                          <div className="flex items-center gap-2 my-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                            <AlertCircle className="w-3 h-3" />
+                            <span>{gap.toFixed(0)} minute gap (possible idle time)</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No activity logs found</p>
+                  <p className="text-xs">Employee may have been idle the entire shift</p>
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
