@@ -182,7 +182,7 @@ export class AzureDevOpsClient {
 
     // Execute WIQL query
     const queryResult = await this.request<{ workItems: Array<{ id: number; url: string }> }>(
-      `/${projectName}/wit/wiql?api-version=7.0`,
+      `/${encodeURIComponent(projectName)}/wit/wiql?api-version=7.0`,
       {
         method: 'POST',
         body: JSON.stringify({ query: wiql }),
@@ -215,7 +215,7 @@ export class AzureDevOpsClient {
       top?: number;
     } = {}
   ): Promise<AzureDevOpsCommit[]> {
-    let endpoint = `/${projectName}/git/repositories/${repositoryId}/commits?api-version=7.0`;
+    let endpoint = `/${encodeURIComponent(projectName)}/git/repositories/${repositoryId}/commits?api-version=7.0`;
 
     const params = new URLSearchParams();
     if (options.author) params.append('searchCriteria.author', options.author);
@@ -238,7 +238,7 @@ export class AzureDevOpsClient {
   async getRepositories(projectName: string): Promise<Array<{ id: string; name: string; url: string }>> {
     const response = await this.request<{
       value: Array<{ id: string; name: string; url: string; remoteUrl: string }>;
-    }>(`/${projectName}/git/repositories?api-version=7.0`);
+    }>(`/${encodeURIComponent(projectName)}/git/repositories?api-version=7.0`);
 
     return response.value;
   }
@@ -269,7 +269,7 @@ export class AzureDevOpsClient {
   async getWorkItemCommits(projectName: string, workItemId: number): Promise<AzureDevOpsCommit[]> {
     try {
       const response = await this.request<{ value: AzureDevOpsCommit[] }>(
-        `/${projectName}/wit/workitems/${workItemId}/workitemlinks?api-version=7.0`
+        `/${encodeURIComponent(projectName)}/wit/workitems/${workItemId}/workitemlinks?api-version=7.0`
       );
 
       // Note: This returns links, you'd need to parse commit references
