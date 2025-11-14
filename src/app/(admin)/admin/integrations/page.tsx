@@ -14,7 +14,7 @@ export default async function AdminIntegrationsPage() {
       <div>
         <h1 className="text-3xl font-bold">Integrations</h1>
         <p className="text-gray-500 mt-1">
-          Connect Azure DevOps and Asana to sync work items and track developer productivity
+          Connect Azure DevOps, Asana, and Confluence to sync work items and track team productivity
         </p>
       </div>
 

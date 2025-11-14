@@ -12,7 +12,7 @@ interface WorkItem {
   id: string;
   externalId: string;
   externalUrl: string;
-  platform: 'AZURE_DEVOPS' | 'ASANA';
+  platform: 'AZURE_DEVOPS' | 'ASANA' | 'CONFLUENCE';
   title: string;
   description?: string;
   workItemType: string;
@@ -28,6 +28,9 @@ interface WorkItem {
   storyPoints?: number;
   sectionName?: string;
   tags?: any;
+  spaceKey?: string;
+  spaceName?: string;
+  version?: number;
   connection: {
     name: string;
     platform: string;
@@ -141,9 +144,31 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
     };
   };
 
+  // Confluence styling
+  const getConfluenceStyles = (workItem: WorkItem) => {
+    const typeStyles: Record<string, string> = {
+      'page': 'bg-blue-100 text-blue-700 border-blue-300',
+      'blog': 'bg-indigo-100 text-indigo-700 border-indigo-300',
+    };
+
+    const statusStyles: Record<string, string> = {
+      'current': 'bg-green-100 text-green-700',
+      'draft': 'bg-yellow-100 text-yellow-700',
+      'archived': 'bg-gray-100 text-gray-600',
+    };
+
+    return {
+      type: typeStyles[workItem.workItemType.toLowerCase()] || 'bg-gray-100 text-gray-700 border-gray-300',
+      status: statusStyles[workItem.status.toLowerCase()] || 'bg-gray-100 text-gray-700',
+    };
+  };
+
   const renderWorkItemCard = (workItem: WorkItem) => {
     const isAzure = workItem.platform === 'AZURE_DEVOPS';
-    const styles = isAzure ? getAzureDevOpsStyles(workItem) : getAsanaStyles(workItem);
+    const isConfluence = workItem.platform === 'CONFLUENCE';
+    const styles = isAzure ? getAzureDevOpsStyles(workItem) :
+                   isConfluence ? getConfluenceStyles(workItem) :
+                   getAsanaStyles(workItem);
 
     return (
       <Card
@@ -158,6 +183,10 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
               {isAzure ? (
                 <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs font-bold">
                   AZ
+                </div>
+              ) : isConfluence ? (
+                <div className="w-8 h-8 bg-blue-700 rounded flex items-center justify-center text-white text-xs font-bold">
+                  CF
                 </div>
               ) : (
                 <div className="w-8 h-8 bg-pink-500 rounded flex items-center justify-center text-white text-xs font-bold">
@@ -198,6 +227,20 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                   </Badge>
                 )}
               </>
+            ) : isConfluence ? (
+              <>
+                <Badge className={`${styles.type} text-xs border`}>
+                  {workItem.workItemType}
+                </Badge>
+                <Badge className={`${styles.status} text-xs`}>
+                  {workItem.status}
+                </Badge>
+                {workItem.version && (
+                  <Badge variant="outline" className="text-xs">
+                    v{workItem.version}
+                  </Badge>
+                )}
+              </>
             ) : (
               <>
                 <Badge className={`${styles.status} text-xs`}>
@@ -218,6 +261,12 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
               <div className="flex items-center gap-1">
                 <span className="font-medium">Project:</span>
                 <span>{workItem.projectName}</span>
+              </div>
+            )}
+            {workItem.spaceName && (
+              <div className="flex items-center gap-1">
+                <span className="font-medium">Space:</span>
+                <span>{workItem.spaceName}</span>
               </div>
             )}
             {workItem.assignedToName && (
@@ -275,6 +324,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                 <option value="ALL">All Platforms</option>
                 <option value="AZURE_DEVOPS">Azure DevOps</option>
                 <option value="ASANA">Asana</option>
+                <option value="CONFLUENCE">Confluence</option>
               </select>
 
               <select
@@ -323,6 +373,10 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                   <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center text-white font-bold">
                     AZ
                   </div>
+                ) : selectedItem.platform === 'CONFLUENCE' ? (
+                  <div className="w-10 h-10 bg-blue-700 rounded flex items-center justify-center text-white font-bold">
+                    CF
+                  </div>
                 ) : (
                   <div className="w-10 h-10 bg-pink-500 rounded flex items-center justify-center text-white font-bold">
                     AS
@@ -362,6 +416,12 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                     <p className="font-medium mt-1">{selectedItem.projectName}</p>
                   </div>
                 )}
+                {selectedItem.spaceName && (
+                  <div>
+                    <span className="text-gray-500">Space:</span>
+                    <p className="font-medium mt-1">{selectedItem.spaceName} ({selectedItem.spaceKey})</p>
+                  </div>
+                )}
                 {selectedItem.assignedToName && (
                   <div>
                     <span className="text-gray-500">Assigned To:</span>
@@ -378,6 +438,12 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                   <div>
                     <span className="text-gray-500">Story Points:</span>
                     <p className="font-medium mt-1">{selectedItem.storyPoints}</p>
+                  </div>
+                )}
+                {selectedItem.version && (
+                  <div>
+                    <span className="text-gray-500">Version:</span>
+                    <p className="font-medium mt-1">{selectedItem.version}</p>
                   </div>
                 )}
               </div>
@@ -420,7 +486,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  View in {selectedItem.platform === 'AZURE_DEVOPS' ? 'Azure DevOps' : 'Asana'}
+                  View in {selectedItem.platform === 'AZURE_DEVOPS' ? 'Azure DevOps' : selectedItem.platform === 'CONFLUENCE' ? 'Confluence' : 'Asana'}
                 </a>
               </div>
             </div>

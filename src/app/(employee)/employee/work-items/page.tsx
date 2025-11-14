@@ -14,7 +14,7 @@ export default async function EmployeeWorkItemsPage() {
       <div>
         <h1 className="text-3xl font-bold">My Work Items</h1>
         <p className="text-gray-500 mt-1">
-          View your tasks from Azure DevOps and Asana
+          View your tasks from Azure DevOps, Asana, and Confluence in one place
         </p>
       </div>
 

@@ -586,24 +586,25 @@ enum HRDocType {
 }
 
 // ============================================
-// INTEGRATIONS: Azure DevOps & Asana
+// INTEGRATIONS: Azure DevOps, Asana & Confluence
 // ============================================
 
 model IntegrationConnection {
   id                String              @id @default(cuid())
-  platform          IntegrationType     // AZURE_DEVOPS, ASANA
+  platform          IntegrationType     // AZURE_DEVOPS, ASANA, CONFLUENCE
   name              String              // Friendly name (e.g., "My Azure DevOps", "Client Azure")
 
   // Authentication
-  authType          String              // PAT, OAUTH
+  authType          String              // PAT, OAUTH, API_KEY
   accessToken       String              // Encrypted token
   refreshToken      String?             // For OAuth
   tokenExpiry       DateTime?
 
   // Platform-specific config
-  organizationUrl   String?             // Azure DevOps: https://dev.azure.com/orgname
+  organizationUrl   String?             // Azure DevOps: https://dev.azure.com/orgname | Confluence: https://yoursite.atlassian.net
   organizationName  String?             // Azure DevOps organization name
   workspaceId       String?             // Asana workspace ID
+  confluenceSpaceKey String?            // Confluence space key
 
   // Sync configuration
   syncEnabled       Boolean             @default(true)
@@ -661,7 +662,7 @@ model WorkItem {
   // Basic info
   title             String
   description       String?
-  workItemType      String                // Azure: Story, Task, Bug, Epic | Asana: Task, Subtask
+  workItemType      String                // Azure: Story, Task, Bug, Epic | Asana: Task, Subtask | Confluence: Page, Blog
   status            String                // Platform-specific status
   priority          String?
 
@@ -689,6 +690,12 @@ model WorkItem {
   sectionId         String?
   sectionName       String?
   tags              Json?                 // Array of tags
+
+  // Confluence specific
+  spaceKey          String?               // Confluence space key
+  spaceName         String?               // Confluence space name
+  parentPageId      String?               // Parent page ID
+  version           Int?                  // Page version number
 
   // Metadata
   metadata          Json?                 // Additional platform-specific data
@@ -795,4 +802,5 @@ model PullRequest {
 enum IntegrationType {
   AZURE_DEVOPS
   ASANA
+  CONFLUENCE
 }

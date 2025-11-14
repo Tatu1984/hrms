@@ -11,6 +11,7 @@ const sidebarItems = [
   { icon: 'FolderKanban', label: 'Projects', href: '/manager/projects' },
   { icon: 'CheckSquare', label: 'Tasks', href: '/manager/tasks' },
   { icon: 'FileText', label: 'Daily Updates', href: '/manager/daily-updates' },
+  { icon: 'Layers', label: 'Work Items', href: '/manager/work-items' },
   { icon: 'Receipt', label: 'Invoices', href: '/manager/invoices' },
   { icon: 'MessageSquare', label: 'Messages', href: '/manager/messages' },
   { icon: 'BarChart3', label: 'Reports', href: '/manager/reports' },
