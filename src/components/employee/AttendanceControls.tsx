@@ -67,8 +67,7 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
             <Button
               onClick={() => handleAction('break-start')}
               disabled={loading}
-              variant="outline"
-              className="border-white text-white hover:bg-blue-700"
+              className="bg-amber-500 text-white hover:bg-amber-600"
             >
               <Coffee className="w-4 h-4 mr-2" />
               Start Break
@@ -77,8 +76,7 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
             <Button
               onClick={() => handleAction('break-end')}
               disabled={loading}
-              variant="outline"
-              className="border-white text-white hover:bg-blue-700"
+              className="bg-green-500 text-white hover:bg-green-600"
             >
               <Coffee className="w-4 h-4 mr-2" />
               End Break

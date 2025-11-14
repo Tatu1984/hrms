@@ -152,12 +152,37 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="designation">Designation *</Label>
-              <Input
-                id="designation"
-                value={formData.designation}
-                onChange={(e) => handleChange('designation', e.target.value)}
-                required
-              />
+              <Select value={formData.designation} onValueChange={(val) => handleChange('designation', val)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select designation" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {/* Developer Salary Structure */}
+                  <SelectItem value="HR Exec">HR Exec</SelectItem>
+                  <SelectItem value="HR Manager">HR Manager</SelectItem>
+                  <SelectItem value="VP HR">VP HR</SelectItem>
+                  <SelectItem value="Director HR">Director HR</SelectItem>
+                  <SelectItem value="CEO">CEO</SelectItem>
+                  <SelectItem value="CFO">CFO</SelectItem>
+                  <SelectItem value="COO">COO</SelectItem>
+                  <SelectItem value="CTO">CTO</SelectItem>
+                  <SelectItem value="Jr Developer">Jr Developer</SelectItem>
+                  <SelectItem value="Sr Developer">Sr Developer</SelectItem>
+                  <SelectItem value="CDO">CDO</SelectItem>
+                  <SelectItem value="Sr Designer">Sr Designer</SelectItem>
+                  <SelectItem value="Jr Designer">Jr Designer</SelectItem>
+                  <SelectItem value="House Keeping">House Keeping</SelectItem>
+                  <SelectItem value="CSO">CSO</SelectItem>
+                  <SelectItem value="VP Sales">VP Sales</SelectItem>
+                  <SelectItem value="Operations Manager">Operations Manager</SelectItem>
+                  <SelectItem value="Assistant Ops Manager">Assistant Ops Manager</SelectItem>
+                  <SelectItem value="Team Leader">Team Leader</SelectItem>
+                  {/* Sales Salary Structure */}
+                  <SelectItem value="CSR">CSR</SelectItem>
+                  <SelectItem value="Sr CSR">Sr CSR</SelectItem>
+                  <SelectItem value="Supervisor">Supervisor</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">Department *</Label>
