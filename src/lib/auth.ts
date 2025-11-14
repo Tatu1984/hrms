@@ -62,6 +62,7 @@ export async function setSession(payload: JWTPayload): Promise<void> {
   cookieStore.set('session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax', // Important for cross-site navigation
     maxAge: 60 * 60 * 24 * 7, // 7 days to match JWT expiration
     path: '/',
   });
