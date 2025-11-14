@@ -92,7 +92,7 @@ export class AzureDevOpsClient {
     this.config = config;
     // Remove trailing slash
     const orgUrl = config.organizationUrl.replace(/\/$/, '');
-    this.baseApiUrl = `${orgUrl}/_apis`;
+    this.baseApiUrl = orgUrl;
   }
 
   private getHeaders(): HeadersInit {
@@ -139,7 +139,7 @@ export class AzureDevOpsClient {
    */
   async getProjects(): Promise<AzureDevOpsProject[]> {
     const response = await this.request<{ value: AzureDevOpsProject[] }>(
-      '/projects?api-version=7.0'
+      '/_apis/projects?api-version=7.0'
     );
     return response.value;
   }
@@ -182,7 +182,7 @@ export class AzureDevOpsClient {
 
     // Execute WIQL query
     const queryResult = await this.request<{ workItems: Array<{ id: number; url: string }> }>(
-      `/${encodeURIComponent(projectName)}/wit/wiql?api-version=7.0`,
+      `/${encodeURIComponent(projectName)}/_apis/wit/wiql?api-version=7.0`,
       {
         method: 'POST',
         body: JSON.stringify({ query: wiql }),
@@ -196,7 +196,7 @@ export class AzureDevOpsClient {
     // Get work item details (batch request)
     const ids = queryResult.workItems.slice(0, options.top || 200).map(wi => wi.id);
     const workItems = await this.request<{ value: AzureDevOpsWorkItem[] }>(
-      `/wit/workitems?ids=${ids.join(',')}&$expand=all&api-version=7.0`
+      `/_apis/wit/workitems?ids=${ids.join(',')}&$expand=all&api-version=7.0`
     );
 
     return workItems.value;
@@ -215,7 +215,7 @@ export class AzureDevOpsClient {
       top?: number;
     } = {}
   ): Promise<AzureDevOpsCommit[]> {
-    let endpoint = `/${encodeURIComponent(projectName)}/git/repositories/${repositoryId}/commits?api-version=7.0`;
+    let endpoint = `/${encodeURIComponent(projectName)}/_apis/git/repositories/${repositoryId}/commits?api-version=7.0`;
 
     const params = new URLSearchParams();
     if (options.author) params.append('searchCriteria.author', options.author);
@@ -238,7 +238,7 @@ export class AzureDevOpsClient {
   async getRepositories(projectName: string): Promise<Array<{ id: string; name: string; url: string }>> {
     const response = await this.request<{
       value: Array<{ id: string; name: string; url: string; remoteUrl: string }>;
-    }>(`/${encodeURIComponent(projectName)}/git/repositories?api-version=7.0`);
+    }>(`/${encodeURIComponent(projectName)}/_apis/git/repositories?api-version=7.0`);
 
     return response.value;
   }
@@ -269,7 +269,7 @@ export class AzureDevOpsClient {
   async getWorkItemCommits(projectName: string, workItemId: number): Promise<AzureDevOpsCommit[]> {
     try {
       const response = await this.request<{ value: AzureDevOpsCommit[] }>(
-        `/${encodeURIComponent(projectName)}/wit/workitems/${workItemId}/workitemlinks?api-version=7.0`
+        `/${encodeURIComponent(projectName)}/_apis/wit/workitems/${workItemId}/workitemlinks?api-version=7.0`
       );
 
       // Note: This returns links, you'd need to parse commit references
