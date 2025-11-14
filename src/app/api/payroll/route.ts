@@ -167,24 +167,36 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Calculate gross and net achieved
-        const grossAchieved = salesData.reduce((sum, sale) => sum + sale.grossAmount, 0);
-        const netAchieved = salesData.reduce((sum, sale) => sum + sale.netAmount, 0);
+        // Calculate total gross and net achieved
+        const totalGrossAchieved = salesData.reduce((sum, sale) => sum + sale.grossAmount, 0);
+        const totalNetAchieved = salesData.reduce((sum, sale) => sum + sale.netAmount, 0);
 
-        // Achievement ratio based on net achieved vs target
-        const achievementRatio = netAchieved / salesTargetUSD;
+        // Achievement Calculation:
+        // 1. Gross Achievement % = (Total Gross Achieved / Target) * 100
+        const grossAchievementPercent = (totalGrossAchieved / salesTargetUSD) * 100;
 
-        // Variable pay = 30% of salary * achievement ratio
-        variablePayable = variablePay * achievementRatio;
+        // 2. Net Achievement % = (Total Net Achieved / (Target * 0.25)) * 100
+        //    Based on 25% minimum upfront payment mandate
+        const expectedMinimumUpfront = salesTargetUSD * 0.25;
+        const netAchievementPercent = (totalNetAchieved / expectedMinimumUpfront) * 100;
+
+        // 3. Average Achievement = (Gross Achievement % + Net Achievement %) / 2
+        const averageAchievementPercent = (grossAchievementPercent + netAchievementPercent) / 2;
+
+        // 4. Variable Payable = 30% of salary * (Average Achievement % / 100)
+        variablePayable = variablePay * (averageAchievementPercent / 100);
 
         console.log(`Sales calculation for ${emp.name}:`, {
           grossSalary: emp.salary,
           targetUSD: salesTargetUSD,
-          grossAchieved,
-          netAchieved,
-          achievementRatio: (achievementRatio * 100).toFixed(2) + '%',
+          totalGrossAchieved,
+          totalNetAchieved,
+          grossAchievementPercent: grossAchievementPercent.toFixed(2) + '%',
+          expectedMinimumUpfront,
+          netAchievementPercent: netAchievementPercent.toFixed(2) + '%',
+          averageAchievementPercent: averageAchievementPercent.toFixed(2) + '%',
           variablePay,
-          variablePayable,
+          variablePayable: variablePayable.toFixed(2),
         });
       }
 
