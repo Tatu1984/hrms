@@ -255,12 +255,28 @@ export async function POST(request: NextRequest) {
       const totalHours = totalElapsedHours - breakDuration;
       const actualWorkHours = Math.max(0, totalHours - idleTime);
 
+      // Get employee details to check employment type
+      const employee = await prisma.employee.findUnique({
+        where: { id: attendance.employeeId },
+        select: { employeeType: true },
+      });
+
+      // Determine attendance status based on employee type
+      // Full-time employees: >= 6 hours = PRESENT, < 6 hours = HALF_DAY
+      // Intern/Part-time: >= 3 hours = PRESENT, < 3 hours = HALF_DAY
+      const isInternOrPartTime = employee?.employeeType === 'Intern' || employee?.employeeType === 'Part-time';
+      const hoursThreshold = isInternOrPartTime ? 3 : 6;
+      const attendanceStatus = actualWorkHours >= hoursThreshold ? 'PRESENT' : 'HALF_DAY';
+
       console.log('Punch-out calculation:', {
+        employeeType: employee?.employeeType || 'Full-time',
+        hoursThreshold,
         totalElapsedHours: totalElapsedHours.toFixed(2),
         breakDuration: breakDuration.toFixed(2),
         idleTime: idleTime.toFixed(2),
         totalHours: totalHours.toFixed(2),
         actualWorkHours: actualWorkHours.toFixed(2),
+        status: attendanceStatus,
       });
 
       const updatedAttendance = await prisma.attendance.update({
@@ -270,7 +286,7 @@ export async function POST(request: NextRequest) {
           totalHours: Math.round(totalHours * 100) / 100, // Total work time (excluding breaks)
           breakDuration: Math.round(breakDuration * 100) / 100,
           idleTime: Math.round(idleTime * 100) / 100,
-          status: actualWorkHours >= 4 ? 'PRESENT' : 'HALF_DAY',
+          status: attendanceStatus,
         },
         include: {
           employee: {
