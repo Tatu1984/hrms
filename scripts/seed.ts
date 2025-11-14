@@ -89,6 +89,31 @@ async function seed() {
     ],
   });
 
+  // Create company hierarchy document
+  await prisma.hRDocument.create({
+    data: {
+      type: 'COMPANY_HIERARCHY',
+      title: 'Infiniti Tech Partners - Organization Hierarchy',
+      description: 'Official organizational structure of Infiniti Tech Partners',
+      content: `# Infiniti Tech Partners - Organization Hierarchy
+
+## Leadership
+
+**Sudipto Mitra**
+*Founder & CEO*
+Email: sudipto.mitra@infinititechpartners.com
+
+---
+
+*All departments and teams report to the Founder & CEO.*
+
+## Structure
+As the organization grows, department heads and team leads will be added under the CEO's leadership.`,
+      isActive: true,
+      createdBy: superAdminEmployee.id,
+    },
+  });
+
   console.log('✅ Database seeded successfully!');
   console.log('📧 Super Admin: sudipto.mitra@infinititechpartners.com');
   console.log('🔑 Password: Tatu@1984');
