@@ -10,6 +10,7 @@ const sidebarItems = [
   { icon: 'Calendar', label: 'Leaves', href: '/employee/leaves' },
   { icon: 'CheckSquare', label: 'Tasks', href: '/employee/tasks' },
   { icon: 'FileText', label: 'Daily Updates', href: '/employee/daily-updates' },
+  { icon: 'Layers', label: 'Work Items', href: '/employee/work-items' },
   { icon: 'MessageSquare', label: 'Messages', href: '/employee/messages' },
   { icon: 'Receipt', label: 'Payslips', href: '/employee/payslips' },
 ];
