@@ -139,23 +139,54 @@ export async function POST(request: NextRequest) {
       const effectiveDays = presentDays + (halfDays * 0.5);
       const absentDays = totalWorkingDays - effectiveDays;
 
-      // Salary components from employee record - department specific
-      // Only Sales department gets 70% basic + 30% variable structure
-      const isSales = emp.department === 'Sales' || emp.employeeType === 'Sales';
+      // Salary components based on designation
+      // Sales designations: CSR, Sr CSR, Supervisor get 70% basic + 30% variable
+      const salesDesignations = ['CSR', 'Sr CSR', 'Supervisor'];
+      const isSales = salesDesignations.includes(emp.designation);
+
       const basicSalary = emp.basicSalary || (isSales ? emp.salary * 0.7 : emp.salary);
       const variablePay = emp.variablePay || (isSales ? emp.salary * 0.3 : 0);
-      const salesTarget = emp.salesTarget || 0;
+
+      // Calculate USD target: Gross Salary / 10
+      const salesTargetUSD = isSales ? emp.salary / 10 : 0;
 
       // Calculate Basic Payable (attendance-based)
       const perDayBasic = basicSalary / totalWorkingDays;
       const basicPayable = perDayBasic * effectiveDays;
 
-      // Calculate Variable Payable (target achievement-based)
-      // For now, if employee has target, calculate based on % achievement
-      // This can be enhanced with actual sales data
-      const targetAchieved = 0; // Will be input by admin or fetched from sales
-      const targetAchievementPercent = salesTarget > 0 ? (targetAchieved / salesTarget) * 100 : 0;
-      const variablePayable = isSales ? (variablePay * targetAchievementPercent) / 100 : 0;
+      // Calculate Variable Payable (target achievement-based for sales)
+      let variablePayable = 0;
+      if (isSales && salesTargetUSD > 0) {
+        // Get sales data for this employee for the month
+        const salesData = await prisma.sale.findMany({
+          where: {
+            closedBy: emp.id,
+            month: parseInt(month),
+            year: parseInt(year),
+            status: { in: ['CONFIRMED', 'DELIVERED', 'PAID'] },
+          },
+        });
+
+        // Calculate gross and net achieved
+        const grossAchieved = salesData.reduce((sum, sale) => sum + sale.grossAmount, 0);
+        const netAchieved = salesData.reduce((sum, sale) => sum + sale.netAmount, 0);
+
+        // Achievement ratio based on net achieved vs target
+        const achievementRatio = netAchieved / salesTargetUSD;
+
+        // Variable pay = 30% of salary * achievement ratio
+        variablePayable = variablePay * achievementRatio;
+
+        console.log(`Sales calculation for ${emp.name}:`, {
+          grossSalary: emp.salary,
+          targetUSD: salesTargetUSD,
+          grossAchieved,
+          netAchieved,
+          achievementRatio: (achievementRatio * 100).toFixed(2) + '%',
+          variablePay,
+          variablePayable,
+        });
+      }
 
       // Gross Salary
       const grossSalary = basicPayable + variablePayable;
@@ -183,8 +214,16 @@ export async function POST(request: NextRequest) {
 
           basicSalary,
           variablePay,
-          salesTarget,
-          targetAchieved,
+          salesTarget: salesTargetUSD,
+          targetAchieved: isSales ? (await prisma.sale.aggregate({
+            where: {
+              closedBy: emp.id,
+              month: parseInt(month),
+              year: parseInt(year),
+              status: { in: ['CONFIRMED', 'DELIVERED', 'PAID'] },
+            },
+            _sum: { netAmount: true },
+          }))._sum.netAmount || 0 : 0,
 
           basicPayable,
           variablePayable,
