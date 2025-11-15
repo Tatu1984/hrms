@@ -457,9 +457,12 @@ export class IntegrationSyncService {
     // Store it in organizationName field temporarily until we add a dedicated field
     const email = connection.organizationName || '';
     if (!email) {
-      result.errors.push('Email required for Confluence authentication');
+      console.error('Confluence email missing from connection:', connection.id);
+      result.errors.push('Email required for Confluence authentication - please reconfigure your connection');
       return;
     }
+
+    console.log('Creating Confluence client for:', connection.organizationUrl, 'with email:', email);
 
     const client = createConfluenceClient(
       connection.organizationUrl,
@@ -469,11 +472,15 @@ export class IntegrationSyncService {
     );
 
     // Test connection
+    console.log('Testing Confluence connection...');
     const isConnected = await client.testConnection();
     if (!isConnected) {
-      result.errors.push('Failed to connect to Confluence');
+      console.error('Confluence connection test failed');
+      result.errors.push('Failed to connect to Confluence - check credentials and URL');
       return;
     }
+
+    console.log('Confluence connection successful');
 
     result.pagesSynced = 0;
 

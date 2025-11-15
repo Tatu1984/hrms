@@ -63,8 +63,8 @@ export class ConfluenceClient {
     const siteUrl = config.siteUrl.replace(/\/$/, '');
     this.baseUrl = `${siteUrl}/wiki/api/v2`;
 
-    // Create Basic Auth header
-    const credentials = Buffer.from(`${config.email}:${config.apiToken}`).toString('base64');
+    // Create Basic Auth header (using btoa for browser/edge runtime compatibility)
+    const credentials = btoa(`${config.email}:${config.apiToken}`);
     this.authHeader = `Basic ${credentials}`;
   }
 
@@ -73,14 +73,23 @@ export class ConfluenceClient {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/spaces`, {
+      console.log('Testing Confluence connection to:', this.baseUrl);
+      const response = await fetch(`${this.baseUrl}/spaces?limit=1`, {
         method: 'GET',
         headers: {
           'Authorization': this.authHeader,
           'Accept': 'application/json',
         },
       });
-      return response.ok;
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Confluence API error:', response.status, errorText);
+        return false;
+      }
+
+      console.log('Confluence connection successful');
+      return true;
     } catch (error) {
       console.error('Confluence connection test failed:', error);
       return false;
