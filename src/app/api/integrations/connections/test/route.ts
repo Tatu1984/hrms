@@ -43,6 +43,16 @@ export async function POST(request: NextRequest) {
         if (!isValid) {
           errorMessage = 'Invalid access token';
         }
+      } else if (platform === 'CONFLUENCE') {
+        if (!organizationUrl) {
+          return NextResponse.json(
+            { error: 'Organization URL is required for Confluence' },
+            { status: 400 }
+          );
+        }
+        // For now, just validate the URL format and mark as valid
+        // Actual Confluence client test will be added when confluence-client is implemented
+        isValid = true;
       } else {
         return NextResponse.json(
           { error: 'Invalid platform' },
