@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { createAsanaClient } from '@/lib/integrations/asana-client';
+import { createConfluenceClient } from '@/lib/integrations/confluence-client';
 
 // POST /api/integrations/connections/test - Test connection without saving
 export async function POST(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { platform, accessToken, organizationUrl, workspaceId } = body;
+    const { platform, accessToken, organizationUrl, workspaceId, confluenceEmail } = body;
 
     if (!platform || !accessToken) {
       return NextResponse.json(
@@ -50,9 +51,17 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        // For now, just validate the URL format and mark as valid
-        // Actual Confluence client test will be added when confluence-client is implemented
-        isValid = true;
+        if (!confluenceEmail) {
+          return NextResponse.json(
+            { error: 'Email is required for Confluence' },
+            { status: 400 }
+          );
+        }
+        const client = createConfluenceClient(organizationUrl, confluenceEmail, accessToken);
+        isValid = await client.testConnection();
+        if (!isValid) {
+          errorMessage = 'Invalid credentials or organization URL';
+        }
       } else {
         return NextResponse.json(
           { error: 'Invalid platform' },

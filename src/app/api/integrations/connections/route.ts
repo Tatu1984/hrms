@@ -115,8 +115,15 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      // For now, just mark as valid - actual test will be added when confluence-client is implemented
-      isValid = true;
+      if (!confluenceEmail) {
+        return NextResponse.json(
+          { error: 'Email is required for Confluence' },
+          { status: 400 }
+        );
+      }
+      const { createConfluenceClient } = await import('@/lib/integrations/confluence-client');
+      const client = createConfluenceClient(organizationUrl, confluenceEmail, accessToken);
+      isValid = await client.testConnection();
     } else {
       return NextResponse.json(
         { error: 'Invalid platform' },
