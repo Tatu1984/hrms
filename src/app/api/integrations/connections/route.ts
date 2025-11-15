@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       organizationUrl,
       organizationName,
       workspaceId,
+      confluenceSpaceKey,
     } = body;
 
     // Validate required fields
@@ -102,6 +103,15 @@ export async function POST(request: NextRequest) {
           body.workspaceId = workspaces[0].gid;
         }
       }
+    } else if (platform === 'CONFLUENCE') {
+      if (!organizationUrl) {
+        return NextResponse.json(
+          { error: 'Organization URL is required for Confluence' },
+          { status: 400 }
+        );
+      }
+      // For now, just mark as valid - actual test will be added when confluence-client is implemented
+      isValid = true;
     } else {
       return NextResponse.json(
         { error: 'Invalid platform' },
@@ -126,6 +136,7 @@ export async function POST(request: NextRequest) {
         organizationUrl,
         organizationName,
         workspaceId: body.workspaceId,
+        confluenceSpaceKey: confluenceSpaceKey || null,
         isActive: true,
         createdBy: session.employeeId,
       },
