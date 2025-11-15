@@ -84,6 +84,72 @@ export interface AzureDevOpsUser {
   descriptor: string;
 }
 
+export interface AzureDevOpsPipeline {
+  id: number;
+  name: string;
+  folder: string;
+  revision: number;
+  url: string;
+}
+
+export interface AzureDevOpsBuild {
+  id: number;
+  buildNumber: string;
+  status: string; // completed, inProgress, cancelling, postponed, notStarted, none
+  result?: string; // succeeded, partiallySucceeded, failed, canceled
+  queueTime: string;
+  startTime?: string;
+  finishTime?: string;
+  sourceBranch: string;
+  sourceVersion: string; // commit hash
+  requestedFor: {
+    displayName: string;
+    uniqueName: string;
+    id: string;
+  };
+  definition: {
+    id: number;
+    name: string;
+  };
+  project: {
+    id: string;
+    name: string;
+  };
+  _links: {
+    web: { href: string };
+    sourceVersionDisplayUri: { href: string };
+  };
+}
+
+export interface AzureDevOpsRelease {
+  id: number;
+  name: string;
+  status: string; // active, abandoned
+  createdOn: string;
+  modifiedOn: string;
+  modifiedBy: {
+    displayName: string;
+    uniqueName: string;
+  };
+  releaseDefinition: {
+    id: number;
+    name: string;
+  };
+  environments: Array<{
+    id: number;
+    name: string;
+    status: string; // notStarted, inProgress, succeeded, canceled, rejected, queued
+    deploySteps: Array<{
+      status: string;
+      deploymentStartedOn?: string;
+      deploymentCompletedOn?: string;
+    }>;
+  }>;
+  _links: {
+    web: { href: string };
+  };
+}
+
 export class AzureDevOpsClient {
   private config: AzureDevOpsConfig;
   private baseApiUrl: string;
@@ -295,6 +361,131 @@ export class AzureDevOpsClient {
     }
 
     return matches;
+  }
+
+  /**
+   * Get all pipelines in a project
+   */
+  async getPipelines(projectName: string): Promise<AzureDevOpsPipeline[]> {
+    try {
+      const response = await this.request<{ value: AzureDevOpsPipeline[] }>(
+        `/${encodeURIComponent(projectName)}/_apis/pipelines?api-version=7.0`
+      );
+      return response.value;
+    } catch (error) {
+      console.error('Error fetching pipelines:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent builds (pipeline runs) for a project
+   */
+  async getBuilds(
+    projectName: string,
+    options: {
+      definitionId?: number; // specific pipeline
+      branchName?: string;
+      status?: string; // completed, inProgress, etc.
+      result?: string; // succeeded, failed, etc.
+      top?: number;
+    } = {}
+  ): Promise<AzureDevOpsBuild[]> {
+    try {
+      let endpoint = `/${encodeURIComponent(projectName)}/_apis/build/builds?api-version=7.0`;
+
+      const params = new URLSearchParams();
+      if (options.definitionId) params.append('definitions', options.definitionId.toString());
+      if (options.branchName) params.append('branchName', options.branchName);
+      if (options.status) params.append('statusFilter', options.status);
+      if (options.result) params.append('resultFilter', options.result);
+      params.append('$top', (options.top || 50).toString());
+
+      const queryString = params.toString();
+      if (queryString) {
+        endpoint += `&${queryString}`;
+      }
+
+      const response = await this.request<{ value: AzureDevOpsBuild[] }>(endpoint);
+      return response.value;
+    } catch (error) {
+      console.error('Error fetching builds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get releases (CD pipelines) for a project
+   */
+  async getReleases(
+    projectName: string,
+    options: {
+      definitionId?: number;
+      top?: number;
+    } = {}
+  ): Promise<AzureDevOpsRelease[]> {
+    try {
+      // Releases use a different base URL (vsrm)
+      const orgName = this.config.organizationUrl.split('/').pop();
+      let endpoint = `https://vsrm.dev.azure.com/${orgName}/${encodeURIComponent(projectName)}/_apis/release/releases?api-version=7.0`;
+
+      const params = new URLSearchParams();
+      if (options.definitionId) params.append('definitionId', options.definitionId.toString());
+      params.append('$top', (options.top || 50).toString());
+      params.append('$expand', 'environments');
+
+      const queryString = params.toString();
+      if (queryString) {
+        endpoint += `&${queryString}`;
+      }
+
+      const response = await fetch(endpoint, {
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch releases: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.value || [];
+    } catch (error) {
+      console.error('Error fetching releases:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get pull requests for a repository
+   */
+  async getPullRequests(
+    projectName: string,
+    repositoryId: string,
+    options: {
+      status?: 'active' | 'completed' | 'abandoned' | 'all';
+      creatorId?: string;
+      top?: number;
+    } = {}
+  ): Promise<any[]> {
+    try {
+      let endpoint = `/${encodeURIComponent(projectName)}/_apis/git/repositories/${repositoryId}/pullrequests?api-version=7.0`;
+
+      const params = new URLSearchParams();
+      if (options.status) params.append('searchCriteria.status', options.status);
+      if (options.creatorId) params.append('searchCriteria.creatorId', options.creatorId);
+      params.append('$top', (options.top || 50).toString());
+
+      const queryString = params.toString();
+      if (queryString) {
+        endpoint += `&${queryString}`;
+      }
+
+      const response = await this.request<{ value: any[] }>(endpoint);
+      return response.value;
+    } catch (error) {
+      console.error('Error fetching pull requests:', error);
+      return [];
+    }
   }
 }
 
