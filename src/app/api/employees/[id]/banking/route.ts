@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 // GET /api/employees/[id]/banking - Get banking details
 export async function GET(
