@@ -71,7 +71,11 @@ export async function POST(request: NextRequest) {
       organizationName,
       workspaceId,
       confluenceSpaceKey,
+      confluenceEmail,
     } = body;
+
+    // For Confluence, store email in organizationName field for now
+    const finalOrgName = platform === 'CONFLUENCE' ? confluenceEmail : organizationName;
 
     // Validate required fields
     if (!platform || !name || !accessToken) {
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
         authType: authType || 'PAT',
         accessToken, // TODO: Encrypt this in production
         organizationUrl,
-        organizationName,
+        organizationName: finalOrgName,
         workspaceId: body.workspaceId,
         confluenceSpaceKey: confluenceSpaceKey || null,
         isActive: true,

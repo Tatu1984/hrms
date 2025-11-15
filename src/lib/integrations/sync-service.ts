@@ -6,6 +6,7 @@
 import { prisma } from '@/lib/db';
 import { createAzureDevOpsClient, type AzureDevOpsWorkItem, type AzureDevOpsCommit } from './azure-devops-client';
 import { createAsanaClient, type AsanaTask } from './asana-client';
+import { createConfluenceClient, type ConfluencePage } from './confluence-client';
 import type { IntegrationType } from '@prisma/client';
 
 export interface SyncOptions {
@@ -20,6 +21,7 @@ export interface SyncResult {
   success: boolean;
   workItemsSynced: number;
   commitsSynced: number;
+  pagesSynced?: number;
   errors: string[];
   startTime: Date;
   endTime: Date;
@@ -64,6 +66,8 @@ export class IntegrationSyncService {
         await this.syncAzureDevOps(connection, options, result);
       } else if (connection.platform === 'ASANA') {
         await this.syncAsana(connection, options, result);
+      } else if (connection.platform === 'CONFLUENCE') {
+        await this.syncConfluence(connection, options, result);
       } else {
         result.errors.push(`Unknown platform: ${connection.platform}`);
       }
@@ -434,5 +438,137 @@ export class IntegrationSyncService {
         lastSyncedAt: new Date(),
       },
     });
+  }
+
+  /**
+   * Sync Confluence pages
+   */
+  private static async syncConfluence(
+    connection: any,
+    options: SyncOptions,
+    result: SyncResult
+  ): Promise<void> {
+    if (!connection.organizationUrl || !connection.accessToken) {
+      result.errors.push('Missing Confluence configuration');
+      return;
+    }
+
+    // For Confluence, we need an email for authentication
+    // Store it in organizationName field temporarily until we add a dedicated field
+    const email = connection.organizationName || '';
+    if (!email) {
+      result.errors.push('Email required for Confluence authentication');
+      return;
+    }
+
+    const client = createConfluenceClient(
+      connection.organizationUrl,
+      email,
+      connection.accessToken,
+      connection.confluenceSpaceKey
+    );
+
+    // Test connection
+    const isConnected = await client.testConnection();
+    if (!isConnected) {
+      result.errors.push('Failed to connect to Confluence');
+      return;
+    }
+
+    result.pagesSynced = 0;
+
+    try {
+      console.log('Fetching Confluence spaces...');
+      const spaces = await client.getSpaces(connection.confluenceSpaceKey);
+      console.log(`Found ${spaces.length} Confluence spaces`);
+
+      for (const space of spaces) {
+        console.log(`Syncing space: ${space.name} (${space.key})`);
+
+        try {
+          // Get page hierarchy for this space
+          const pageHierarchy = await client.getPageHierarchy(space.id);
+
+          // Recursively save all pages
+          for (const page of pageHierarchy) {
+            await this.saveConfluencePage(connection.id, page, space);
+          }
+        } catch (spaceError) {
+          console.error(`Error syncing space ${space.key}:`, spaceError);
+          result.errors.push(`Failed to sync space ${space.key}: ${spaceError instanceof Error ? spaceError.message : 'Unknown'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Confluence sync error:', error);
+      result.errors.push(`Pages sync error: ${error instanceof Error ? error.message : 'Unknown'}`);
+    }
+  }
+
+  /**
+   * Recursively save Confluence page and its children
+   */
+  private static async saveConfluencePage(
+    connectionId: string,
+    page: ConfluencePage,
+    space: any,
+    parentId?: string
+  ): Promise<void> {
+    try {
+      // Get full page content if not already loaded
+      const content = page.body?.storage?.value || '';
+
+      await prisma.confluencePage.upsert({
+        where: {
+          connectionId_externalId: {
+            connectionId,
+            externalId: page.id,
+          },
+        },
+        create: {
+          connectionId,
+          externalId: page.id,
+          type: page.type,
+          status: page.status,
+          title: page.title,
+          content,
+          spaceId: space.id,
+          spaceKey: space.key,
+          spaceName: space.name,
+          parentId: parentId || page.parentId || null,
+          position: page.position,
+          authorId: page.version.authorId,
+          authorName: page.version.authorId, // Will be replaced with actual name when available
+          ownerId: page.ownerId,
+          version: page.version.number,
+          versionMessage: page.version.message,
+          metadata: page as any,
+          createdDate: new Date(page.createdAt),
+          updatedDate: new Date(page.version.createdAt),
+          lastSyncedAt: new Date(),
+        },
+        update: {
+          title: page.title,
+          content,
+          status: page.status,
+          version: page.version.number,
+          versionMessage: page.version.message,
+          updatedDate: new Date(page.version.createdAt),
+          metadata: page as any,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      console.log(`Saved page: ${page.title}`);
+
+      // Recursively save child pages
+      if (page.children && page.children.length > 0) {
+        for (const child of page.children) {
+          await this.saveConfluencePage(connectionId, child, space, page.id);
+        }
+      }
+    } catch (error) {
+      console.error(`Error saving Confluence page ${page.title}:`, error);
+      throw error;
+    }
   }
 }
