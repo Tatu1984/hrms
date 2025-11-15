@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ExternalLink, GitCommit, Calendar, User, AlertCircle, Filter } from 'lucide-react';
+import { ExternalLink, GitCommit, Calendar, User, AlertCircle, Filter, FolderGit } from 'lucide-react';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 interface WorkItem {
   id: string;
@@ -31,6 +32,7 @@ interface WorkItem {
   spaceKey?: string;
   spaceName?: string;
   version?: number;
+  connectionId: string;
   connection: {
     name: string;
     platform: string;
@@ -49,9 +51,10 @@ interface WorkItem {
 interface WorkItemsDisplayProps {
   employeeId?: string;
   showFilters?: boolean;
+  showProjectDetails?: boolean;
 }
 
-export default function WorkItemsDisplay({ employeeId, showFilters = true }: WorkItemsDisplayProps) {
+export default function WorkItemsDisplay({ employeeId, showFilters = true, showProjectDetails = true }: WorkItemsDisplayProps) {
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
@@ -95,6 +98,16 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
 
   // Get unique statuses for filter
   const uniqueStatuses = Array.from(new Set(workItems.map(item => item.status)));
+
+  // Group work items by project/space
+  const groupedWorkItems = filteredWorkItems.reduce((acc, item) => {
+    const groupKey = item.projectName || item.spaceName || 'Ungrouped';
+    if (!acc[groupKey]) {
+      acc[groupKey] = [];
+    }
+    acc[groupKey].push(item);
+    return acc;
+  }, {} as Record<string, WorkItem[]>);
 
   // Azure DevOps styling
   const getAzureDevOpsStyles = (workItem: WorkItem) => {
@@ -346,7 +359,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
         </Card>
       )}
 
-      {/* Work Items Grid */}
+      {/* Work Items Grouped by Project */}
       {filteredWorkItems.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
@@ -358,8 +371,39 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true }: Wor
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredWorkItems.map(renderWorkItemCard)}
+        <div className="space-y-6">
+          {Object.entries(groupedWorkItems).map(([projectName, items]) => {
+            const isAzureDevOps = items[0]?.platform === 'AZURE_DEVOPS';
+            const connectionId = items[0]?.connectionId;
+
+            return (
+              <div key={projectName}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    {isAzureDevOps && <FolderGit className="w-5 h-5 text-blue-600" />}
+                    {projectName}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500">
+                      {items.length} item{items.length > 1 ? 's' : ''}
+                    </span>
+                    {showProjectDetails && isAzureDevOps && connectionId && (
+                      <Link
+                        href={`/employee/projects/${encodeURIComponent(projectName)}?connectionId=${connectionId}`}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      >
+                        <FolderGit className="w-4 h-4" />
+                        View Details
+                      </Link>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {items.map(renderWorkItemCard)}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

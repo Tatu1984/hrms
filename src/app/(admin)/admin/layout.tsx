@@ -13,6 +13,7 @@ const sidebarItems = [
   { icon: 'FolderKanban', label: 'Projects', href: '/admin/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/admin/tasks' },
     { icon: 'FileText', label: 'Daily Updates', href: '/admin/daily-updates' },
+    { icon: 'Layers', label: 'Work Items', href: '/admin/work-items' },
   ]},
   { icon: 'ShoppingCart', label: 'Sales', href: '/admin/sales', children: [
     { icon: 'TrendingUp', label: 'Leads', href: '/admin/leads' },
@@ -26,7 +27,6 @@ const sidebarItems = [
   { icon: 'BarChart3', label: 'Reports', href: '/admin/reports' },
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
-  { icon: 'Layers', label: 'Work Items', href: '/admin/work-items' },
   { icon: 'BookOpen', label: 'Documentation', href: '/admin/documentation' },
   { icon: 'Settings', label: 'Settings', href: '/admin/settings', children: [
     { icon: 'Settings2', label: 'Payroll Settings', href: '/admin/payroll-settings' },
