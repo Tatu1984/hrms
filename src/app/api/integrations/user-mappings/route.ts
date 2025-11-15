@@ -36,8 +36,10 @@ export async function GET(request: NextRequest) {
     const workItems = await prisma.workItem.findMany({
       where: {
         connectionId,
-        assignedTo: { not: null },
-        assignedToName: { not: null },
+        NOT: [
+          { assignedTo: null },
+          { assignedToName: null },
+        ],
       },
       select: {
         assignedTo: true,
