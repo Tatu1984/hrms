@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
           select: {
             workItems: true,
             commits: true,
+            confluencePages: true,
           },
         },
       },
