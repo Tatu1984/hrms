@@ -310,11 +310,17 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
           type="url"
           value={formData.organizationUrl}
           onChange={(e) => setFormData({ ...formData, organizationUrl: e.target.value })}
+          onBlur={(e) => {
+            const url = e.target.value.trim();
+            if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+              setFormData({ ...formData, organizationUrl: `https://${url}` });
+            }
+          }}
           placeholder="https://your-domain.atlassian.net"
           className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Your Confluence Cloud URL
+          Your Confluence Cloud URL (https:// will be added automatically)
         </p>
       </div>
 
