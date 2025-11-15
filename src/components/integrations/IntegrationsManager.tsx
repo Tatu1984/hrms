@@ -12,7 +12,7 @@ import UserMappingDialog from './UserMappingDialog';
 
 interface Connection {
   id: string;
-  platform: 'AZURE_DEVOPS' | 'ASANA';
+  platform: 'AZURE_DEVOPS' | 'ASANA' | 'CONFLUENCE';
   name: string;
   organizationUrl?: string;
   workspaceId?: string;
@@ -24,6 +24,7 @@ interface Connection {
   _count: {
     workItems: number;
     commits: number;
+    confluencePages: number;
   };
 }
 
@@ -232,14 +233,24 @@ export default function IntegrationsManager() {
 
                 {/* Stats */}
                 <div className="flex gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Work Items:</span>
-                    <span className="ml-2 font-semibold">{connection._count.workItems}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Commits:</span>
-                    <span className="ml-2 font-semibold">{connection._count.commits}</span>
-                  </div>
+                  {connection.platform !== 'CONFLUENCE' && (
+                    <>
+                      <div>
+                        <span className="text-gray-500">Work Items:</span>
+                        <span className="ml-2 font-semibold">{connection._count.workItems}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Commits:</span>
+                        <span className="ml-2 font-semibold">{connection._count.commits}</span>
+                      </div>
+                    </>
+                  )}
+                  {connection.platform === 'CONFLUENCE' && (
+                    <div>
+                      <span className="text-gray-500">Pages:</span>
+                      <span className="ml-2 font-semibold">{connection._count.confluencePages}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sync Status */}
@@ -282,14 +293,16 @@ export default function IntegrationsManager() {
                       </>
                     )}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setMappingConnection({ id: connection.id, platform: connection.platform })}
-                    disabled={connection._count.workItems === 0}
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    Map Users
-                  </Button>
+                  {connection.platform !== 'CONFLUENCE' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setMappingConnection({ id: connection.id, platform: connection.platform })}
+                      disabled={connection._count.workItems === 0}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Map Users
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
