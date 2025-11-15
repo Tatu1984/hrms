@@ -25,23 +25,14 @@ export async function GET(request: NextRequest) {
     if (session.role === 'EMPLOYEE') {
       // Employees can only see their own work items
       where.assignedToId = session.employeeId;
-    } else if (session.role === 'MANAGER') {
-      // Managers can see their team's work items
-      const manager = await prisma.employee.findUnique({
-        where: { id: session.employeeId! },
-        include: { subordinates: true },
-      });
-
-      if (manager) {
-        where.assignedToId = {
-          in: [manager.id, ...manager.subordinates.map(s => s.id)],
-        };
-      }
+    } else if (session.role === 'MANAGER' && employeeId) {
+      // Manager viewing specific employee
+      where.assignedToId = employeeId;
     }
-    // Admins can see all work items (no filter)
+    // Managers without employeeId filter and Admins can see all work items (no assignedToId filter)
 
     // Apply additional filters
-    if (employeeId && (session.role === 'ADMIN' || session.role === 'MANAGER')) {
+    if (employeeId && session.role === 'ADMIN') {
       where.assignedToId = employeeId;
     }
 

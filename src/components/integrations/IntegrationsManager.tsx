@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2, XCircle, Clock, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import AddConnectionDialog from './AddConnectionDialog';
+import UserMappingDialog from './UserMappingDialog';
 
 interface Connection {
   id: string;
@@ -32,6 +33,7 @@ export default function IntegrationsManager() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [mappingConnection, setMappingConnection] = useState<{ id: string; platform: string } | null>(null);
 
   useEffect(() => {
     fetchConnections();
@@ -262,23 +264,33 @@ export default function IntegrationsManager() {
                 </div>
 
                 {/* Actions */}
-                <Button
-                  className="w-full"
-                  onClick={() => handleSync(connection.id)}
-                  disabled={syncing === connection.id}
-                >
-                  {syncing === connection.id ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Sync Now
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => handleSync(connection.id)}
+                    disabled={syncing === connection.id}
+                  >
+                    {syncing === connection.id ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Sync Now
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setMappingConnection({ id: connection.id, platform: connection.platform })}
+                    disabled={connection._count.workItems === 0}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Map Users
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -294,6 +306,16 @@ export default function IntegrationsManager() {
           fetchConnections();
         }}
       />
+
+      {/* User Mapping Dialog */}
+      {mappingConnection && (
+        <UserMappingDialog
+          open={!!mappingConnection}
+          onClose={() => setMappingConnection(null)}
+          connectionId={mappingConnection.id}
+          platform={mappingConnection.platform}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>

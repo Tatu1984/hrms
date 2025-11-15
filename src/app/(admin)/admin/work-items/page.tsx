@@ -2,19 +2,19 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import ProjectWorkItemsView from '@/components/integrations/ProjectWorkItemsView';
 
-export default async function ManagerWorkItemsPage() {
+export default async function AdminWorkItemsPage() {
   const session = await getSession();
 
-  if (!session || session.role !== 'MANAGER') {
+  if (!session || session.role !== 'ADMIN') {
     redirect('/login');
   }
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Team Work Items</h1>
+        <h1 className="text-3xl font-bold">All Work Items</h1>
         <p className="text-gray-500 mt-1">
-          Monitor your team's tasks and productivity across Azure DevOps, Asana, and Confluence organized by project
+          View all work items from Azure DevOps, Asana, and Confluence organized by project
         </p>
       </div>
 

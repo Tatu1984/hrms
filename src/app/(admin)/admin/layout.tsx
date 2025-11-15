@@ -26,6 +26,7 @@ const sidebarItems = [
   { icon: 'BarChart3', label: 'Reports', href: '/admin/reports' },
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
+  { icon: 'Layers', label: 'Work Items', href: '/admin/work-items' },
   { icon: 'Settings', label: 'Settings', href: '/admin/settings', children: [
     { icon: 'Settings2', label: 'Payroll Settings', href: '/admin/payroll-settings' },
     { icon: 'Users', label: 'User Management', href: '/admin/settings' },
