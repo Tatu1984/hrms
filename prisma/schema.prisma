@@ -62,6 +62,8 @@ model Employee {
   projects          ProjectMember[]
   messages          Message[]
   payroll           Payroll[]
+  bankingDetails    BankingDetails?
+  employeeDocuments EmployeeDocument[]
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 }
@@ -852,4 +854,104 @@ enum IntegrationType {
   AZURE_DEVOPS
   ASANA
   CONFLUENCE
+}
+
+model BankingDetails {
+  id                  String    @id @default(cuid())
+  employeeId          String    @unique
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Primary Bank Account
+  bankName            String
+  branchName          String?
+  accountHolderName   String
+  accountNumber       String
+  accountType         String?   // Savings, Current, etc.
+  ifscCode            String
+  swiftCode           String?
+
+  // Additional Banking Info
+  upiId               String?
+  panNumber           String?
+  pfAccountNumber     String?   // Provident Fund
+  esiNumber           String?   // Employee State Insurance
+  uanNumber           String?   // Universal Account Number for PF
+
+  // Verification
+  isVerified          Boolean   @default(false)
+  verifiedBy          String?
+  verifiedAt          DateTime?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([employeeId])
+}
+
+model EmployeeDocument {
+  id              String          @id @default(cuid())
+  employeeId      String
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  documentType    DocumentType
+  documentName    String
+  fileName        String
+  fileUrl         String          // Cloud storage URL or local path
+  fileSize        Int?            // File size in bytes
+  mimeType        String?
+
+  // Document Details
+  documentNumber  String?         // For ID documents like Aadhar, PAN, Passport
+  issuedDate      DateTime?
+  expiryDate      DateTime?
+  issuingAuthority String?
+
+  // Verification
+  isVerified      Boolean         @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+
+  // Metadata
+  notes           String?
+  uploadedBy      String?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([employeeId])
+  @@index([documentType])
+}
+
+enum DocumentType {
+  // Identity Documents
+  AADHAR_CARD
+  PAN_CARD
+  PASSPORT
+  DRIVING_LICENSE
+  VOTER_ID
+
+  // Educational Documents
+  TENTH_MARKSHEET
+  TWELFTH_MARKSHEET
+  GRADUATION_DEGREE
+  POST_GRADUATION_DEGREE
+  OTHER_CERTIFICATE
+
+  // Professional Documents
+  OFFER_LETTER
+  APPOINTMENT_LETTER
+  EXPERIENCE_LETTER
+  RELIEVING_LETTER
+  SALARY_SLIP
+  FORM_16
+
+  // KYC Documents
+  BANK_STATEMENT
+  CANCELLED_CHEQUE
+  ADDRESS_PROOF
+
+  // Other
+  PROFILE_PHOTO
+  RESUME
+  OTHER
 }
