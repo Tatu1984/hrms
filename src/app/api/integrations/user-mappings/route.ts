@@ -32,36 +32,41 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get all unique users from work items for this connection
+    // Get all work items for this connection
     const workItems = await prisma.workItem.findMany({
-      where: { connectionId },
+      where: {
+        connectionId,
+        assignedTo: { not: null },
+        assignedToName: { not: null },
+      },
       select: {
         assignedTo: true,
         assignedToName: true,
         metadata: true,
       },
-      distinct: ['assignedTo'],
     });
+
+    console.log(`Found ${workItems.length} work items with assigned users`);
 
     // Extract unique users
     const usersMap = new Map();
 
     workItems.forEach((item) => {
-      if (item.assignedTo && item.assignedToName) {
+      if (item.assignedTo && item.assignedToName && !usersMap.has(item.assignedTo)) {
         const metadata = item.metadata as any;
         const email = metadata?.['System.AssignedTo']?.uniqueName ||
                      metadata?.assignee?.email ||
                      '';
 
-        if (!usersMap.has(item.assignedTo)) {
-          usersMap.set(item.assignedTo, {
-            externalId: item.assignedTo,
-            externalUsername: item.assignedToName,
-            externalEmail: email,
-          });
-        }
+        usersMap.set(item.assignedTo, {
+          externalId: item.assignedTo,
+          externalUsername: item.assignedToName,
+          externalEmail: email,
+        });
       }
     });
+
+    console.log(`Extracted ${usersMap.size} unique users`);
 
     // Merge with existing mappings
     const allUsers = Array.from(usersMap.values()).map((user) => {
