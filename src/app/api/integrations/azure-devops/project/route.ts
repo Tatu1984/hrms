@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 
 // GET /api/integrations/azure-devops/project - Get detailed project information
