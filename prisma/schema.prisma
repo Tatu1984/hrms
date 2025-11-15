@@ -617,6 +617,7 @@ model IntegrationConnection {
   userMappings      IntegrationUserMapping[]
   workItems         WorkItem[]
   commits           DeveloperCommit[]
+  confluencePages   ConfluencePage[]
 
   isActive          Boolean             @default(true)
   createdBy         String?             // Employee ID
@@ -796,6 +797,54 @@ model PullRequest {
 
   @@unique([connectionId, externalId])
   @@index([createdById])
+  @@index([createdDate])
+}
+
+model ConfluencePage {
+  id              String                @id @default(cuid())
+  connectionId    String
+  connection      IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  // Page identification
+  externalId      String                // Confluence page ID
+  type            String                @default("page")
+  status          String                @default("current")
+
+  // Content
+  title           String
+  content         String                @db.Text // HTML storage format
+
+  // Hierarchy
+  spaceId         String?
+  spaceKey        String?
+  spaceName       String?
+  parentId        String?               // External parent page ID
+  parentType      String?
+  position        Int?
+
+  // Authorship
+  authorId        String?
+  authorName      String?
+  ownerId         String?
+
+  // Version control
+  version         Int                   @default(1)
+  versionMessage  String?
+
+  // Metadata
+  metadata        Json?                 // Additional Confluence metadata
+
+  // Timestamps
+  createdDate     DateTime
+  updatedDate     DateTime
+  lastSyncedAt    DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId])
+  @@index([spaceKey])
+  @@index([parentId])
   @@index([createdDate])
 }
 
