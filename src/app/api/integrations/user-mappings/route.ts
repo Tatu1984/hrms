@@ -20,16 +20,6 @@ export async function GET(request: NextRequest) {
     // Get existing mappings
     const existingMappings = await prisma.integrationUserMapping.findMany({
       where: { connectionId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            designation: true,
-          },
-        },
-      },
     });
 
     // Get all work items for this connection
@@ -72,14 +62,13 @@ export async function GET(request: NextRequest) {
 
     // Merge with existing mappings
     const allUsers = Array.from(usersMap.values()).map((user) => {
-      const existing = existingMappings.find((m) => m.externalId === user.externalId);
+      const existing = existingMappings.find((m) => m.externalUserId === user.externalId);
       return {
         id: existing?.id,
         externalId: user.externalId,
         externalUsername: user.externalUsername,
         externalEmail: user.externalEmail,
         employeeId: existing?.employeeId,
-        employee: existing?.employee,
       };
     });
 
@@ -87,7 +76,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(allUsers);
   } catch (error) {
     console.error('Error fetching user mappings:', error);
-    return NextResponse.json({ error: 'Failed to fetch user mappings' }, { status: 500 });
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    return NextResponse.json({
+      error: 'Failed to fetch user mappings',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }
 
@@ -112,31 +105,36 @@ export async function POST(request: NextRequest) {
     });
 
     // Create new mappings
-    const createPromises = mappings.map((mapping: any) =>
-      prisma.integrationUserMapping.create({
-        data: {
-          connectionId,
-          externalId: mapping.externalId,
-          externalUsername: mapping.externalUsername,
-          externalEmail: mapping.externalEmail,
-          employeeId: mapping.employeeId,
-        },
-      })
-    );
+    const createPromises = mappings
+      .filter((m: any) => m.employeeId)
+      .map((mapping: any) =>
+        prisma.integrationUserMapping.create({
+          data: {
+            connectionId,
+            externalUserId: mapping.externalId,
+            externalName: mapping.externalUsername,
+            externalEmail: mapping.externalEmail,
+            employeeId: mapping.employeeId,
+            employeeEmail: mapping.employeeEmail || '',
+          },
+        })
+      );
 
     await Promise.all(createPromises);
 
     // Update work items with the new employee mappings
     for (const mapping of mappings) {
-      await prisma.workItem.updateMany({
-        where: {
-          connectionId,
-          assignedTo: mapping.externalId,
-        },
-        data: {
-          assignedToId: mapping.employeeId,
-        },
-      });
+      if (mapping.employeeId) {
+        await prisma.workItem.updateMany({
+          where: {
+            connectionId,
+            assignedTo: mapping.externalId,
+          },
+          data: {
+            assignedToId: mapping.employeeId,
+          },
+        });
+      }
     }
 
     return NextResponse.json({ success: true });
