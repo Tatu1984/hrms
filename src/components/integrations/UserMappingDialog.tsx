@@ -33,6 +33,7 @@ export default function UserMappingDialog({ open, onClose, connectionId, platfor
   const [mappings, setMappings] = useState<UserMapping[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -55,17 +56,25 @@ export default function UserMappingDialog({ open, onClose, connectionId, platfor
 
   const fetchMappings = async () => {
     setLoading(true);
+    setError(null);
     try {
+      console.log('Fetching mappings for connectionId:', connectionId);
       const response = await fetch(`/api/integrations/user-mappings?connectionId=${connectionId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched user mappings:', data);
         setMappings(data);
+        if (data.length === 0) {
+          setError('No users found. Please sync work items first.');
+        }
       } else {
-        console.error('Failed to fetch mappings:', response.status, await response.text());
+        const errorText = await response.text();
+        console.error('Failed to fetch mappings:', response.status, errorText);
+        setError(`Failed to fetch users: ${response.status} ${errorText}`);
       }
     } catch (error) {
       console.error('Error fetching mappings:', error);
+      setError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -121,20 +130,26 @@ export default function UserMappingDialog({ open, onClose, connectionId, platfor
             Map external users from {platform} to employees in your HRMS system. This will help track work items assigned to specific employees.
           </p>
 
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center p-8">
               Loading users...
             </div>
           ) : (
             <>
-              {mappings.length === 0 ? (
+              {mappings.length === 0 && !error ? (
                 <Card>
                   <CardContent className="p-8 text-center text-gray-500">
                     <p>No users found in this integration.</p>
                     <p className="text-sm mt-2">Sync work items first to populate the user list.</p>
                   </CardContent>
                 </Card>
-              ) : (
+              ) : mappings.length > 0 ? (
                 <div className="space-y-3">
                   {mappings.map((mapping) => (
                     <Card key={mapping.externalEmail}>
@@ -166,8 +181,9 @@ export default function UserMappingDialog({ open, onClose, connectionId, platfor
                     </Card>
                   ))}
                 </div>
-              )}
+              ) : null}
 
+              {!loading && (
               <div className="flex items-center justify-end gap-3 pt-4 border-t">
                 <Button variant="outline" onClick={onClose} disabled={saving}>
                   Cancel
@@ -176,6 +192,7 @@ export default function UserMappingDialog({ open, onClose, connectionId, platfor
                   {saving ? 'Saving...' : 'Save Mappings'}
                 </Button>
               </div>
+              )}
             </>
           )}
         </div>
