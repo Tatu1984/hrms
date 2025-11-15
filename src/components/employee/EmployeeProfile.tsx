@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   User,
   Building2,
@@ -76,6 +77,13 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingBanking, setEditingBanking] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadForm, setUploadForm] = useState({
+    documentType: 'OTHER',
+    documentName: '',
+    documentNumber: '',
+  });
   const [bankingForm, setBankingForm] = useState<BankingDetails>({
     bankName: '',
     accountHolderName: '',
@@ -139,14 +147,28 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
     }
   };
 
-  const handleUploadDocument = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (file) {
+      setSelectedFile(file);
+      setUploadForm({
+        ...uploadForm,
+        documentName: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+      });
+      setUploadDialogOpen(true);
+    }
+  };
+
+  const handleUploadDocument = async () => {
+    if (!selectedFile) return;
 
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('documentType', 'OTHER');
-    formData.append('documentName', file.name);
+    formData.append('file', selectedFile);
+    formData.append('documentType', uploadForm.documentType);
+    formData.append('documentName', uploadForm.documentName);
+    if (uploadForm.documentNumber) {
+      formData.append('documentNumber', uploadForm.documentNumber);
+    }
 
     try {
       const response = await fetch(`/api/employees/${employeeId}/documents`, {
@@ -155,6 +177,9 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
       });
 
       if (response.ok) {
+        setUploadDialogOpen(false);
+        setSelectedFile(null);
+        setUploadForm({ documentType: 'OTHER', documentName: '', documentNumber: '' });
         fetchEmployeeData();
       }
     } catch (error) {
@@ -553,17 +578,17 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
               <div className="flex items-center justify-between">
                 <CardTitle>Documents</CardTitle>
                 {canEdit && (
-                  <label>
+                  <label className="cursor-pointer">
                     <input
                       type="file"
-                      onChange={handleUploadDocument}
+                      onChange={handleFileSelect}
                       className="hidden"
                       accept=".pdf,.jpg,.jpeg,.png"
                     />
-                    <Button as="span" size="sm">
+                    <span className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3">
                       <Upload className="w-4 h-4 mr-2" />
                       Upload Document
-                    </Button>
+                    </span>
                   </label>
                 )}
               </div>
@@ -633,6 +658,107 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Upload Document Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Document Type *</label>
+              <select
+                value={uploadForm.documentType}
+                onChange={(e) => setUploadForm({ ...uploadForm, documentType: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <optgroup label="Identity Documents">
+                  <option value="AADHAR_CARD">Aadhar Card</option>
+                  <option value="PAN_CARD">PAN Card</option>
+                  <option value="PASSPORT">Passport</option>
+                  <option value="DRIVING_LICENSE">Driving License</option>
+                  <option value="VOTER_ID">Voter ID</option>
+                </optgroup>
+                <optgroup label="Educational Documents">
+                  <option value="TENTH_MARKSHEET">10th Marksheet</option>
+                  <option value="TWELFTH_MARKSHEET">12th Marksheet</option>
+                  <option value="GRADUATION_DEGREE">Graduation Degree</option>
+                  <option value="POST_GRADUATION_DEGREE">Post Graduation Degree</option>
+                  <option value="OTHER_CERTIFICATE">Other Certificate</option>
+                </optgroup>
+                <optgroup label="Professional Documents">
+                  <option value="OFFER_LETTER">Offer Letter</option>
+                  <option value="APPOINTMENT_LETTER">Appointment Letter</option>
+                  <option value="EXPERIENCE_LETTER">Experience Letter</option>
+                  <option value="RELIEVING_LETTER">Relieving Letter</option>
+                  <option value="SALARY_SLIP">Salary Slip</option>
+                  <option value="FORM_16">Form 16</option>
+                </optgroup>
+                <optgroup label="KYC Documents">
+                  <option value="BANK_STATEMENT">Bank Statement</option>
+                  <option value="CANCELLED_CHEQUE">Cancelled Cheque</option>
+                  <option value="ADDRESS_PROOF">Address Proof</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="PROFILE_PHOTO">Profile Photo</option>
+                  <option value="RESUME">Resume</option>
+                  <option value="OTHER">Other</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Document Name *</label>
+              <input
+                type="text"
+                value={uploadForm.documentName}
+                onChange={(e) => setUploadForm({ ...uploadForm, documentName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Enter document name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Document Number (Optional)</label>
+              <input
+                type="text"
+                value={uploadForm.documentNumber}
+                onChange={(e) => setUploadForm({ ...uploadForm, documentNumber: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="E.g., Aadhar number, PAN number"
+              />
+            </div>
+
+            {selectedFile && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-700">
+                  <strong>Selected File:</strong> {selectedFile.name}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Size: {(selectedFile.size / 1024).toFixed(2)} KB
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setUploadDialogOpen(false);
+                  setSelectedFile(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleUploadDocument} disabled={!uploadForm.documentName}>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
