@@ -207,7 +207,9 @@ export class IntegrationSyncService {
     // Sync work items (tasks)
     if (options.syncWorkItems !== false) {
       try {
+        console.log('Fetching Asana projects for workspace:', connection.workspaceId);
         const projects = await client.getProjects(connection.workspaceId, { archived: false });
+        console.log(`Found ${projects.length} Asana projects`);
 
         for (const project of projects) {
           // Skip if projectIds filter is specified
@@ -215,16 +217,24 @@ export class IntegrationSyncService {
             continue;
           }
 
+          console.log(`Fetching tasks for project: ${project.name}`);
           const tasks = await client.getTasks(project.gid, {
             completed_since: options.startDate?.toISOString(),
           });
+          console.log(`Found ${tasks.length} tasks in ${project.name}`);
 
           for (const task of tasks) {
-            await this.saveAsanaTask(connection.id, task, project.name, client);
-            result.workItemsSynced++;
+            try {
+              await this.saveAsanaTask(connection.id, task, project.name, client);
+              result.workItemsSynced++;
+            } catch (taskError) {
+              console.error('Error saving Asana task:', taskError);
+              result.errors.push(`Failed to save task ${task.gid}: ${taskError instanceof Error ? taskError.message : 'Unknown'}`);
+            }
           }
         }
       } catch (error) {
+        console.error('Asana sync error:', error);
         result.errors.push(`Tasks sync error: ${error instanceof Error ? error.message : 'Unknown'}`);
       }
     }

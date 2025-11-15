@@ -14,7 +14,7 @@ interface AddConnectionDialogProps {
 
 export default function AddConnectionDialog({ open, onClose, onSuccess }: AddConnectionDialogProps) {
   const [step, setStep] = useState<'platform' | 'config'>('platform');
-  const [platform, setPlatform] = useState<'AZURE_DEVOPS' | 'ASANA' | null>(null);
+  const [platform, setPlatform] = useState<'AZURE_DEVOPS' | 'ASANA' | 'CONFLUENCE' | null>(null);
   const [testing, setTesting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,7 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
     organizationUrl: '',
     organizationName: '',
     workspaceId: '',
+    confluenceSpaceKey: '',
   });
 
   const handleReset = () => {
@@ -37,6 +38,7 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
       organizationUrl: '',
       organizationName: '',
       workspaceId: '',
+      confluenceSpaceKey: '',
     });
     setError(null);
     setTestResult(null);
@@ -47,11 +49,13 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
     onClose();
   };
 
-  const handlePlatformSelect = (selectedPlatform: 'AZURE_DEVOPS' | 'ASANA') => {
+  const handlePlatformSelect = (selectedPlatform: 'AZURE_DEVOPS' | 'ASANA' | 'CONFLUENCE') => {
     setPlatform(selectedPlatform);
+    const platformName = selectedPlatform === 'AZURE_DEVOPS' ? 'My Azure DevOps' :
+                        selectedPlatform === 'ASANA' ? 'My Asana' : 'My Confluence';
     setFormData({
       ...formData,
-      name: selectedPlatform === 'AZURE_DEVOPS' ? 'My Azure DevOps' : 'My Asana',
+      name: platformName,
     });
     setStep('config');
   };
@@ -148,6 +152,20 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
           <h3 className="font-semibold text-lg">Asana</h3>
           <p className="text-sm text-gray-500 mt-2">
             Sync tasks and projects
+          </p>
+        </button>
+
+        {/* Confluence */}
+        <button
+          onClick={() => handlePlatformSelect('CONFLUENCE')}
+          className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+        >
+          <div className="w-16 h-16 bg-blue-700 rounded-lg mx-auto mb-4 flex items-center justify-center text-white font-bold text-2xl group-hover:scale-110 transition-transform">
+            CF
+          </div>
+          <h3 className="font-semibold text-lg">Confluence</h3>
+          <p className="text-sm text-gray-500 mt-2">
+            Sync pages and documentation
           </p>
         </button>
       </div>
@@ -261,6 +279,72 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
     </div>
   );
 
+  const renderConfluenceConfig = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 pb-4 border-b">
+        <div className="w-12 h-12 bg-blue-700 rounded flex items-center justify-center text-white font-bold">
+          CF
+        </div>
+        <div>
+          <h3 className="font-semibold">Confluence Configuration</h3>
+          <p className="text-sm text-gray-500">Connect your Confluence workspace</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Connection Name</label>
+        <input
+          type="text"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="e.g., My Confluence"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Organization URL *</label>
+        <input
+          type="url"
+          value={formData.organizationUrl}
+          onChange={(e) => setFormData({ ...formData, organizationUrl: e.target.value })}
+          placeholder="https://your-domain.atlassian.net"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Your Confluence Cloud URL
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">API Token *</label>
+        <input
+          type="password"
+          value={formData.accessToken}
+          onChange={(e) => setFormData({ ...formData, accessToken: e.target.value })}
+          placeholder="Enter your API Token"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Get your API token from Atlassian Account Settings → Security → API tokens
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Space Key (Optional)</label>
+        <input
+          type="text"
+          value={formData.confluenceSpaceKey}
+          onChange={(e) => setFormData({ ...formData, confluenceSpaceKey: e.target.value })}
+          placeholder="Will sync all spaces if left empty"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      {renderTestAndCreate()}
+    </div>
+  );
+
   const renderTestAndCreate = () => (
     <div className="space-y-3 pt-4">
       {error && (
@@ -304,13 +388,14 @@ export default function AddConnectionDialog({ open, onClose, onSuccess }: AddCon
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {step === 'platform' ? 'Add Integration' : `Configure ${platform === 'AZURE_DEVOPS' ? 'Azure DevOps' : 'Asana'}`}
+            {step === 'platform' ? 'Add Integration' : `Configure ${platform === 'AZURE_DEVOPS' ? 'Azure DevOps' : platform === 'ASANA' ? 'Asana' : 'Confluence'}`}
           </DialogTitle>
         </DialogHeader>
 
         {step === 'platform' && renderPlatformSelection()}
         {step === 'config' && platform === 'AZURE_DEVOPS' && renderAzureDevOpsConfig()}
         {step === 'config' && platform === 'ASANA' && renderAsanaConfig()}
+        {step === 'config' && platform === 'CONFLUENCE' && renderConfluenceConfig()}
       </DialogContent>
     </Dialog>
   );
