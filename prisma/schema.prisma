@@ -33,9 +33,9 @@ model Employee {
   altPhone          String?
   address           String
   designation       String
-  salary            Float       // Total CTC or Basic + Variable
-  basicSalary       Float?      // Basic salary component
-  variablePay       Float?      // Variable/incentive component
+  salaryType        SalaryType  @default(FIXED)
+  salary            Float       // Total CTC for Fixed, Base for Variable
+  variablePay       Float?      // Only for Variable salary type
   department        String
   employeeType      String?     // Sales, Operations, etc.
   salesTarget       Float?      // Monthly sales target (for sales dept)
@@ -954,4 +954,9 @@ enum DocumentType {
   PROFILE_PHOTO
   RESUME
   OTHER
+}
+
+enum SalaryType {
+  FIXED     // Fixed monthly salary
+  VARIABLE  // Base salary + variable/commission
 }

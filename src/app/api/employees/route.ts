@@ -86,7 +86,9 @@ export async function POST(request: NextRequest) {
         altPhone: body.altPhone,
         address: body.address,
         designation: body.designation,
+        salaryType: body.salaryType || 'FIXED',
         salary: parseFloat(body.salary),
+        variablePay: body.variablePay ? parseFloat(body.variablePay) : undefined,
         department: body.department,
         reportingHeadId: body.reportingHeadId || undefined,
         dateOfJoining: new Date(body.dateOfJoining),
@@ -116,7 +118,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, employee: newEmployee }, { status: 201 });
+    return NextResponse.json(newEmployee, { status: 201 });
   } catch (error) {
     console.error('Create employee error:', error);
     return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });
