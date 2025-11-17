@@ -8,7 +8,9 @@ const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/admin/dashboard' },
   { icon: 'Users', label: 'Employees', href: '/admin/employees' },
   { icon: 'Clock', label: 'Attendance', href: '/admin/attendance', children: [
+    { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
     { icon: 'Calendar', label: 'Leave Management', href: '/admin/leave-management' },
+    { icon: 'CalendarDays', label: 'Holidays', href: '/admin/holidays' },
   ]},
   { icon: 'FolderKanban', label: 'Projects', href: '/admin/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/admin/tasks' },
@@ -24,7 +26,9 @@ const sidebarItems = [
   ]},
   { icon: 'FileText', label: 'HR Department', href: '/admin/hr-documents' },
   { icon: 'MessageSquare', label: 'Messages', href: '/admin/messages' },
-  { icon: 'BarChart3', label: 'Reports', href: '/admin/reports' },
+  { icon: 'BarChart3', label: 'Reports', href: '/admin/reports', children: [
+    { icon: 'History', label: 'Change Log', href: '/admin/reports/change-log' },
+  ]},
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
   { icon: 'BookOpen', label: 'Documentation', href: '/admin/documentation' },

@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/attendance - Punch in/out
+// POST /api/attendance - Punch in/out or Manual create (Admin/Manager)
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -140,8 +140,88 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, employeeId } = body; // action: 'punch-in', 'punch-out', 'break-start', 'break-end'
+    const { action, employeeId, status, date, punchIn, punchOut, totalHours, breakDuration } = body;
 
+    console.log('POST /api/attendance received:', { action, employeeId, status, date, hasSession: !!session, role: session?.role });
+
+    // Check if this is a manual attendance creation (for calendar edit)
+    if (!action && (session.role === 'ADMIN' || session.role === 'MANAGER')) {
+      // Manual attendance creation
+      if (!employeeId || !date || !status) {
+        return NextResponse.json({ error: 'Employee ID, date, and status are required' }, { status: 400 });
+      }
+
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Check if record already exists for this employee and date
+      const existingRecord = await prisma.attendance.findFirst({
+        where: {
+          employeeId,
+          date: {
+            gte: targetDate,
+            lt: nextDay,
+          },
+        },
+      });
+
+      let attendance;
+      if (existingRecord) {
+        // Update existing record - redirect to PUT logic
+        return NextResponse.json(
+          { error: 'Record already exists. Use PUT to update.' },
+          { status: 400 }
+        );
+      }
+
+      // Create new record
+      attendance = await prisma.attendance.create({
+        data: {
+          employeeId,
+          date: targetDate,
+          status,
+          punchIn: punchIn ? new Date(punchIn) : null,
+          punchOut: punchOut ? new Date(punchOut) : null,
+          totalHours: totalHours || 0,
+          breakDuration: breakDuration || 0,
+        },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              employeeId: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          userId: session.userId,
+          userName: session.name,
+          userRole: session.role,
+          action: 'CREATE',
+          entityType: 'Attendance',
+          entityId: attendance.id,
+          entityName: `${attendance.employee.name} - ${new Date(date).toLocaleDateString()}`,
+          changes: {
+            status: { from: null, to: status },
+            date: { from: null, to: new Date(date) },
+          },
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown',
+        },
+      });
+
+      return NextResponse.json(attendance, { status: 201 });
+    }
+
+    // Regular punch in/out flow
     // Employees can only punch for themselves
     const targetEmployeeId = session.role === 'EMPLOYEE' ? session.employeeId! : employeeId;
 
@@ -365,8 +445,119 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Error processing attendance:', error);
+    console.error('Error details:', error instanceof Error ? error.message : error);
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to process attendance' },
+      {
+        error: 'Failed to process attendance',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/attendance - Edit attendance record (Admin/Manager only for backdated changes)
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'MANAGER')) {
+      return NextResponse.json({ error: 'Unauthorized - Admin/Manager only' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { attendanceId, status, punchIn, punchOut, date, totalHours, breakDuration } = body;
+
+    if (!attendanceId) {
+      return NextResponse.json({ error: 'Attendance ID required' }, { status: 400 });
+    }
+
+    // Find the attendance record
+    const attendance = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!attendance) {
+      return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
+    }
+
+    // Build change log
+    const changes: any = {};
+    if (status && status !== attendance.status) {
+      changes.status = { from: attendance.status, to: status };
+    }
+    if (date && new Date(date).getTime() !== new Date(attendance.date).getTime()) {
+      changes.date = { from: attendance.date, to: new Date(date) };
+    }
+    if (punchIn && punchIn !== attendance.punchIn?.toString()) {
+      changes.punchIn = { from: attendance.punchIn, to: new Date(punchIn) };
+    }
+    if (punchOut && punchOut !== attendance.punchOut?.toString()) {
+      changes.punchOut = { from: attendance.punchOut, to: new Date(punchOut) };
+    }
+    if (totalHours !== undefined && totalHours !== attendance.totalHours) {
+      changes.totalHours = { from: attendance.totalHours, to: totalHours };
+    }
+    if (breakDuration !== undefined && breakDuration !== attendance.breakDuration) {
+      changes.breakDuration = { from: attendance.breakDuration, to: breakDuration };
+    }
+
+    // Build update data
+    const updateData: any = {};
+    if (status) updateData.status = status;
+    if (punchIn) updateData.punchIn = new Date(punchIn);
+    if (punchOut) updateData.punchOut = new Date(punchOut);
+    if (date) updateData.date = new Date(date);
+    if (totalHours !== undefined) updateData.totalHours = totalHours;
+    if (breakDuration !== undefined) updateData.breakDuration = breakDuration;
+
+    // Update the attendance record
+    const updatedAttendance = await prisma.attendance.update({
+      where: { id: attendanceId },
+      data: updateData,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        userName: session.name,
+        userRole: session.role,
+        action: 'UPDATE',
+        entityType: 'Attendance',
+        entityId: attendanceId,
+        entityName: `${attendance.employee.name} - ${new Date(attendance.date).toLocaleDateString()}`,
+        changes,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      },
+    });
+
+    return NextResponse.json(updatedAttendance);
+  } catch (error) {
+    console.error('Error updating attendance:', error);
+    return NextResponse.json(
+      { error: 'Failed to update attendance' },
       { status: 500 }
     );
   }
