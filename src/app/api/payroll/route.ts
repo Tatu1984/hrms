@@ -120,7 +120,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const presentDays = attendance.filter(a => a.status === 'PRESENT').length;
+      // Count attendance - WEEKEND and HOLIDAY are paid days (not deducted from salary)
+      const presentDays = attendance.filter(a =>
+        a.status === 'PRESENT' || a.status === 'WEEKEND' || a.status === 'HOLIDAY'
+      ).length;
       const halfDays = attendance.filter(a => a.status === 'HALF_DAY').length;
 
       // Count weekends in the month (Saturdays and Sundays)
