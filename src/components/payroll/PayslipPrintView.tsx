@@ -85,13 +85,37 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
   const totalDeductions = professionalTax + tds + absenteeismDeduction;
   const netSalaryPayable = totalGrossSalary - totalDeductions;
 
-  // Calculate working days info
-  const daysInMonth = payroll.workingDays;
+  // Calculate working days info correctly per user's specification
+  // Get actual days in the month
+  const totalDaysInMonth = new Date(payroll.year, payroll.month, 0).getDate();
+
+  // Count weekends (Saturdays and Sundays)
+  let weekendCount = 0;
+  for (let day = 1; day <= totalDaysInMonth; day++) {
+    const date = new Date(payroll.year, payroll.month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday = 0, Saturday = 6
+      weekendCount++;
+    }
+  }
+
+  // Total Working Days = Weekends + Normal days (all days in month)
+  const totalWorkingDays = totalDaysInMonth;
+
+  // Days Present = Days worked from Monday-Friday (actual attendance)
   const daysWorked = payroll.daysPresent;
-  const weeklyOff = daysInMonth - payroll.workingDays;
-  const leaves = 0; // This should come from leave records
+
+  // Weekly Off = Weekends (Saturdays + Sundays, these are marked as present automatically)
+  const weeklyOff = weekendCount;
+
+  // Leaves = Approved leaves taken (TODO: Get from leave management)
+  const leaves = 0;
+
+  // Loss Of Pay = Absent days
   const lossOfPay = payroll.daysAbsent;
-  const payableDays = daysWorked;
+
+  // Payable Days = Days Present + Weekends
+  const payableDays = daysWorked + weekendCount;
 
   // Build company address
   const companyAddress = companyProfile ? [
@@ -158,11 +182,11 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
           {/* Right Column */}
           <div className="col-span-6">
             <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Days in Month :</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">{daysInMonth}</div>
+              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Total Working Days :</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">{totalWorkingDays}</div>
             </div>
             <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">No. Days Worked :</div>
+              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Days Present :</div>
               <div className="col-span-6 px-1 py-0.5 text-right text-xs">{daysWorked}</div>
             </div>
             <div className="grid grid-cols-12 border-b border-black">

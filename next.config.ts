@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Output configuration
+  output: 'standalone',
+
   // Image optimization
   images: {
     remotePatterns: [

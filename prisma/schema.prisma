@@ -475,6 +475,8 @@ enum AttendanceStatus {
   ABSENT
   HALF_DAY
   LEAVE
+  HOLIDAY
+  WEEKEND
 }
 
 enum LeaveType {
@@ -959,4 +961,37 @@ enum DocumentType {
 enum SalaryType {
   FIXED     // Fixed monthly salary
   VARIABLE  // Base salary + variable/commission
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String   // Who made the change
+  userName      String   // Name of user who made change
+  userRole      String   // Role of user (ADMIN/MANAGER)
+  action        String   // CREATE, UPDATE, DELETE
+  entityType    String   // Attendance, Employee, Payroll, etc.
+  entityId      String   // ID of the entity that was changed
+  entityName    String?  // Name/description of entity
+  changes       Json?    // JSON of what changed (old value -> new value)
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  name        String   // Holiday name (e.g., "Republic Day")
+  date        DateTime // Date of the holiday
+  year        Int      // Year for easy filtering
+  isOptional  Boolean  @default(false) // Optional holiday or mandatory
+  description String?  // Additional info
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([year])
 }
