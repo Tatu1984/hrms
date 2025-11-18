@@ -7,6 +7,7 @@ import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/admin/dashboard' },
   { icon: 'Users', label: 'Employees', href: '/admin/employees' },
+  { icon: 'Wifi', label: 'Employee Status', href: '/admin/employee-status' },
   { icon: 'Clock', label: 'Attendance', href: '/admin/attendance', children: [
     { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
     { icon: 'Calendar', label: 'Leave Management', href: '/admin/leave-management' },
@@ -54,7 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </main>
       </div>
-      <PopupMessenger currentUserId={session.id} currentUserName={session.name} />
+      <PopupMessenger currentUserId={session.userId} currentUserName={session.name} />
     </div>
   );
 }
