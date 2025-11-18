@@ -69,6 +69,44 @@ export function EditAttendanceDialog({ attendance, open, onClose, onUpdate }: Ed
     }
   }, [attendance]);
 
+  const handleForcePunchOut = async () => {
+    if (!attendance || !attendance.punchIn || attendance.punchOut) return;
+
+    const confirmed = confirm('Force punch out this employee? This will set punch out time to 6:00 PM.');
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const punchOutTime = new Date(attendance.date);
+      punchOutTime.setHours(18, 0, 0, 0);
+
+      const punchIn = new Date(attendance.punchIn);
+      const totalHours = (punchOutTime.getTime() - punchIn.getTime()) / (1000 * 60 * 60);
+
+      const response = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendanceId: attendance.id,
+          punchOut: punchOutTime,
+          totalHours: totalHours,
+          status: 'PRESENT',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to force punch out');
+      }
+
+      onUpdate();
+      onClose();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!attendance) return;
@@ -235,13 +273,28 @@ export function EditAttendanceDialog({ attendance, open, onClose, onUpdate }: Ed
             </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
-            </Button>
+          <DialogFooter className="flex justify-between">
+            <div>
+              {attendance.punchIn && !attendance.punchOut && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleForcePunchOut}
+                  disabled={loading}
+                  size="sm"
+                >
+                  Force Punch Out
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
