@@ -38,14 +38,20 @@ export default async function EmployeeDashboard() {
     },
   });
 
-  // Get active attendance (punched in but not punched out yet)
-  // This supports cross-midnight work correctly
+  // Get today's attendance record
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
   const activeAttendance = await prisma.attendance.findFirst({
     where: {
       employeeId: session!.employeeId!,
-      punchOut: null, // Still active (not punched out)
+      date: {
+        gte: today,
+        lt: tomorrow,
+      },
     },
-    orderBy: { punchIn: 'desc' },
   });
 
   // Calculate attendance percentage (last 30 days)
