@@ -232,18 +232,25 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     if (action === 'punch-in') {
-      // For punch-in, find any active attendance (not punched out yet)
-      const activeAttendance = await prisma.attendance.findFirst({
+      // For punch-in, check if already punched in TODAY
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const todayAttendance = await prisma.attendance.findFirst({
         where: {
           employeeId: targetEmployeeId,
-          punchOut: null, // Not punched out yet
+          date: {
+            gte: today,
+            lt: tomorrow,
+          },
         },
-        orderBy: { punchIn: 'desc' },
       });
 
-      if (activeAttendance) {
+      if (todayAttendance) {
         return NextResponse.json(
-          { error: 'Already punched in. Please punch out first.' },
+          { error: 'Already punched in for today.' },
           { status: 400 }
         );
       }
