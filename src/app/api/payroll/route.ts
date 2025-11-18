@@ -108,7 +108,13 @@ export async function POST(request: NextRequest) {
 
       // Get attendance for the month
       const startDate = new Date(year, month - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(year, month, 0);
+      endDate.setHours(23, 59, 59, 999);
+
+      console.log(`\n=== Payroll Calculation for ${emp.name} (${emp.employeeId}) ===`);
+      console.log(`Month: ${month}, Year: ${year}`);
+      console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
       const attendance = await prisma.attendance.findMany({
         where: {
@@ -118,13 +124,16 @@ export async function POST(request: NextRequest) {
             lte: endDate,
           },
         },
+        orderBy: { date: 'asc' },
       });
 
-      // Count attendance - WEEKEND and HOLIDAY are paid days (not deducted from salary)
-      const presentDays = attendance.filter(a =>
-        a.status === 'PRESENT' || a.status === 'WEEKEND' || a.status === 'HOLIDAY'
-      ).length;
-      const halfDays = attendance.filter(a => a.status === 'HALF_DAY').length;
+      console.log(`Total attendance records found: ${attendance.length}`);
+      if (attendance.length > 0) {
+        console.log('Attendance breakdown:');
+        attendance.forEach(a => {
+          console.log(`  ${new Date(a.date).toLocaleDateString()}: ${a.status}`);
+        });
+      }
 
       // Count weekends in the month (Saturdays and Sundays)
       let weekendDays = 0;
@@ -136,26 +145,60 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Total working days excludes weekends (weekends are holidays, not counted in salary calculation)
+      // Count attendance by status
+      const statusCounts = {
+        PRESENT: attendance.filter(a => a.status === 'PRESENT').length,
+        HALF_DAY: attendance.filter(a => a.status === 'HALF_DAY').length,
+        ABSENT: attendance.filter(a => a.status === 'ABSENT').length,
+        LEAVE: attendance.filter(a => a.status === 'LEAVE').length,
+        WEEKEND: attendance.filter(a => a.status === 'WEEKEND').length,
+        HOLIDAY: attendance.filter(a => a.status === 'HOLIDAY').length,
+      };
+
+      console.log('Status counts:', statusCounts);
+
+      // Working days calculation:
+      // Total days in month - weekends = working days (for calculating absent days)
       const totalDaysInMonth = endDate.getDate();
       const totalWorkingDays = totalDaysInMonth - weekendDays;
-      const effectiveDays = presentDays + (halfDays * 0.5);
-      const absentDays = totalWorkingDays - effectiveDays;
 
-      // Salary components based on designation
-      // Sales designations: CSR, Sr CSR, Supervisor get 70% basic + 30% variable
-      const salesDesignations = ['CSR', 'Sr CSR', 'Supervisor'];
-      const isSales = salesDesignations.includes(emp.designation);
+      // For salary calculation:
+      // PRESENT, LEAVE, and HOLIDAY count as full days (paid)
+      // HALF_DAY counts as 0.5 days
+      // WEEKEND counts as full paid days (employees get paid for weekends)
+      // ABSENT doesn't count (0 days)
 
-      const basicSalary = emp.basicSalary || (isSales ? emp.salary * 0.7 : emp.salary);
-      const variablePay = emp.variablePay || (isSales ? emp.salary * 0.3 : 0);
+      const paidFullDays = statusCounts.PRESENT + statusCounts.LEAVE + statusCounts.HOLIDAY + statusCounts.WEEKEND;
+      const paidHalfDays = statusCounts.HALF_DAY;
+      const effectivePaidDays = paidFullDays + (paidHalfDays * 0.5);
+      const absentDays = totalWorkingDays - (statusCounts.PRESENT + statusCounts.LEAVE + statusCounts.HOLIDAY + (paidHalfDays * 0.5));
+
+      console.log(`Total days in month: ${totalDaysInMonth}`);
+      console.log(`Weekend days: ${weekendDays}`);
+      console.log(`Total working days: ${totalWorkingDays}`);
+      console.log(`Paid full days (PRESENT + LEAVE + HOLIDAY + WEEKEND): ${paidFullDays}`);
+      console.log(`Paid half days: ${paidHalfDays}`);
+      console.log(`Effective paid days (including weekends): ${effectivePaidDays}`);
+      console.log(`Absent days (from working days only): ${absentDays}`);
+
+      // Salary calculation based on salaryType
+      const isSales = emp.salaryType === 'VARIABLE';
+
+      const basicSalary = isSales ? (emp.salary * 0.7) : emp.salary;
+      const variablePay = isSales ? (emp.variablePay || emp.salary * 0.3) : 0;
 
       // Calculate USD target: Gross Salary / 10
       const salesTargetUSD = isSales ? emp.salary / 10 : 0;
 
       // Calculate Basic Payable (attendance-based)
-      const perDayBasic = basicSalary / totalWorkingDays;
-      const basicPayable = perDayBasic * effectiveDays;
+      // Per day salary = Basic Salary / Total Days in Month (including weekends)
+      // This ensures employees get paid for weekends as well
+      const perDayBasic = basicSalary / totalDaysInMonth;
+      const basicPayable = perDayBasic * effectivePaidDays;
+
+      console.log(`Basic salary: ${basicSalary}`);
+      console.log(`Per day basic (salary / ${totalDaysInMonth} days): ${perDayBasic}`);
+      console.log(`Basic payable (${perDayBasic} × ${effectivePaidDays} days): ${basicPayable}`);
 
       // Calculate Variable Payable (target achievement-based for sales)
       let variablePayable = 0;
@@ -218,14 +261,18 @@ export async function POST(request: NextRequest) {
       // Net Salary
       const netSalary = grossSalary - totalDeductions;
 
+      console.log(`Gross salary: ${grossSalary}`);
+      console.log(`Total deductions: ${totalDeductions}`);
+      console.log(`Net salary: ${netSalary}\n`);
+
       const payrollRecord = await prisma.payroll.create({
         data: {
           employeeId: emp.id,
           month: parseInt(month),
           year: parseInt(year),
           workingDays: totalWorkingDays,
-          daysPresent: presentDays,
-          daysAbsent: absentDays,
+          daysPresent: Math.round(effectivePaidDays * 10) / 10, // Round to 1 decimal
+          daysAbsent: Math.round(absentDays * 10) / 10, // Round to 1 decimal
 
           basicSalary,
           variablePay,
@@ -268,8 +315,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      console.log(`✓ Payroll record created for ${emp.name}`);
       payrollRecords.push(payrollRecord);
     }
+
+    console.log(`\n=== PAYROLL GENERATION COMPLETE ===`);
+    console.log(`Total records generated: ${payrollRecords.length}`);
 
     return NextResponse.json({
       success: true,
