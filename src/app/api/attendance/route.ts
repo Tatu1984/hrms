@@ -282,13 +282,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(attendance);
     }
 
-    // For all other actions, find the active attendance record (not punched out)
+    // For all other actions, find today's attendance record
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId: targetEmployeeId,
-        punchOut: null, // Still active
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
       },
-      orderBy: { punchIn: 'desc' },
       include: {
         employee: {
           select: {
@@ -303,7 +310,7 @@ export async function POST(request: NextRequest) {
 
     if (!attendance) {
       return NextResponse.json(
-        { error: 'No active attendance record found. Please punch in first.' },
+        { error: 'No attendance record found for today. Please punch in first.' },
         { status: 400 }
       );
     }
@@ -338,31 +345,18 @@ export async function POST(request: NextRequest) {
       // Calculate idle time based on activity logs
       const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
 
-      // Calculate actual work hours: Total time - Break time - Idle time
+      // Calculate total work hours: Total time - Break time
       const totalHours = totalElapsedHours - breakDuration;
-      const actualWorkHours = Math.max(0, totalHours - idleTime);
 
-      // Get employee details to check employment type
-      const employee = await prisma.employee.findUnique({
-        where: { id: attendance.employeeId },
-        select: { employeeType: true },
-      });
-
-      // Determine attendance status based on employee type
-      // Full-time employees: >= 6 hours = PRESENT, < 6 hours = HALF_DAY
-      // Intern/Part-time: >= 3 hours = PRESENT, < 3 hours = HALF_DAY
-      const isInternOrPartTime = employee?.employeeType === 'Intern' || employee?.employeeType === 'Part-time';
-      const hoursThreshold = isInternOrPartTime ? 3 : 6;
-      const attendanceStatus = actualWorkHours >= hoursThreshold ? 'PRESENT' : 'HALF_DAY';
+      // Determine attendance status based on total hours (NOT actual work hours)
+      // Logic: < 6 hours total = HALF_DAY, >= 6 hours = PRESENT
+      const attendanceStatus = totalHours >= 6 ? 'PRESENT' : 'HALF_DAY';
 
       console.log('Punch-out calculation:', {
-        employeeType: employee?.employeeType || 'Full-time',
-        hoursThreshold,
         totalElapsedHours: totalElapsedHours.toFixed(2),
         breakDuration: breakDuration.toFixed(2),
         idleTime: idleTime.toFixed(2),
         totalHours: totalHours.toFixed(2),
-        actualWorkHours: actualWorkHours.toFixed(2),
         status: attendanceStatus,
       });
 

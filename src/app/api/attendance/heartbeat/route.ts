@@ -10,9 +10,15 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
 
+    console.log('[Heartbeat API] Session:', session ? `${session.employeeId} - ${session.name}` : 'None');
+
     if (!session || !session.employeeId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.log('[Heartbeat API] Unauthorized - no session or employeeId');
+      return NextResponse.json({ error: 'Unauthorized - no session' }, { status: 401 });
     }
+
+    const body = await request.json().catch(() => ({}));
+    const wasActive = body.active !== undefined ? body.active : true;
 
     const now = new Date();
     const today = new Date();
@@ -31,9 +37,25 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!attendance || !attendance.punchIn || attendance.punchOut) {
+    console.log('[Heartbeat API] Attendance found:', attendance ? `ID: ${attendance.id}, PunchIn: ${attendance.punchIn}, PunchOut: ${attendance.punchOut}` : 'None');
+
+    if (!attendance) {
       return NextResponse.json(
-        { error: 'No active attendance session' },
+        { error: 'No attendance record for today - please punch in first' },
+        { status: 400 }
+      );
+    }
+
+    if (!attendance.punchIn) {
+      return NextResponse.json(
+        { error: 'Not punched in yet' },
+        { status: 400 }
+      );
+    }
+
+    if (attendance.punchOut) {
+      return NextResponse.json(
+        { error: 'Already punched out' },
         { status: 400 }
       );
     }
@@ -43,7 +65,7 @@ export async function POST(request: NextRequest) {
       data: {
         attendanceId: attendance.id,
         timestamp: now,
-        active: true,
+        active: wasActive,
       },
     });
 
