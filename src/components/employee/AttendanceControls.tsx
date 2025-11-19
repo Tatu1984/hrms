@@ -21,6 +21,8 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
   const [loading, setLoading] = useState(false);
 
   const handleAction = async (action: 'punch-in' | 'punch-out' | 'break-start' | 'break-end') => {
+    if (loading) return; // Prevent double-clicks
+
     setLoading(true);
     try {
       const res = await fetch('/api/attendance', {
@@ -32,13 +34,16 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
       if (!res.ok) {
         const error = await res.json();
         alert(error.error || 'Failed to update attendance');
+        setLoading(false);
         return;
       }
 
+      // Wait for response and then refresh
+      await res.json();
       router.refresh();
     } catch (error) {
+      console.error('Attendance action error:', error);
       alert('Failed to update attendance');
-    } finally {
       setLoading(false);
     }
   };

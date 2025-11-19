@@ -266,7 +266,7 @@ export default function AttendanceEditPage() {
           )}
           {attendance && attendance.totalHours !== null && attendance.totalHours > 0 && (
             <div className="text-xs text-gray-600 mt-1">
-              {attendance.totalHours}h
+              {attendance.totalHours.toFixed(2)}h
             </div>
           )}
         </div>
