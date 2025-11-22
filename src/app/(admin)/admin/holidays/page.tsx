@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, Plus, Trash2, CalendarDays } from 'lucide-react';
+import { Calendar, Plus, Trash2, CalendarDays, Edit } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -23,6 +23,7 @@ export default function HolidaysPage() {
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
   const [newHoliday, setNewHoliday] = useState({
     name: '',
     date: '',
@@ -56,25 +57,40 @@ export default function HolidaysPage() {
     }
 
     try {
-      const response = await fetch('/api/holidays', {
-        method: 'POST',
+      const url = editingHoliday ? `/api/holidays?id=${editingHoliday.id}` : '/api/holidays';
+      const method = editingHoliday ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newHoliday),
       });
 
       if (response.ok) {
-        alert('Holiday added successfully');
+        alert(editingHoliday ? 'Holiday updated successfully' : 'Holiday added successfully');
         setShowAddDialog(false);
+        setEditingHoliday(null);
         setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
         fetchHolidays();
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to add holiday');
+        alert(data.error || `Failed to ${editingHoliday ? 'update' : 'add'} holiday`);
       }
     } catch (error) {
-      console.error('Error adding holiday:', error);
-      alert('Failed to add holiday');
+      console.error(`Error ${editingHoliday ? 'updating' : 'adding'} holiday:`, error);
+      alert(`Failed to ${editingHoliday ? 'update' : 'add'} holiday`);
     }
+  };
+
+  const handleEditHoliday = (holiday: Holiday) => {
+    setEditingHoliday(holiday);
+    setNewHoliday({
+      name: holiday.name,
+      date: new Date(holiday.date).toISOString().split('T')[0],
+      isOptional: holiday.isOptional,
+      description: holiday.description || '',
+    });
+    setShowAddDialog(true);
   };
 
   const handleDeleteHoliday = async (id: string) => {
@@ -183,14 +199,24 @@ export default function HolidaysPage() {
                       <p className="text-sm text-gray-500 mt-1">{holiday.description}</p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteHoliday(holiday.id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditHoliday(holiday)}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteHoliday(holiday.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -198,10 +224,16 @@ export default function HolidaysPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        setShowAddDialog(open);
+        if (!open) {
+          setEditingHoliday(null);
+          setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Holiday</DialogTitle>
+            <DialogTitle>{editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -253,10 +285,14 @@ export default function HolidaysPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              setEditingHoliday(null);
+              setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleAddHoliday}>Add Holiday</Button>
+            <Button onClick={handleAddHoliday}>{editingHoliday ? 'Update Holiday' : 'Add Holiday'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -65,6 +65,45 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT /api/holidays - Update a holiday (Admin only)
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Holiday ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { name, date, isOptional, description } = body;
+
+    const holidayDate = new Date(date);
+    const year = holidayDate.getFullYear();
+
+    const holiday = await prisma.holiday.update({
+      where: { id },
+      data: {
+        name,
+        date: holidayDate,
+        year,
+        isOptional: isOptional || false,
+        description,
+      },
+    });
+
+    return NextResponse.json(holiday);
+  } catch (error) {
+    console.error('Error updating holiday:', error);
+    return NextResponse.json({ error: 'Failed to update holiday' }, { status: 500 });
+  }
+}
+
 // DELETE /api/holidays - Delete a holiday (Admin only)
 export async function DELETE(request: NextRequest) {
   try {

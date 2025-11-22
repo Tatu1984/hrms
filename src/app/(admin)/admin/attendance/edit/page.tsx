@@ -257,7 +257,9 @@ export default function AttendanceEditPage() {
               Weekend
             </div>
           ) : (
-            <div className="text-xs text-gray-400">No record</div>
+            <div className="text-xs px-2 py-1 rounded bg-red-500 text-white">
+              ABSENT
+            </div>
           )}
           {holiday && (
             <div className="text-xs text-purple-700 mt-1 truncate" title={holidayName}>

@@ -64,8 +64,11 @@ model Employee {
   payroll           Payroll[]
   bankingDetails    BankingDetails?
   employeeDocuments EmployeeDocument[]
+  isActive          Boolean     @default(true)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+
+  @@index([isActive])
 }
 
 model Attendance {
@@ -305,12 +308,14 @@ model Invoice {
   invoiceNumber   String          @unique
   clientName      String
   clientEmail     String?
+  clientAddress   String?
   amount          Float
   currency        String          @default("INR")
   status          InvoiceStatus   @default(DRAFT)
   items           Json?
   dueDate         DateTime?
   notes           String?
+  fileUrl         String?
   skyDoSynced     Boolean         @default(false)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

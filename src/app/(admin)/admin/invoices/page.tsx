@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { InvoiceDialog } from '@/components/forms/invoice-dialog';
+import { InvoiceUploadDialog } from '@/components/forms/invoice-upload-dialog';
 
 export default async function InvoicesPage() {
   const invoices = await prisma.invoice.findMany({
@@ -27,7 +28,10 @@ export default async function InvoicesPage() {
           <h1 className="text-3xl font-bold">Invoices</h1>
           <p className="text-gray-600">Generate and manage client invoices</p>
         </div>
-        <InvoiceDialog />
+        <div className="flex gap-2">
+          <InvoiceUploadDialog />
+          <InvoiceDialog />
+        </div>
       </div>
 
       <Card>

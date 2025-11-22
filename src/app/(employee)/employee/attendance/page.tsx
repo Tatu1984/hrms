@@ -20,11 +20,13 @@ export default function EmployeeAttendancePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [holidays, setHolidays] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchMonthAttendance();
     fetchHolidays();
+    fetchLeaves();
   }, [currentMonth]);
 
   const fetchMonthAttendance = async () => {
@@ -63,6 +65,19 @@ export default function EmployeeAttendancePage() {
     }
   };
 
+  const fetchLeaves = async () => {
+    try {
+      const response = await fetch('/api/leaves');
+      if (response.ok) {
+        const data = await response.json();
+        const approvedLeaves = data.filter((leave: any) => leave.status === 'APPROVED');
+        setLeaves(approvedLeaves);
+      }
+    } catch (error) {
+      console.error('Error fetching leaves:', error);
+    }
+  };
+
   const previousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
@@ -95,6 +110,18 @@ export default function EmployeeAttendancePage() {
         holidayDate.getMonth() === date.getMonth() &&
         holidayDate.getFullYear() === date.getFullYear()
       );
+    });
+  };
+
+  const isOnLeave = (date: Date) => {
+    return leaves.some((leave) => {
+      const startDate = new Date(leave.startDate);
+      const endDate = new Date(leave.endDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      const checkDate = new Date(date);
+      checkDate.setHours(12, 0, 0, 0);
+      return checkDate >= startDate && checkDate <= endDate;
     });
   };
 
@@ -176,11 +203,14 @@ export default function EmployeeAttendancePage() {
                     const attendance = getAttendanceForDate(date);
                     const weekend = isWeekend(date);
                     const holiday = isHoliday(date);
+                    const onLeave = isOnLeave(date);
 
                     // Determine status to display
                     let displayStatus = 'ABSENT';
                     if (attendance) {
                       displayStatus = attendance.status;
+                    } else if (onLeave) {
+                      displayStatus = 'LEAVE';
                     } else if (holiday) {
                       displayStatus = 'HOLIDAY';
                     } else if (weekend) {
