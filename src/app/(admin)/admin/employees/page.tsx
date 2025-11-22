@@ -9,6 +9,7 @@ import { Search, Download, Trash2, Eye } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import EmployeeFormDialog from '@/components/admin/employee-form-dialog';
 import DeleteEmployeeButton from '@/components/admin/delete-employee-button';
+import ToggleEmployeeActiveButton from '@/components/admin/toggle-employee-active-button';
 import { UserCredentialsDialog } from '@/components/forms/user-credentials-dialog';
 import Link from 'next/link';
 
@@ -73,6 +74,7 @@ export default async function EmployeesPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Designation</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Department</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Salary</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Login Access</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">View</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
@@ -88,6 +90,11 @@ export default async function EmployeesPage() {
                     <td className="px-4 py-3 text-sm">{emp.designation}</td>
                     <td className="px-4 py-3 text-sm">{emp.department}</td>
                     <td className="px-4 py-3 text-sm font-semibold">{formatCurrency(emp.salary)}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <Badge variant={emp.isActive ? 'default' : 'secondary'} className={emp.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                        {emp.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       {emp.user ? (
                         <div className="space-y-1">
@@ -120,6 +127,11 @@ export default async function EmployeesPage() {
                             email: emp.email,
                           }}
                           existingUser={emp.user}
+                        />
+                        <ToggleEmployeeActiveButton
+                          employeeId={emp.id}
+                          employeeName={emp.name}
+                          isActive={emp.isActive}
                         />
                         <DeleteEmployeeButton employeeId={emp.id} employeeName={emp.name} />
                       </div>

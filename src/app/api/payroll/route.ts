@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
 
       // Deductions
       const professionalTax = 200; // Fixed P.tax
-      const tds = grossSalary * 0.1; // 10% TDS
+      const tds = 0; // TDS deactivated
       const penalties = 0; // Will be input by admin
       const advancePayment = 0; // Will be input by admin
       const otherDeductions = 0;
