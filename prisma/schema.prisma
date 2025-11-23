@@ -316,9 +316,14 @@ model Invoice {
   dueDate         DateTime?
   notes           String?
   fileUrl         String?
+  paidAmount      Float?
+  paidDate        DateTime?
   skyDoSynced     Boolean         @default(false)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
 }
 
 model Account {

@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth';
 // PUT - Update messaging permissions for a user
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();
@@ -54,7 +54,7 @@ export async function PUT(
 // GET - Get messaging permissions for a user
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();

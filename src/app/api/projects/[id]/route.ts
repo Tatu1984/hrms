@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -12,7 +12,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { status } = body;
 
@@ -37,7 +37,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -45,7 +45,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     await prisma.project.delete({
       where: { id },

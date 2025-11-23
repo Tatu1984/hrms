@@ -68,22 +68,35 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
     return months[month - 1];
   };
 
-  // Calculate derived values based on settings (these percentages should come from payroll settings)
-  const hra = payroll.basicPayable * 0.50; // 50% HRA (as shown in image: 17,050 / 34,100 ≈ 50%)
+  // Use the actual calculated gross salary from payroll and distribute it
+  // The grossSalary from payroll already includes attendance/target calculations
+  const actualGrossSalary = payroll.grossSalary;
+
+  // Distribute the gross salary into components for payslip display
+  // Basic is what was already calculated based on attendance
+  const basic = payroll.basicPayable + payroll.variablePayable;
+
+  // Distribute remaining components proportionally to match total
+  const hra = basic * 0.50; // 50% HRA
   const conveyance = 1600; // Fixed conveyance
   const medicalAllowance = 1250; // Fixed medical allowance
-  const specialAllowance = payroll.basicPayable * 0.088; // Special allowance (3000/34100 ≈ 8.8%)
+  const specialAllowance = basic * 0.088; // Special allowance
   const perfBonus = 0; // Performance bonus (if any)
 
-  // Deductions
-  const professionalTax = payroll.professionalTax || 200; // P.TAX
-  const tds = payroll.tds || 0; // TDS
-  const absenteeismDeduction = payroll.penalties || 0; // Absenteeism deduction
+  // Adjust to match exact gross salary
+  const calculatedTotal = basic + hra + conveyance + medicalAllowance + specialAllowance + perfBonus;
+  const adjustment = actualGrossSalary - calculatedTotal;
+  const adjustedSpecialAllowance = specialAllowance + adjustment;
 
-  // Calculate totals
-  const totalGrossSalary = payroll.basicPayable + hra + conveyance + medicalAllowance + specialAllowance + perfBonus;
-  const totalDeductions = professionalTax + tds + absenteeismDeduction;
-  const netSalaryPayable = totalGrossSalary - totalDeductions;
+  // Deductions - use actual values from payroll
+  const professionalTax = payroll.professionalTax || 0;
+  const tds = payroll.tds || 0;
+  const absenteeismDeduction = payroll.penalties || 0;
+
+  // Calculate totals - must match payroll exactly
+  const totalGrossSalary = actualGrossSalary;
+  const totalDeductions = payroll.totalDeductions;
+  const netSalaryPayable = payroll.netSalary;
 
   // Calculate working days info correctly per user's specification
   // Get actual days in the month
@@ -222,27 +235,27 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
 
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Basic</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {payroll.basicPayable.toLocaleString('en-IN')}</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {basic.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">HRA</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {hra.toLocaleString('en-IN')}</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {hra.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Conveyance</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {conveyance.toLocaleString('en-IN')}</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {conveyance.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Medical All</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {medicalAllowance.toLocaleString('en-IN')}</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {medicalAllowance.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Special All</div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {specialAllowance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {adjustedSpecialAllowance.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">

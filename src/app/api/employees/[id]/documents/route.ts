@@ -8,7 +8,7 @@ import { existsSync } from 'fs';
 // GET /api/employees/[id]/documents - Get all documents for an employee
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = params;
+    const { id: employeeId } = await params;
 
     // Authorization
     if (
@@ -45,7 +45,7 @@ export async function GET(
 // POST /api/employees/[id]/documents - Upload a new document
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();
@@ -53,7 +53,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = params;
+    const { id: employeeId } = await params;
 
     // Authorization
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {

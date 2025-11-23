@@ -8,9 +8,10 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import ProjectActionsMenu from '@/components/admin/project-actions-menu';
 
-export default async function ProjectDetailsPage({ params }: { params: { projectId: string } }) {
+export default async function ProjectDetailsPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     include: {
       members: {
         include: {

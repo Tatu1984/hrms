@@ -24,6 +24,7 @@ const sidebarItems = [
   { icon: 'DollarSign', label: 'Payroll', href: '/admin/payroll' },
   { icon: 'Wallet', label: 'Accounts', href: '/admin/accounts', children: [
     { icon: 'Receipt', label: 'Invoices', href: '/admin/invoices' },
+    { icon: 'ArrowRightLeft', label: 'Currency Converter', href: '/admin/currency' },
   ]},
   { icon: 'FileText', label: 'HR Department', href: '/admin/hr-documents' },
   { icon: 'MessageSquare', label: 'Messages', href: '/admin/messages' },

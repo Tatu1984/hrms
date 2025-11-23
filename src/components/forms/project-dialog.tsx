@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Loader2, X, Upload, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { MiniCurrencyConverter } from '@/components/currency/mini-currency-converter';
 
 interface Milestone {
   name: string;
@@ -216,6 +217,13 @@ export function ProjectDialog() {
               </div>
             </div>
           </div>
+
+          {/* Currency Converter for Budget */}
+          {formData.totalBudget && parseFloat(formData.totalBudget) > 0 && (
+            <div className="border-t pt-4">
+              <MiniCurrencyConverter defaultAmount={parseFloat(formData.totalBudget)} />
+            </div>
+          )}
 
           {formData.projectType === 'MILESTONE' && (
             <div className="space-y-3 border-t pt-4">
