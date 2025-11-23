@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+
 // DELETE /api/employees/[id]/documents/[documentId] - Delete a document
 export async function DELETE(
   request: NextRequest,
