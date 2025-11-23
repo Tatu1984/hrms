@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth';
 // GET - Fetch single HR document
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();
@@ -31,7 +31,7 @@ export async function GET(
 // PUT - Update HR document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();
@@ -65,7 +65,7 @@ export async function PUT(
 // DELETE - Delete HR document (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string } }
 ) {
   try {
     const session = await getSession();

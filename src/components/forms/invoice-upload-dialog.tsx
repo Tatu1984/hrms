@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { MiniCurrencyConverter } from '@/components/currency/mini-currency-converter';
 
 export function InvoiceUploadDialog() {
   const router = useRouter();
@@ -148,6 +149,12 @@ export function InvoiceUploadDialog() {
               onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
             />
           </div>
+
+          {formData.amount && parseFloat(formData.amount) > 0 && (
+            <div className="pt-2">
+              <MiniCurrencyConverter defaultAmount={parseFloat(formData.amount)} />
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
