@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
 import { ProjectDialog } from '@/components/forms/project-dialog';
+import Link from 'next/link';
 
 export default async function ProjectsPage() {
   const projects = await prisma.project.findMany({
@@ -63,7 +64,9 @@ export default async function ProjectsPage() {
                     <span className="font-medium">{project.members.length}</span>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full mt-4">View Details</Button>
+                <Link href={`/admin/projects/${project.id}`}>
+                  <Button variant="outline" className="w-full mt-4">View Details</Button>
+                </Link>
               </CardContent>
             </Card>
           );

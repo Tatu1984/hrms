@@ -106,104 +106,153 @@ export async function POST(request: NextRequest) {
         continue; // Skip if already exists
       }
 
-      // Get attendance for the month
-      const startDate = new Date(year, month - 1, 1);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(year, month, 0);
-      endDate.setHours(23, 59, 59, 999);
-
+      // AUTHORITATIVE PAYROLL LOGIC
       console.log(`\n=== Payroll Calculation for ${emp.name} (${emp.employeeId}) ===`);
       console.log(`Month: ${month}, Year: ${year}`);
-      console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
+      // Calculate calculation_date (today or last day of month if past)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const monthStartDate = new Date(year, month - 1, 1);
+      monthStartDate.setHours(0, 0, 0, 0);
+
+      const monthEndDate = new Date(year, month, 0);
+      monthEndDate.setHours(0, 0, 0, 0);
+
+      // calculation_date is min(today, month_end)
+      let calculationDate = new Date(today);
+      if (today > monthEndDate) {
+        calculationDate = new Date(monthEndDate);
+      }
+      calculationDate.setHours(0, 0, 0, 0);
+
+      console.log(`Month start: ${monthStartDate.toISOString().split('T')[0]}`);
+      console.log(`Month end: ${monthEndDate.toISOString().split('T')[0]}`);
+      console.log(`Calculation date: ${calculationDate.toISOString().split('T')[0]}`);
+
+      // Get employee join and leave dates
+      const joinDate = new Date(emp.dateOfJoining);
+      joinDate.setHours(0, 0, 0, 0);
+
+      // Note: Employee model doesn't have leaveDate yet, so we'll use null for now
+      const leaveDate = null; // emp.leaveDate ? new Date(emp.leaveDate) : null;
+
+      console.log(`Join date: ${joinDate.toISOString().split('T')[0]}`);
+      console.log(`Leave date: ${leaveDate ? leaveDate.toISOString().split('T')[0] : 'N/A'}`);
+
+      // Determine effective attendance window
+      // effective_start = max(join_date, month_start_date)
+      const effectiveStart = joinDate > monthStartDate ? new Date(joinDate) : new Date(monthStartDate);
+      effectiveStart.setHours(0, 0, 0, 0);
+
+      // effective_end = min(calculation_date, leave_date if provided else calculation_date)
+      let effectiveEnd = new Date(calculationDate);
+      if (leaveDate && leaveDate < calculationDate) {
+        effectiveEnd = new Date(leaveDate);
+      }
+      effectiveEnd.setHours(0, 0, 0, 0);
+
+      console.log(`Effective start: ${effectiveStart.toISOString().split('T')[0]}`);
+      console.log(`Effective end: ${effectiveEnd.toISOString().split('T')[0]}`);
+
+      // Get attendance records
       const attendance = await prisma.attendance.findMany({
         where: {
           employeeId: emp.id,
           date: {
-            gte: startDate,
-            lte: endDate,
+            gte: monthStartDate,
+            lte: monthEndDate,
           },
         },
         orderBy: { date: 'asc' },
       });
 
       console.log(`Total attendance records found: ${attendance.length}`);
-      if (attendance.length > 0) {
-        console.log('Attendance breakdown:');
-        attendance.forEach(a => {
-          console.log(`  ${new Date(a.date).toLocaleDateString()}: ${a.status}`);
-        });
-      }
 
-      // Count weekends in the month (Saturdays and Sundays)
-      let weekendDays = 0;
-      for (let day = 1; day <= endDate.getDate(); day++) {
-        const date = new Date(year, month - 1, day);
-        const dayOfWeek = date.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday = 0, Saturday = 6
-          weekendDays++;
+      // Calculate present_days
+      let presentDays = 0;
+
+      // If effective_end < effective_start, present_days = 0
+      if (effectiveEnd < effectiveStart) {
+        console.log('Warning: effective_end < effective_start, present_days = 0');
+        presentDays = 0;
+      } else {
+        // Count days - iterate through each day in the effective window
+        let fullPresentDays = 0;
+        let halfDays = 0;
+
+        const currentDate = new Date(effectiveStart);
+        while (currentDate <= effectiveEnd) {
+          const dayOfWeek = currentDate.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+
+          // Check if there's an attendance record for this day
+          const dayAttendance = attendance.find(a => {
+            const aDate = new Date(a.date);
+            aDate.setHours(0, 0, 0, 0);
+            return aDate.getTime() === currentDate.getTime();
+          });
+
+          if (dayAttendance) {
+            // Use the explicit attendance record
+            if (dayAttendance.status === 'PRESENT' ||
+                dayAttendance.status === 'LEAVE' ||
+                dayAttendance.status === 'WEEKEND' ||
+                dayAttendance.status === 'HOLIDAY') {
+              fullPresentDays += 1;
+            } else if (dayAttendance.status === 'HALF_DAY') {
+              halfDays += 1;
+            }
+            // ABSENT status counts as 0
+          } else {
+            // No attendance record - check if it's a weekend
+            if (isWeekend) {
+              // Weekends are paid days even without attendance record
+              fullPresentDays += 1;
+            }
+            // Weekdays without attendance record count as 0 (absent)
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
         }
+
+        presentDays = fullPresentDays + (0.5 * halfDays);
+        console.log(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Weekends included`);
       }
 
-      // Count attendance by status
-      const statusCounts = {
-        PRESENT: attendance.filter(a => a.status === 'PRESENT').length,
-        HALF_DAY: attendance.filter(a => a.status === 'HALF_DAY').length,
-        ABSENT: attendance.filter(a => a.status === 'ABSENT').length,
-        LEAVE: attendance.filter(a => a.status === 'LEAVE').length,
-        WEEKEND: attendance.filter(a => a.status === 'WEEKEND').length,
-        HOLIDAY: attendance.filter(a => a.status === 'HOLIDAY').length,
-      };
-
-      console.log('Status counts:', statusCounts);
-
-      // Working days calculation:
-      // Total days in month - weekends = working days (for calculating absent days)
-      const totalDaysInMonth = endDate.getDate();
-      const totalWorkingDays = totalDaysInMonth - weekendDays;
-
-      // For salary calculation:
-      // PRESENT, LEAVE, and HOLIDAY count as full days (paid)
-      // HALF_DAY counts as 0.5 days
-      // WEEKEND counts as full paid days (employees get paid for weekends)
-      // ABSENT doesn't count (0 days)
-
-      const paidFullDays = statusCounts.PRESENT + statusCounts.LEAVE + statusCounts.HOLIDAY + statusCounts.WEEKEND;
-      const paidHalfDays = statusCounts.HALF_DAY;
-      const effectivePaidDays = paidFullDays + (paidHalfDays * 0.5);
-      const absentDays = totalWorkingDays - (statusCounts.PRESENT + statusCounts.LEAVE + statusCounts.HOLIDAY + (paidHalfDays * 0.5));
-
-      console.log(`Total days in month: ${totalDaysInMonth}`);
-      console.log(`Weekend days: ${weekendDays}`);
-      console.log(`Total working days: ${totalWorkingDays}`);
-      console.log(`Paid full days (PRESENT + LEAVE + HOLIDAY + WEEKEND): ${paidFullDays}`);
-      console.log(`Paid half days: ${paidHalfDays}`);
-      console.log(`Effective paid days (including weekends): ${effectivePaidDays}`);
-      console.log(`Absent days (from working days only): ${absentDays}`);
+      console.log(`Present days (calculated): ${presentDays}`);
 
       // Salary calculation based on salaryType
-      const isSales = emp.salaryType === 'VARIABLE';
+      const isVariable = emp.salaryType === 'VARIABLE';
+      const monthlySalary = emp.salary;
 
-      const basicSalary = isSales ? (emp.salary * 0.7) : emp.salary;
-      const variablePay = isSales ? (emp.variablePay || emp.salary * 0.3) : 0;
+      let totalPaid = 0;
+      let fixedPaid = 0;
+      let variablePaid = 0;
+      let basicSalary = 0;
+      let variablePay = 0;
+      let salesTargetUSD = 0;
+      let achievedUpfront = 0;
 
-      // Calculate USD target: Gross Salary / 10
-      const salesTargetUSD = isSales ? emp.salary / 10 : 0;
+      if (isVariable) {
+        // Variable salary employee
+        const fixedPart = monthlySalary * 0.70;
+        const variablePart = monthlySalary * 0.30;
 
-      // Calculate Basic Payable (attendance-based)
-      // Per day salary = Basic Salary / Total Days in Month (including weekends)
-      // This ensures employees get paid for weekends as well
-      const perDayBasic = basicSalary / totalDaysInMonth;
-      const basicPayable = perDayBasic * effectivePaidDays;
+        basicSalary = fixedPart;
+        variablePay = variablePart;
 
-      console.log(`Basic salary: ${basicSalary}`);
-      console.log(`Per day basic (salary / ${totalDaysInMonth} days): ${perDayBasic}`);
-      console.log(`Basic payable (${perDayBasic} × ${effectivePaidDays} days): ${basicPayable}`);
+        // Calculate fixed paid based on attendance
+        fixedPaid = (fixedPart / 30) * presentDays;
 
-      // Calculate Variable Payable (target achievement-based for sales)
-      let variablePayable = 0;
-      if (isSales && salesTargetUSD > 0) {
-        // Get sales data for this employee for the month
+        // Calculate gross target and required upfront
+        const grossTarget = monthlySalary / 10;
+        const requiredUpfront = 0.30 * grossTarget;
+
+        salesTargetUSD = grossTarget;
+
+        // Get actual achieved upfront from sales data
         const salesData = await prisma.sale.findMany({
           where: {
             closedBy: emp.id,
@@ -213,41 +262,53 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Calculate total gross and net achieved
-        const totalGrossAchieved = salesData.reduce((sum, sale) => sum + sale.grossAmount, 0);
-        const totalNetAchieved = salesData.reduce((sum, sale) => sum + sale.netAmount, 0);
+        achievedUpfront = salesData.reduce((sum, sale) => sum + sale.netAmount, 0);
 
-        // Achievement Calculation:
-        // 1. Gross Achievement % = (Total Gross Achieved / Target) * 100
-        const grossAchievementPercent = (totalGrossAchieved / salesTargetUSD) * 100;
+        // Calculate variable ratio
+        let variableRatio = 0;
+        if (requiredUpfront > 0) {
+          variableRatio = Math.min(1.0, achievedUpfront / requiredUpfront);
+        }
 
-        // 2. Net Achievement % = (Total Net Achieved / (Target * 0.25)) * 100
-        //    Based on 25% minimum upfront payment mandate
-        const expectedMinimumUpfront = salesTargetUSD * 0.25;
-        const netAchievementPercent = (totalNetAchieved / expectedMinimumUpfront) * 100;
+        variablePaid = variablePart * variableRatio;
 
-        // 3. Average Achievement = (Gross Achievement % + Net Achievement %) / 2
-        const averageAchievementPercent = (grossAchievementPercent + netAchievementPercent) / 2;
+        totalPaid = fixedPaid + variablePaid;
 
-        // 4. Variable Payable = 30% of salary * (Average Achievement % / 100)
-        variablePayable = variablePay * (averageAchievementPercent / 100);
+        console.log(`Variable salary calculation:`, {
+          monthlySalary,
+          fixedPart,
+          variablePart,
+          presentDays,
+          fixedPaid: fixedPaid.toFixed(2),
+          grossTarget,
+          requiredUpfront,
+          achievedUpfront,
+          variableRatio: variableRatio.toFixed(2),
+          variablePaid: variablePaid.toFixed(2),
+          totalPaid: totalPaid.toFixed(2),
+        });
+      } else {
+        // Fixed salary employee
+        const perDayRate = monthlySalary / 30;
+        totalPaid = perDayRate * presentDays;
 
-        console.log(`Sales calculation for ${emp.name}:`, {
-          grossSalary: emp.salary,
-          targetUSD: salesTargetUSD,
-          totalGrossAchieved,
-          totalNetAchieved,
-          grossAchievementPercent: grossAchievementPercent.toFixed(2) + '%',
-          expectedMinimumUpfront,
-          netAchievementPercent: netAchievementPercent.toFixed(2) + '%',
-          averageAchievementPercent: averageAchievementPercent.toFixed(2) + '%',
-          variablePay,
-          variablePayable: variablePayable.toFixed(2),
+        basicSalary = monthlySalary;
+        variablePay = 0;
+        fixedPaid = totalPaid;
+        variablePaid = 0;
+
+        console.log(`Fixed salary calculation:`, {
+          monthlySalary,
+          perDayRate,
+          presentDays,
+          totalPaid: totalPaid.toFixed(2),
         });
       }
 
-      // Gross Salary
-      const grossSalary = basicPayable + variablePayable;
+      // Round to 2 decimal places
+      const basicPayable = Math.round(fixedPaid * 100) / 100;
+      const variablePayable = Math.round(variablePaid * 100) / 100;
+      const grossSalary = Math.round(totalPaid * 100) / 100;
 
       // Deductions
       const professionalTax = 200; // Fixed P.tax
@@ -259,33 +320,29 @@ export async function POST(request: NextRequest) {
       const totalDeductions = professionalTax + tds + penalties + advancePayment + otherDeductions;
 
       // Net Salary
-      const netSalary = grossSalary - totalDeductions;
+      const netSalary = Math.round((grossSalary - totalDeductions) * 100) / 100;
 
       console.log(`Gross salary: ${grossSalary}`);
       console.log(`Total deductions: ${totalDeductions}`);
       console.log(`Net salary: ${netSalary}\n`);
+
+      // Calculate working days and absent days for display
+      const workingDays = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const daysAbsent = Math.max(0, workingDays - presentDays);
 
       const payrollRecord = await prisma.payroll.create({
         data: {
           employeeId: emp.id,
           month: parseInt(month),
           year: parseInt(year),
-          workingDays: totalWorkingDays,
-          daysPresent: Math.round(effectivePaidDays * 10) / 10, // Round to 1 decimal
-          daysAbsent: Math.round(absentDays * 10) / 10, // Round to 1 decimal
+          workingDays: workingDays,
+          daysPresent: Math.round(presentDays * 10) / 10,
+          daysAbsent: Math.round(daysAbsent * 10) / 10,
 
           basicSalary,
           variablePay,
           salesTarget: salesTargetUSD,
-          targetAchieved: isSales ? (await prisma.sale.aggregate({
-            where: {
-              closedBy: emp.id,
-              month: parseInt(month),
-              year: parseInt(year),
-              status: { in: ['CONFIRMED', 'DELIVERED', 'PAID'] },
-            },
-            _sum: { netAmount: true },
-          }))._sum.netAmount || 0 : 0,
+          targetAchieved: achievedUpfront,
 
           basicPayable,
           variablePayable,
