@@ -9,8 +9,9 @@ type RouteContext = {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || (session.role !== 'ADMIN' && session.role !== 'MANAGER')) {
@@ -42,8 +43,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {

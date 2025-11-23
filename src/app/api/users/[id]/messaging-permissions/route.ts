@@ -7,8 +7,9 @@ type RouteContext = {
 // PUT - Update messaging permissions for a user
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
@@ -51,8 +52,9 @@ export async function PUT(
 // GET - Get messaging permissions for a user
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {

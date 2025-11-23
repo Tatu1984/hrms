@@ -5,22 +5,23 @@ import { unlink } from 'fs/promises';
 import { join } from 'path';
 
 type RouteContext = {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; documentId: string }>;
 };
 
 
 // DELETE /api/employees/[id]/documents/[documentId] - Delete a document
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; documentId: string }> }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId, documentId } = await params;
+    const { id: employeeId, documentId } = params;
 
     // Authorization
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {
@@ -63,15 +64,16 @@ export async function DELETE(
 // PUT /api/employees/[id]/documents/[documentId] - Verify a document (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; documentId: string }> }
+  context: RouteContext
 ) {
-  try {
+  const params = await context.params;
+  try{
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { documentId } = await params;
+    const { documentId } = params;
 
     const document = await prisma.employeeDocument.update({
       where: { id: documentId },
