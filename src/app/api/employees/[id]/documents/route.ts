@@ -5,18 +5,23 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 // GET /api/employees/[id]/documents - Get all documents for an employee
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = await params;
+    const { id: employeeId } = params;
 
     // Authorization
     if (
@@ -45,15 +50,16 @@ export async function GET(
 // POST /api/employees/[id]/documents - Upload a new document
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = await params;
+    const { id: employeeId } = params;
 
     // Authorization
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {

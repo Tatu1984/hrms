@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 // PUT - Update messaging permissions for a user
 export async function PUT(
   request: NextRequest,
@@ -12,15 +14,12 @@ export async function PUT(
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
     const body = await request.json();
     const { canMessagePeers, canMessageManager, canMessageDirector } = body;
-
     // Check if permission exists
     const existing = await prisma.messagingPermission.findUnique({
       where: { userId: params.id },
     });
-
     let permission;
     if (existing) {
       // Update existing
@@ -43,14 +42,12 @@ export async function PUT(
         },
       });
     }
-
     return NextResponse.json(permission);
   } catch (error) {
     console.error('Error updating messaging permissions:', error);
     return NextResponse.json({ error: 'Failed to update permissions' }, { status: 500 });
   }
 }
-
 // GET - Get messaging permissions for a user
 export async function GET(
   request: NextRequest,
@@ -61,11 +58,9 @@ export async function GET(
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
     const permission = await prisma.messagingPermission.findUnique({
       where: { userId: params.id },
     });
-
     return NextResponse.json(permission || {
       canMessagePeers: true,
       canMessageManager: true,

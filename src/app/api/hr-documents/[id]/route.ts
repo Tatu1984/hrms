@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 // GET - Fetch single HR document
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
@@ -31,8 +37,9 @@ export async function GET(
 // PUT - Update HR document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
@@ -65,8 +72,9 @@ export async function PUT(
 // DELETE - Delete HR document (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {

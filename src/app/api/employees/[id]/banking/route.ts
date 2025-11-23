@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 // GET /api/employees/[id]/banking - Get banking details
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
@@ -41,15 +46,16 @@ export async function GET(
 // POST /api/employees/[id]/banking - Create/Update banking details
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = await params;
+    const { id: employeeId } = params;
 
     // Authorization: Only admin or the employee themselves can update
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {
@@ -127,15 +133,16 @@ export async function POST(
 // PUT /api/employees/[id]/banking/verify - Verify banking details (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: employeeId } = await params;
+    const { id: employeeId } = params;
 
     const bankingDetails = await prisma.bankingDetails.update({
       where: { employeeId },

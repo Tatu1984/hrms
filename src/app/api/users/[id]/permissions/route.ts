@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 // PUT - Update user permissions
 export async function PUT(
   request: NextRequest,
@@ -12,17 +14,14 @@ export async function PUT(
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
     const body = await request.json();
     const { permissions } = body;
-
     const user = await prisma.user.update({
       where: { id: params.id },
       data: {
         permissions: JSON.stringify(permissions),
       },
     });
-
     return NextResponse.json(user);
   } catch (error) {
     console.error('Error updating user permissions:', error);
