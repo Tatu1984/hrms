@@ -227,7 +227,14 @@ export default function AttendanceEditPage() {
     }
 
     // Calendar days
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     for (let day = 1; day <= daysInMonth; day++) {
+      const dayDate = new Date(year, month, day);
+      dayDate.setHours(0, 0, 0, 0);
+      const isFutureDate = dayDate > today;
+
       const attendance = getAttendanceForDate(day);
       const weekend = isWeekend(day);
       const holiday = isHoliday(day);
@@ -241,6 +248,7 @@ export default function AttendanceEditPage() {
             p-2 min-h-[80px] border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors
             ${weekend && !attendance && !holiday ? 'bg-gray-100' : ''}
             ${holiday && !attendance ? 'bg-purple-50' : ''}
+            ${isFutureDate ? 'opacity-50' : ''}
           `}
         >
           <div className="text-sm font-medium text-gray-700 mb-1">{day}</div>
@@ -256,6 +264,8 @@ export default function AttendanceEditPage() {
             <div className="text-xs px-2 py-1 rounded bg-gray-300 text-gray-700">
               Weekend
             </div>
+          ) : isFutureDate ? (
+            <div className="text-xs text-gray-400">-</div>
           ) : (
             <div className="text-xs px-2 py-1 rounded bg-red-500 text-white">
               ABSENT

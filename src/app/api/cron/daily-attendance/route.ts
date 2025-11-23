@@ -52,11 +52,20 @@ export async function GET(request: NextRequest) {
 
     // Get all active employees
     const employees = await prisma.employee.findMany({
-      select: { id: true, name: true, employeeId: true },
+      select: { id: true, name: true, employeeId: true, dateOfJoining: true },
     });
 
     for (const employee of employees) {
       try {
+        // Check if employee joined after the target date
+        const joiningDate = new Date(employee.dateOfJoining);
+        joiningDate.setHours(0, 0, 0, 0);
+
+        if (targetDate < joiningDate) {
+          // Employee hasn't joined yet, skip
+          continue;
+        }
+
         // Check if attendance already exists
         const existingAttendance = await prisma.attendance.findFirst({
           where: {
@@ -187,11 +196,20 @@ export async function POST(request: NextRequest) {
     const isHoliday = !!holiday;
 
     const employees = await prisma.employee.findMany({
-      select: { id: true, name: true, employeeId: true },
+      select: { id: true, name: true, employeeId: true, dateOfJoining: true },
     });
 
     for (const employee of employees) {
       try {
+        // Check if employee joined after the target date
+        const joiningDate = new Date(employee.dateOfJoining);
+        joiningDate.setHours(0, 0, 0, 0);
+
+        if (targetDate < joiningDate) {
+          // Employee hasn't joined yet, skip
+          continue;
+        }
+
         const existingAttendance = await prisma.attendance.findFirst({
           where: {
             employeeId: employee.id,
