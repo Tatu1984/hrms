@@ -6,8 +6,9 @@ type RouteContext = {
 };
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const body = await req.json();
     const { username, password, role, permissions } = body;
@@ -67,8 +68,9 @@ export async function PUT(
 }
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string } }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     await prisma.user.delete({
       where: { id: params.id },

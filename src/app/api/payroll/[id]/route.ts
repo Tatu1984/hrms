@@ -9,8 +9,9 @@ type RouteContext = {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: RouteContext
 ) {
+  const params = await context.params;
   try {
     const session = await getSession();
     if (!session) {
