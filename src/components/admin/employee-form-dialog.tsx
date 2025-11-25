@@ -16,6 +16,10 @@ interface Employee {
   email: string;
   phone: string;
   altPhone?: string;
+  altEmail?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
   address: string;
   designation: string;
   salaryType: 'FIXED' | 'VARIABLE';
@@ -64,6 +68,10 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
       email: '',
       phone: '',
       altPhone: '',
+      altEmail: '',
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      emergencyContactRelation: '',
       address: '',
       designation: '',
       salaryType: 'FIXED',
@@ -242,6 +250,63 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
               />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="altEmail">Alternate Email</Label>
+            <Input
+              id="altEmail"
+              type="email"
+              value={formData.altEmail}
+              onChange={(e) => handleChange('altEmail', e.target.value)}
+              placeholder="Optional alternate email"
+            />
+          </div>
+
+          <Separator className="my-4" />
+
+          <h3 className="text-md font-semibold">Emergency Contact Details</h3>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactName">Contact Name</Label>
+              <Input
+                id="emergencyContactName"
+                value={formData.emergencyContactName}
+                onChange={(e) => handleChange('emergencyContactName', e.target.value)}
+                placeholder="e.g., John Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactPhone">Contact Phone</Label>
+              <Input
+                id="emergencyContactPhone"
+                value={formData.emergencyContactPhone}
+                onChange={(e) => handleChange('emergencyContactPhone', e.target.value)}
+                placeholder="e.g., +1234567890"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactRelation">Relationship</Label>
+              <Select
+                value={formData.emergencyContactRelation || ''}
+                onValueChange={(val) => handleChange('emergencyContactRelation', val)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select relation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Spouse">Spouse</SelectItem>
+                  <SelectItem value="Parent">Parent</SelectItem>
+                  <SelectItem value="Sibling">Sibling</SelectItem>
+                  <SelectItem value="Child">Child</SelectItem>
+                  <SelectItem value="Friend">Friend</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Separator className="my-4" />
 
           <div className="space-y-2">
             <Label htmlFor="address">Address *</Label>

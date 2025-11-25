@@ -28,6 +28,10 @@ interface Employee {
   email: string;
   phone: string;
   altPhone?: string;
+  altEmail?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
   address: string;
   designation: string;
   department: string;
@@ -76,6 +80,7 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
   const [bankingDetails, setBankingDetails] = useState<BankingDetails | null>(null);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingBanking, setEditingBanking] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -99,16 +104,27 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
   const fetchEmployeeData = async () => {
     try {
       setLoading(true);
+      setError(null);
+
       const [empRes, bankRes, docsRes] = await Promise.all([
         fetch(`/api/employees/${employeeId}`),
         fetch(`/api/employees/${employeeId}/banking`),
         fetch(`/api/employees/${employeeId}/documents`),
       ]);
 
-      if (empRes.ok) {
-        const empData = await empRes.json();
-        setEmployee(empData);
+      if (!empRes.ok) {
+        if (empRes.status === 404) {
+          setError('Employee not found. The employee may have been deleted or the ID is incorrect.');
+        } else {
+          const errorData = await empRes.json().catch(() => ({ error: 'Unknown error' }));
+          setError(errorData.error || `Failed to load employee (Status: ${empRes.status})`);
+        }
+        setLoading(false);
+        return;
       }
+
+      const empData = await empRes.json();
+      setEmployee(empData);
 
       if (bankRes.ok) {
         const bankData = await bankRes.json();
@@ -124,6 +140,7 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
       }
     } catch (error) {
       console.error('Error fetching employee data:', error);
+      setError('Failed to load employee data. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -215,11 +232,21 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
     );
   }
 
-  if (!employee) {
+  if (error || !employee) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
-          <p className="text-red-600">Employee not found</p>
+          <div className="text-red-600">
+            <p className="font-semibold text-lg mb-2">
+              {error || 'Employee not found'}
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              Employee ID: {employeeId}
+            </p>
+            <Button onClick={fetchEmployeeData} variant="outline">
+              Retry
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -295,6 +322,12 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
                   <p className="font-medium">{employee.altPhone}</p>
                 </div>
               )}
+              {employee.altEmail && (
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-500">Alternate Email</label>
+                  <p className="font-medium">{employee.altEmail}</p>
+                </div>
+              )}
               <div>
                 <label className="text-sm text-gray-500">Designation</label>
                 <p className="font-medium">{employee.designation}</p>
@@ -313,6 +346,34 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
                 <label className="text-sm text-gray-500">Address</label>
                 <p className="font-medium">{employee.address}</p>
               </div>
+
+              {/* Emergency Contact Section */}
+              {(employee.emergencyContactName || employee.emergencyContactPhone) && (
+                <>
+                  <div className="col-span-2 pt-4">
+                    <hr className="border-gray-200" />
+                    <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2">Emergency Contact</h4>
+                  </div>
+                  {employee.emergencyContactName && (
+                    <div>
+                      <label className="text-sm text-gray-500">Contact Name</label>
+                      <p className="font-medium">{employee.emergencyContactName}</p>
+                    </div>
+                  )}
+                  {employee.emergencyContactPhone && (
+                    <div>
+                      <label className="text-sm text-gray-500">Contact Phone</label>
+                      <p className="font-medium">{employee.emergencyContactPhone}</p>
+                    </div>
+                  )}
+                  {employee.emergencyContactRelation && (
+                    <div>
+                      <label className="text-sm text-gray-500">Relationship</label>
+                      <p className="font-medium">{employee.emergencyContactRelation}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
