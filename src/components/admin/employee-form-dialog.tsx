@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,8 +62,27 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<Employee>(
-    employee || {
+
+  // Initialize form data with proper date formatting for edit mode
+  const getInitialFormData = (): Employee => {
+    if (employee) {
+      // Edit mode - format existing employee data
+      return {
+        ...employee,
+        altPhone: employee.altPhone || '',
+        altEmail: employee.altEmail || '',
+        emergencyContactName: employee.emergencyContactName || '',
+        emergencyContactPhone: employee.emergencyContactPhone || '',
+        emergencyContactRelation: employee.emergencyContactRelation || '',
+        reportingHeadId: employee.reportingHeadId || '',
+        variablePay: employee.variablePay || 0,
+        dateOfJoining: employee.dateOfJoining
+          ? new Date(employee.dateOfJoining).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+      };
+    }
+    // Create mode - default values
+    return {
       name: '',
       email: '',
       phone: '',
@@ -80,8 +99,10 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
       department: '',
       reportingHeadId: '',
       dateOfJoining: new Date().toISOString().split('T')[0],
-    }
-  );
+    };
+  };
+
+  const [formData, setFormData] = useState<Employee>(getInitialFormData());
 
   const [bankingDetails, setBankingDetails] = useState<BankingDetails>({
     bankName: '',
@@ -99,6 +120,13 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
   });
 
   const [documents, setDocuments] = useState<DocumentUpload[]>([]);
+
+  // Reset form data when employee changes (e.g., opening edit dialog for different employee)
+  React.useEffect(() => {
+    if (open) {
+      setFormData(getInitialFormData());
+    }
+  }, [open, employee]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
