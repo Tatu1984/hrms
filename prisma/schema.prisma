@@ -78,6 +78,8 @@ model Attendance {
   date           DateTime
   punchIn        DateTime?
   punchOut       DateTime?
+  punchInIp      String?          // IP address when punched in
+  punchOutIp     String?          // IP address when punched out
   breakStart     DateTime?
   breakEnd       DateTime?
   totalHours     Float?

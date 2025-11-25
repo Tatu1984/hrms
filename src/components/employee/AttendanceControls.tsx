@@ -13,6 +13,8 @@ interface AttendanceControlsProps {
     punchOut: Date | null;
     breakStart: Date | null;
     breakEnd: Date | null;
+    punchInIp?: string | null;
+    punchOutIp?: string | null;
   } | null;
 }
 
@@ -39,18 +41,24 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
       }
 
       // Wait for response and then refresh
-      await res.json();
+      const responseData = await res.json();
 
-      // Update localStorage for heartbeat tracking
+      // Update localStorage AND cookies for heartbeat tracking
       if (action === 'punch-in') {
         localStorage.setItem('hrms_punched_in', 'true');
         localStorage.setItem('hrms_last_activity', Date.now().toString());
-        console.log('[Attendance] Punch in - localStorage updated');
+        // Set cookie that expires in 24 hours
+        document.cookie = `hrms_punched_in=true; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `hrms_attendance_id=${responseData.id}; path=/; max-age=86400; SameSite=Lax`;
+        console.log('[Attendance] Punch in - localStorage and cookies updated');
       } else if (action === 'punch-out') {
         localStorage.setItem('hrms_punched_in', 'false');
         localStorage.removeItem('hrms_last_activity');
         localStorage.removeItem('hrms_last_heartbeat');
-        console.log('[Attendance] Punch out - localStorage cleared');
+        // Clear cookies
+        document.cookie = 'hrms_punched_in=false; path=/; max-age=0';
+        document.cookie = 'hrms_attendance_id=; path=/; max-age=0';
+        console.log('[Attendance] Punch out - localStorage and cookies cleared');
       }
 
       router.refresh();
@@ -69,7 +77,13 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
       {/* Activity Tracker - monitors user activity when punched in */}
       <ActivityTracker isActive={!!hasPunchedIn} />
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-end gap-2">
+        {attendance?.punchInIp && (
+          <div className="text-xs text-blue-100">
+            IP: {attendance.punchInIp}
+          </div>
+        )}
+        <div className="flex items-center gap-4">
       {!attendance?.punchIn ? (
         <Button
           onClick={() => handleAction('punch-in')}
@@ -117,6 +131,7 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
           </p>
         </div>
       )}
+        </div>
       </div>
     </>
   );
