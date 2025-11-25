@@ -116,3 +116,96 @@ export async function GET(
     );
   }
 }
+
+// PUT - Update invoice details (invoiceNumber, clientName, amount, currency, etc.)
+export async function PUT(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const params = await context.params;
+  try {
+    const session = await getSession();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'MANAGER')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = params;
+    const body = await request.json();
+    const { invoiceNumber, clientName, clientEmail, clientAddress, amount, currency, dueDate } = body;
+
+    // Check if invoice exists
+    const existingInvoice = await prisma.invoice.findUnique({ where: { id } });
+    if (!existingInvoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Don't allow editing paid invoices
+    if (existingInvoice.status === 'PAID') {
+      return NextResponse.json(
+        { error: 'Cannot edit paid invoices' },
+        { status: 400 }
+      );
+    }
+
+    const invoice = await prisma.invoice.update({
+      where: { id },
+      data: {
+        invoiceNumber,
+        clientName,
+        clientEmail,
+        clientAddress,
+        amount: parseFloat(amount),
+        currency,
+        dueDate: dueDate ? new Date(dueDate) : null,
+      },
+    });
+
+    return NextResponse.json({ success: true, invoice });
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to update invoice' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete invoice
+export async function DELETE(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const params = await context.params;
+  try {
+    const session = await getSession();
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'MANAGER')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = params;
+
+    // Check if invoice exists
+    const existingInvoice = await prisma.invoice.findUnique({ where: { id } });
+    if (!existingInvoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Don't allow deleting paid invoices
+    if (existingInvoice.status === 'PAID') {
+      return NextResponse.json(
+        { error: 'Cannot delete paid invoices. Please cancel it instead.' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.invoice.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: 'Invoice deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete invoice' },
+      { status: 500 }
+    );
+  }
+}
