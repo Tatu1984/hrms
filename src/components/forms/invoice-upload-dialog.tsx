@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { MiniCurrencyConverter } from '@/components/currency/mini-currency-converter';
 import { CURRENCIES, CurrencyCode } from '@/lib/currencies';
 
 export function InvoiceUploadDialog() {
@@ -89,11 +88,11 @@ export function InvoiceUploadDialog() {
           Upload Invoice
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Invoice</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label htmlFor="uploadFile">Upload Invoice File (PDF, PNG, JPG) *</Label>
             <Input
@@ -180,17 +179,7 @@ export function InvoiceUploadDialog() {
             />
           </div>
 
-          {formData.amount && parseFloat(formData.amount) > 0 && (
-            <div className="pt-2">
-              <MiniCurrencyConverter
-                defaultAmount={parseFloat(formData.amount)}
-                defaultFrom={formData.currency}
-                defaultTo="INR"
-              />
-            </div>
-          )}
-
-          <DialogFooter>
+          <DialogFooter className="pt-4 sticky bottom-0 bg-white border-t mt-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
