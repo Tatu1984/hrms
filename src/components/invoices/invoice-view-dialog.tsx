@@ -11,7 +11,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { X, ExternalLink, CheckCircle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { MiniCurrencyConverter } from '@/components/currency/mini-currency-converter';
-import { CurrencyCode } from '@/lib/currencies';
+import { CurrencyCode, CURRENCIES } from '@/lib/currencies';
 
 interface Invoice {
   id: string;
@@ -41,6 +41,7 @@ export function InvoiceViewDialog({ invoice, open, onClose }: InvoiceViewDialogP
   const [status, setStatus] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [paidDate, setPaidDate] = useState('');
+  const [paidCurrency, setPaidCurrency] = useState<CurrencyCode>(invoice?.currency as CurrencyCode || 'USD');
 
   if (!invoice) return null;
 
@@ -62,6 +63,7 @@ export function InvoiceViewDialog({ invoice, open, onClose }: InvoiceViewDialogP
         }
         updateData.paidAmount = parseFloat(paidAmount);
         updateData.paidDate = new Date(paidDate).toISOString();
+        updateData.paidCurrency = paidCurrency;
       }
 
       const response = await fetch(`/api/invoices/${invoice.id}`, {
@@ -214,16 +216,37 @@ export function InvoiceViewDialog({ invoice, open, onClose }: InvoiceViewDialogP
 
                 {status === 'PAID' && (
                   <>
-                    <div>
-                      <Label htmlFor="paidAmount">Amount Received (INR)</Label>
-                      <Input
-                        id="paidAmount"
-                        type="number"
-                        step="0.01"
-                        value={paidAmount}
-                        onChange={(e) => setPaidAmount(e.target.value)}
-                        placeholder="0.00"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="paidAmount">Amount Received</Label>
+                        <Input
+                          id="paidAmount"
+                          type="number"
+                          step="0.01"
+                          value={paidAmount}
+                          onChange={(e) => setPaidAmount(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="paidCurrency">Currency</Label>
+                        <Select value={paidCurrency} onValueChange={(value) => setPaidCurrency(value as CurrencyCode)}>
+                          <SelectTrigger id="paidCurrency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {CURRENCIES.map((currency) => (
+                              <SelectItem key={currency.code} value={currency.code}>
+                                <div className="flex items-center gap-2">
+                                  <span>{currency.flag}</span>
+                                  <span className="font-medium">{currency.code}</span>
+                                  <span className="text-gray-500 text-sm">- {currency.symbol}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="paidDate">Payment Date</Label>
@@ -234,6 +257,15 @@ export function InvoiceViewDialog({ invoice, open, onClose }: InvoiceViewDialogP
                         onChange={(e) => setPaidDate(e.target.value)}
                       />
                     </div>
+                    {paidAmount && (
+                      <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+                        <MiniCurrencyConverter
+                          defaultAmount={parseFloat(paidAmount)}
+                          defaultFrom={paidCurrency}
+                          defaultTo="INR"
+                        />
+                      </div>
+                    )}
                   </>
                 )}
 

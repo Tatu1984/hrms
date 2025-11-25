@@ -20,9 +20,10 @@ export async function POST(request: NextRequest) {
     const invoiceNumber = formData.get('invoiceNumber') as string;
     const clientName = formData.get('clientName') as string;
     const amount = formData.get('amount') as string;
+    const currency = formData.get('currency') as string || 'USD';
     const dueDate = formData.get('dueDate') as string | null;
 
-    console.log('Form data:', { invoiceNumber, clientName, amount, dueDate, fileType: file?.type, fileSize: file?.size });
+    console.log('Form data:', { invoiceNumber, clientName, amount, currency, dueDate, fileType: file?.type, fileSize: file?.size });
 
     if (!file || !invoiceNumber || !clientName || !amount) {
       return NextResponse.json(
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
         clientEmail: '',
         clientAddress: '',
         amount: parseFloat(amount),
+        currency: currency,
         dueDate: dueDate ? new Date(dueDate) : null,
         status: 'DRAFT',
         items: [],
