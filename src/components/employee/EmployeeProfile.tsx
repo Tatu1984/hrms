@@ -586,7 +586,11 @@ export default function EmployeeProfile({ employeeId, canEdit }: EmployeeProfile
                   )}
                   <div>
                     <label className="text-sm text-gray-500">Account Number</label>
-                    <p className="font-medium">{'*'.repeat(bankingDetails?.accountNumber.length - 4) + bankingDetails?.accountNumber.slice(-4)}</p>
+                    <p className="font-medium">
+                      {bankingDetails?.accountNumber
+                        ? '*'.repeat(Math.max(0, bankingDetails.accountNumber.length - 4)) + bankingDetails.accountNumber.slice(-4)
+                        : 'N/A'}
+                    </p>
                   </div>
                   {bankingDetails?.accountType && (
                     <div>

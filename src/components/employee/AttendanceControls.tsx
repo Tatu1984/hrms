@@ -15,6 +15,7 @@ interface AttendanceControlsProps {
     breakEnd: Date | null;
     punchInIp?: string | null;
     punchOutIp?: string | null;
+    totalHours?: number | null;
   } | null;
 }
 
