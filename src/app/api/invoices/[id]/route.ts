@@ -43,14 +43,14 @@ export async function PATCH(
 
       // Find or create "Invoice Payments" category
       let category = await prisma.accountCategory.findFirst({
-        where: { name: 'Invoice Payments', type: 'CREDIT' },
+        where: { name: 'Invoice Payments', type: 'INCOME' },
       });
 
       if (!category) {
         category = await prisma.accountCategory.create({
           data: {
             name: 'Invoice Payments',
-            type: 'CREDIT',
+            type: 'INCOME',
           },
         });
       }
@@ -58,7 +58,7 @@ export async function PATCH(
       // Create account entry with the currency from the paid amount
       await prisma.account.create({
         data: {
-          type: 'CREDIT',
+          type: 'INCOME',
           categoryId: category.id,
           amount: parseFloat(paidAmount),
           currency: paidCurrency || invoiceDetails?.currency || 'USD',
