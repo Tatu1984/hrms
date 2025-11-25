@@ -78,9 +78,14 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
       <ActivityTracker isActive={!!hasPunchedIn} />
 
       <div className="flex flex-col items-end gap-2">
-        {attendance?.punchInIp && (
-          <div className="text-xs text-blue-100">
-            IP: {attendance.punchInIp}
+        {(attendance?.punchInIp || attendance?.punchOutIp) && (
+          <div className="text-xs text-blue-100 space-y-0.5">
+            {attendance.punchInIp && (
+              <div>Punch In IP: {attendance.punchInIp}</div>
+            )}
+            {attendance.punchOutIp && (
+              <div>Punch Out IP: {attendance.punchOutIp}</div>
+            )}
           </div>
         )}
         <div className="flex items-center gap-4">

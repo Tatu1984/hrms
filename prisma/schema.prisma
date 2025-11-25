@@ -29,8 +29,12 @@ model Employee {
   employeeId        String      @unique
   name              String
   email             String      @unique
+  altEmail          String?     // Alternate email address
   phone             String
   altPhone          String?
+  emergencyContactName  String?  // Emergency contact person name
+  emergencyContactPhone String?  // Emergency contact phone
+  emergencyContactRelation String? // Relationship with emergency contact
   address           String
   designation       String
   salaryType        SalaryType  @default(FIXED)

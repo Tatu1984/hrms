@@ -46,6 +46,35 @@ export default function LoginPage() {
       // Show success message
       setSuccess(`Welcome back, ${data.name}!`);
 
+      // Initialize heartbeat tracking based on existing attendance
+      if (data.role === 'EMPLOYEE' && data.employeeId) {
+        // Check if user is already punched in today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const checkAttendance = await fetch(`/api/attendance?date=${today.toISOString()}`);
+        if (checkAttendance.ok) {
+          const attendanceData = await checkAttendance.json();
+
+          // If user is punched in (has punchIn but no punchOut), initialize heartbeat cookies
+          if (attendanceData && attendanceData.punchIn && !attendanceData.punchOut) {
+            localStorage.setItem('hrms_punched_in', 'true');
+            localStorage.setItem('hrms_last_activity', Date.now().toString());
+            document.cookie = `hrms_punched_in=true; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `hrms_attendance_id=${attendanceData.id}; path=/; max-age=86400; SameSite=Lax`;
+            console.log('[Login] User already punched in - heartbeat tracking initialized');
+          } else {
+            // User not punched in, clear any stale cookies
+            localStorage.setItem('hrms_punched_in', 'false');
+            localStorage.removeItem('hrms_last_activity');
+            localStorage.removeItem('hrms_last_heartbeat');
+            document.cookie = 'hrms_punched_in=false; path=/; max-age=0';
+            document.cookie = 'hrms_attendance_id=; path=/; max-age=0';
+            console.log('[Login] User not punched in - cleared heartbeat tracking');
+          }
+        }
+      }
+
       const redirectMap = {
         ADMIN: '/admin/dashboard',
         MANAGER: '/manager/dashboard',
