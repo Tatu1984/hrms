@@ -40,6 +40,19 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
 
       // Wait for response and then refresh
       await res.json();
+
+      // Update localStorage for heartbeat tracking
+      if (action === 'punch-in') {
+        localStorage.setItem('hrms_punched_in', 'true');
+        localStorage.setItem('hrms_last_activity', Date.now().toString());
+        console.log('[Attendance] Punch in - localStorage updated');
+      } else if (action === 'punch-out') {
+        localStorage.setItem('hrms_punched_in', 'false');
+        localStorage.removeItem('hrms_last_activity');
+        localStorage.removeItem('hrms_last_heartbeat');
+        console.log('[Attendance] Punch out - localStorage cleared');
+      }
+
       router.refresh();
     } catch (error) {
       console.error('Attendance action error:', error);
