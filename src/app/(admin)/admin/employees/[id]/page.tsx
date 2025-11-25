@@ -5,9 +5,9 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function AdminEmployeeProfilePage({ params }: PageProps) {
@@ -17,7 +17,7 @@ export default async function AdminEmployeeProfilePage({ params }: PageProps) {
     redirect('/login');
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   return (
     <div className="p-6 space-y-6">
