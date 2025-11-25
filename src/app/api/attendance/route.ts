@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { getClientIp } from '@/lib/ip';
 
 /**
  * Calculate idle time based on activity logs
@@ -260,11 +261,15 @@ export async function POST(request: NextRequest) {
       const punchInDate = new Date(now);
       punchInDate.setHours(0, 0, 0, 0);
 
+      // Capture IP address
+      const ipAddress = getClientIp(request);
+
       const attendance = await prisma.attendance.create({
         data: {
           employeeId: targetEmployeeId,
           date: punchInDate, // Date when they punched in (locks the work to this date)
           punchIn: now,
+          punchInIp: ipAddress,
           status: 'PRESENT',
         },
         include: {
@@ -360,10 +365,14 @@ export async function POST(request: NextRequest) {
         status: attendanceStatus,
       });
 
+      // Capture IP address for punch out
+      const ipAddress = getClientIp(request);
+
       const updatedAttendance = await prisma.attendance.update({
         where: { id: attendance.id },
         data: {
           punchOut: now,
+          punchOutIp: ipAddress,
           totalHours: Math.round(totalHours * 100) / 100, // Total work time (excluding breaks)
           breakDuration: Math.round(breakDuration * 100) / 100,
           idleTime: Math.round(idleTime * 100) / 100,
