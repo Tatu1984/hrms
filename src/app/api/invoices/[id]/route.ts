@@ -20,7 +20,7 @@ export async function PATCH(
 
     const { id } = params;
     const body = await request.json();
-    const { status, paidAmount, paidDate } = body;
+    const { status, paidAmount, paidDate, paidCurrency } = body;
 
     const updateData: any = {};
 
@@ -38,15 +38,35 @@ export async function PATCH(
       updateData.paidAmount = parseFloat(paidAmount);
       updateData.paidDate = new Date(paidDate);
 
-      // Create transaction in Account when invoice is marked as paid
-      await prisma.transaction.create({
+      // Create account entry when invoice is marked as paid
+      const invoiceDetails = await prisma.invoice.findUnique({ where: { id } });
+
+      // Find or create "Invoice Payments" category
+      let category = await prisma.accountCategory.findFirst({
+        where: { name: 'Invoice Payments', type: 'CREDIT' },
+      });
+
+      if (!category) {
+        category = await prisma.accountCategory.create({
+          data: {
+            name: 'Invoice Payments',
+            type: 'CREDIT',
+          },
+        });
+      }
+
+      // Create account entry with the currency from the paid amount
+      await prisma.account.create({
         data: {
           type: 'CREDIT',
-          category: 'INVOICE_PAYMENT',
+          categoryId: category.id,
           amount: parseFloat(paidAmount),
-          description: `Payment received for invoice ${(await prisma.invoice.findUnique({ where: { id } }))?.invoiceNumber}`,
+          currency: paidCurrency || invoiceDetails?.currency || 'USD',
           date: new Date(paidDate),
-          status: 'COMPLETED',
+          description: `Payment received for invoice ${invoiceDetails?.invoiceNumber}`,
+          reference: `INV-${invoiceDetails?.invoiceNumber}`,
+          paymentPurpose: 'Invoice Payment',
+          senderName: invoiceDetails?.clientName,
         },
       });
     }

@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { MiniCurrencyConverter } from '@/components/currency/mini-currency-converter';
+import { CURRENCIES, CurrencyCode } from '@/lib/currencies';
 
 export function InvoiceUploadDialog() {
   const router = useRouter();
@@ -18,6 +20,7 @@ export function InvoiceUploadDialog() {
     invoiceNumber: '',
     clientName: '',
     amount: '',
+    currency: 'USD' as CurrencyCode,
     dueDate: '',
   });
 
@@ -44,6 +47,7 @@ export function InvoiceUploadDialog() {
       formDataToSend.append('invoiceNumber', formData.invoiceNumber);
       formDataToSend.append('clientName', formData.clientName);
       formDataToSend.append('amount', formData.amount);
+      formDataToSend.append('currency', formData.currency);
       if (formData.dueDate) {
         formDataToSend.append('dueDate', formData.dueDate);
       }
@@ -60,6 +64,7 @@ export function InvoiceUploadDialog() {
           invoiceNumber: '',
           clientName: '',
           amount: '',
+          currency: 'USD' as CurrencyCode,
           dueDate: '',
         });
         router.refresh();
@@ -127,17 +132,42 @@ export function InvoiceUploadDialog() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount *</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="0.00"
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount *</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency *</Label>
+              <Select
+                value={formData.currency}
+                onValueChange={(value) => setFormData({ ...formData, currency: value as CurrencyCode })}
+              >
+                <SelectTrigger id="currency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {CURRENCIES.map((currency) => (
+                    <SelectItem key={currency.code} value={currency.code}>
+                      <div className="flex items-center gap-2">
+                        <span>{currency.flag}</span>
+                        <span className="font-medium">{currency.code}</span>
+                        <span className="text-gray-500 text-sm">- {currency.symbol}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -152,7 +182,11 @@ export function InvoiceUploadDialog() {
 
           {formData.amount && parseFloat(formData.amount) > 0 && (
             <div className="pt-2">
-              <MiniCurrencyConverter defaultAmount={parseFloat(formData.amount)} />
+              <MiniCurrencyConverter
+                defaultAmount={parseFloat(formData.amount)}
+                defaultFrom={formData.currency}
+                defaultTo="INR"
+              />
             </div>
           )}
 
