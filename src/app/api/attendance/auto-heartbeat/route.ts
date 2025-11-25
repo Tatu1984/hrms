@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       const timeSinceLastHeartbeat = now.getTime() - new Date(lastHeartbeatTime!).getTime();
       const minutesSinceLastHeartbeat = timeSinceLastHeartbeat / (1000 * 60);
 
-      // If it's been more than 3.5 minutes since last heartbeat, create an inactive heartbeat
+      // If it's been more than 3.5 minutes since last heartbeat, create a heartbeat
       if (minutesSinceLastHeartbeat >= 3.5) {
         console.log(`[Auto-Heartbeat] Creating heartbeat for ${attendance.employee.name} (last: ${minutesSinceLastHeartbeat.toFixed(1)}min ago)`);
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           data: {
             attendanceId: attendance.id,
             timestamp: now,
-            active: false, // Mark as inactive since tab was likely closed
+            active: true, // Mark as active - employee is still punched in and working
           },
         });
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
           employeeName: attendance.employee.name,
           lastHeartbeat: lastHeartbeatTime,
           minutesSince: minutesSinceLastHeartbeat,
-          action: 'created_inactive_heartbeat',
+          action: 'created_active_heartbeat',
         });
       } else {
         results.push({
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processed: activeAttendances.length,
-      heartbeatsCreated: results.filter(r => r.action === 'created_inactive_heartbeat').length,
+      heartbeatsCreated: results.filter(r => r.action === 'created_active_heartbeat').length,
       timestamp: now,
       results,
     });
