@@ -65,7 +65,12 @@ export default async function EmployeeDashboard() {
     },
   });
 
-  const presentDays = recentAttendance.filter(a => a.status === 'PRESENT').length;
+  const presentDays = recentAttendance.filter(a =>
+    a.status === 'PRESENT' ||
+    a.status === 'WEEKEND' ||
+    a.status === 'HOLIDAY' ||
+    a.status === 'LEAVE'
+  ).length;
   const attendancePercentage = recentAttendance.length > 0
     ? ((presentDays / recentAttendance.length) * 100).toFixed(1)
     : '0.0';

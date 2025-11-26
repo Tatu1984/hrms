@@ -101,16 +101,24 @@ async function generateAttendanceReport(session: any, startDate: string | null, 
   // Calculate statistics
   const stats = {
     totalRecords: attendance.length,
-    presentDays: attendance.filter(a => a.status === 'PRESENT').length,
+    presentDays: attendance.filter(a =>
+      a.status === 'PRESENT' ||
+      a.status === 'WEEKEND' ||
+      a.status === 'HOLIDAY' ||
+      a.status === 'LEAVE'
+    ).length,
     absentDays: attendance.filter(a => a.status === 'ABSENT').length,
     halfDays: attendance.filter(a => a.status === 'HALF_DAY').length,
     leaveDays: attendance.filter(a => a.status === 'LEAVE').length,
+    weekendDays: attendance.filter(a => a.status === 'WEEKEND').length,
+    holidayDays: attendance.filter(a => a.status === 'HOLIDAY').length,
     totalHours: attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
     avgHoursPerDay: 0,
   };
 
-  if (stats.presentDays > 0) {
-    stats.avgHoursPerDay = stats.totalHours / stats.presentDays;
+  const workingDays = attendance.filter(a => a.status === 'PRESENT').length;
+  if (workingDays > 0) {
+    stats.avgHoursPerDay = stats.totalHours / workingDays;
   }
 
   return {

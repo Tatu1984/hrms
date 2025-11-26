@@ -129,13 +129,17 @@ export default function AttendanceEditPage() {
       setEditingRecord(existingRecord);
     } else {
       // Create a new attendance record template for this date
+      // Check if it's a weekend (Saturday or Sunday)
+      const dayOfWeek = clickedDate.getDay();
+      const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+
       const newRecord: AttendanceRecord = {
         id: '',
         employeeId: selectedEmployeeId,
         date: clickedDate,
         punchIn: null,
         punchOut: null,
-        status: 'ABSENT',
+        status: isWeekendDay ? 'WEEKEND' : 'ABSENT',
         totalHours: 0,
         breakDuration: 0,
         employee: selectedEmployee,
