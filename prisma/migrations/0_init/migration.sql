@@ -2,7 +2,7 @@
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'MANAGER', 'EMPLOYEE');
 
 -- CreateEnum
-CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE');
+CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE', 'HOLIDAY', 'WEEKEND');
 
 -- CreateEnum
 CREATE TYPE "LeaveType" AS ENUM ('SICK', 'CASUAL', 'EARNED', 'UNPAID');
@@ -43,6 +43,15 @@ CREATE TYPE "PayrollStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID');
 -- CreateEnum
 CREATE TYPE "HRDocType" AS ENUM ('POLICY', 'HOLIDAY_LIST', 'COMPANY_HIERARCHY', 'OTHER');
 
+-- CreateEnum
+CREATE TYPE "IntegrationType" AS ENUM ('AZURE_DEVOPS', 'ASANA', 'CONFLUENCE');
+
+-- CreateEnum
+CREATE TYPE "DocumentType" AS ENUM ('AADHAR_CARD', 'PAN_CARD', 'PASSPORT', 'DRIVING_LICENSE', 'VOTER_ID', 'TENTH_MARKSHEET', 'TWELFTH_MARKSHEET', 'GRADUATION_DEGREE', 'POST_GRADUATION_DEGREE', 'OTHER_CERTIFICATE', 'OFFER_LETTER', 'APPOINTMENT_LETTER', 'EXPERIENCE_LETTER', 'RELIEVING_LETTER', 'SALARY_SLIP', 'FORM_16', 'BANK_STATEMENT', 'CANCELLED_CHEQUE', 'ADDRESS_PROOF', 'PROFILE_PHOTO', 'RESUME', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "SalaryType" AS ENUM ('FIXED', 'VARIABLE');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -64,12 +73,16 @@ CREATE TABLE "Employee" (
     "employeeId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
+    "altEmail" TEXT,
     "phone" TEXT NOT NULL,
     "altPhone" TEXT,
+    "emergencyContactName" TEXT,
+    "emergencyContactPhone" TEXT,
+    "emergencyContactRelation" TEXT,
     "address" TEXT NOT NULL,
     "designation" TEXT NOT NULL,
+    "salaryType" "SalaryType" NOT NULL DEFAULT 'FIXED',
     "salary" DOUBLE PRECISION NOT NULL,
-    "basicSalary" DOUBLE PRECISION,
     "variablePay" DOUBLE PRECISION,
     "department" TEXT NOT NULL,
     "employeeType" TEXT,
@@ -86,6 +99,7 @@ CREATE TABLE "Employee" (
     "bankAddress" TEXT,
     "accountNumber" TEXT,
     "ifscCode" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -99,6 +113,8 @@ CREATE TABLE "Attendance" (
     "date" TIMESTAMP(3) NOT NULL,
     "punchIn" TIMESTAMP(3),
     "punchOut" TIMESTAMP(3),
+    "punchInIp" TEXT,
+    "punchOutIp" TEXT,
     "breakStart" TIMESTAMP(3),
     "breakEnd" TIMESTAMP(3),
     "totalHours" DOUBLE PRECISION,
@@ -109,6 +125,17 @@ CREATE TABLE "Attendance" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Attendance_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ActivityLog" (
+    "id" TEXT NOT NULL,
+    "attendanceId" TEXT NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ActivityLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -189,6 +216,20 @@ CREATE TABLE "TaskUpdate" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "TaskUpdate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DailyWorkUpdate" (
+    "id" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "workCompleted" TEXT NOT NULL,
+    "obstaclesOvercome" TEXT,
+    "tasksLeft" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DailyWorkUpdate_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -284,12 +325,16 @@ CREATE TABLE "Invoice" (
     "invoiceNumber" TEXT NOT NULL,
     "clientName" TEXT NOT NULL,
     "clientEmail" TEXT,
+    "clientAddress" TEXT,
     "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'INR',
     "status" "InvoiceStatus" NOT NULL DEFAULT 'DRAFT',
     "items" JSONB,
     "dueDate" TIMESTAMP(3),
     "notes" TEXT,
+    "fileUrl" TEXT,
+    "paidAmount" DOUBLE PRECISION,
+    "paidDate" TIMESTAMP(3),
     "skyDoSynced" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -467,6 +512,251 @@ CREATE TABLE "HRDocument" (
     CONSTRAINT "HRDocument_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "IntegrationConnection" (
+    "id" TEXT NOT NULL,
+    "platform" "IntegrationType" NOT NULL,
+    "name" TEXT NOT NULL,
+    "authType" TEXT NOT NULL,
+    "accessToken" TEXT NOT NULL,
+    "refreshToken" TEXT,
+    "tokenExpiry" TIMESTAMP(3),
+    "organizationUrl" TEXT,
+    "organizationName" TEXT,
+    "workspaceId" TEXT,
+    "confluenceSpaceKey" TEXT,
+    "syncEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "syncFrequency" TEXT NOT NULL DEFAULT 'MANUAL',
+    "lastSyncAt" TIMESTAMP(3),
+    "lastSyncStatus" TEXT,
+    "lastSyncError" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "IntegrationConnection_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "IntegrationUserMapping" (
+    "id" TEXT NOT NULL,
+    "connectionId" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "employeeEmail" TEXT NOT NULL,
+    "externalUserId" TEXT NOT NULL,
+    "externalEmail" TEXT NOT NULL,
+    "externalName" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "IntegrationUserMapping_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WorkItem" (
+    "id" TEXT NOT NULL,
+    "connectionId" TEXT NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "externalUrl" TEXT NOT NULL,
+    "platform" "IntegrationType" NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "workItemType" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "priority" TEXT,
+    "assignedToId" TEXT,
+    "assignedTo" TEXT,
+    "assignedToName" TEXT,
+    "createdDate" TIMESTAMP(3) NOT NULL,
+    "modifiedDate" TIMESTAMP(3),
+    "completedDate" TIMESTAMP(3),
+    "dueDate" TIMESTAMP(3),
+    "projectName" TEXT,
+    "projectId" TEXT,
+    "areaPath" TEXT,
+    "iterationPath" TEXT,
+    "storyPoints" INTEGER,
+    "sectionId" TEXT,
+    "sectionName" TEXT,
+    "tags" JSONB,
+    "spaceKey" TEXT,
+    "spaceName" TEXT,
+    "parentPageId" TEXT,
+    "version" INTEGER,
+    "metadata" JSONB,
+    "lastSyncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "WorkItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DeveloperCommit" (
+    "id" TEXT NOT NULL,
+    "connectionId" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "commitHash" TEXT NOT NULL,
+    "commitMessage" TEXT NOT NULL,
+    "commitUrl" TEXT,
+    "repositoryName" TEXT NOT NULL,
+    "repositoryId" TEXT,
+    "branchName" TEXT,
+    "filesChanged" INTEGER NOT NULL DEFAULT 0,
+    "linesAdded" INTEGER NOT NULL DEFAULT 0,
+    "linesDeleted" INTEGER NOT NULL DEFAULT 0,
+    "commitDate" TIMESTAMP(3) NOT NULL,
+    "authorDate" TIMESTAMP(3),
+    "workItemId" TEXT,
+    "linkedWorkItems" JSONB,
+    "authorName" TEXT NOT NULL,
+    "authorEmail" TEXT NOT NULL,
+    "lastSyncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DeveloperCommit_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PullRequest" (
+    "id" TEXT NOT NULL,
+    "connectionId" TEXT NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "externalUrl" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL,
+    "repositoryName" TEXT NOT NULL,
+    "repositoryId" TEXT,
+    "sourceBranch" TEXT NOT NULL,
+    "targetBranch" TEXT NOT NULL,
+    "createdById" TEXT,
+    "createdByName" TEXT NOT NULL,
+    "reviewers" JSONB,
+    "createdDate" TIMESTAMP(3) NOT NULL,
+    "closedDate" TIMESTAMP(3),
+    "mergedDate" TIMESTAMP(3),
+    "commitsCount" INTEGER NOT NULL DEFAULT 0,
+    "filesChanged" INTEGER NOT NULL DEFAULT 0,
+    "lastSyncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PullRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ConfluencePage" (
+    "id" TEXT NOT NULL,
+    "connectionId" TEXT NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'page',
+    "status" TEXT NOT NULL DEFAULT 'current',
+    "title" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "spaceId" TEXT,
+    "spaceKey" TEXT,
+    "spaceName" TEXT,
+    "parentId" TEXT,
+    "parentType" TEXT,
+    "position" INTEGER,
+    "authorId" TEXT,
+    "authorName" TEXT,
+    "ownerId" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "versionMessage" TEXT,
+    "metadata" JSONB,
+    "createdDate" TIMESTAMP(3) NOT NULL,
+    "updatedDate" TIMESTAMP(3) NOT NULL,
+    "lastSyncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ConfluencePage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BankingDetails" (
+    "id" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "bankName" TEXT NOT NULL,
+    "branchName" TEXT,
+    "accountHolderName" TEXT NOT NULL,
+    "accountNumber" TEXT NOT NULL,
+    "accountType" TEXT,
+    "ifscCode" TEXT NOT NULL,
+    "swiftCode" TEXT,
+    "upiId" TEXT,
+    "panNumber" TEXT,
+    "pfAccountNumber" TEXT,
+    "esiNumber" TEXT,
+    "uanNumber" TEXT,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "BankingDetails_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "EmployeeDocument" (
+    "id" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "documentType" "DocumentType" NOT NULL,
+    "documentName" TEXT NOT NULL,
+    "fileName" TEXT NOT NULL,
+    "fileUrl" TEXT NOT NULL,
+    "fileSize" INTEGER,
+    "mimeType" TEXT,
+    "documentNumber" TEXT,
+    "issuedDate" TIMESTAMP(3),
+    "expiryDate" TIMESTAMP(3),
+    "issuingAuthority" TEXT,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "notes" TEXT,
+    "uploadedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "EmployeeDocument_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "userName" TEXT NOT NULL,
+    "userRole" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "entityType" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "entityName" TEXT,
+    "changes" JSONB,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Holiday" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "year" INTEGER NOT NULL,
+    "isOptional" BOOLEAN NOT NULL DEFAULT false,
+    "description" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Holiday_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -492,6 +782,9 @@ CREATE UNIQUE INDEX "Employee_employeeId_key" ON "Employee"("employeeId");
 CREATE UNIQUE INDEX "Employee_email_key" ON "Employee"("email");
 
 -- CreateIndex
+CREATE INDEX "Employee_isActive_idx" ON "Employee"("isActive");
+
+-- CreateIndex
 CREATE INDEX "Attendance_employeeId_idx" ON "Attendance"("employeeId");
 
 -- CreateIndex
@@ -502,6 +795,12 @@ CREATE INDEX "Attendance_status_idx" ON "Attendance"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Attendance_employeeId_date_key" ON "Attendance"("employeeId", "date");
+
+-- CreateIndex
+CREATE INDEX "ActivityLog_attendanceId_idx" ON "ActivityLog"("attendanceId");
+
+-- CreateIndex
+CREATE INDEX "ActivityLog_timestamp_idx" ON "ActivityLog"("timestamp");
 
 -- CreateIndex
 CREATE INDEX "Leave_employeeId_idx" ON "Leave"("employeeId");
@@ -522,6 +821,15 @@ CREATE INDEX "Project_status_idx" ON "Project"("status");
 CREATE INDEX "Project_startDate_idx" ON "Project"("startDate");
 
 -- CreateIndex
+CREATE INDEX "DailyWorkUpdate_employeeId_idx" ON "DailyWorkUpdate"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "DailyWorkUpdate_date_idx" ON "DailyWorkUpdate"("date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DailyWorkUpdate_employeeId_date_key" ON "DailyWorkUpdate"("employeeId", "date");
+
+-- CreateIndex
 CREATE INDEX "Payroll_employeeId_idx" ON "Payroll"("employeeId");
 
 -- CreateIndex
@@ -535,6 +843,12 @@ CREATE UNIQUE INDEX "Payroll_employeeId_month_year_key" ON "Payroll"("employeeId
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Invoice_invoiceNumber_key" ON "Invoice"("invoiceNumber");
+
+-- CreateIndex
+CREATE INDEX "Invoice_status_idx" ON "Invoice"("status");
+
+-- CreateIndex
+CREATE INDEX "Invoice_dueDate_idx" ON "Invoice"("dueDate");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "AccountCategory_name_key" ON "AccountCategory"("name");
@@ -578,6 +892,102 @@ CREATE INDEX "Sale_month_year_idx" ON "Sale"("month", "year");
 -- CreateIndex
 CREATE INDEX "Sale_createdAt_idx" ON "Sale"("createdAt");
 
+-- CreateIndex
+CREATE INDEX "IntegrationConnection_platform_idx" ON "IntegrationConnection"("platform");
+
+-- CreateIndex
+CREATE INDEX "IntegrationConnection_isActive_idx" ON "IntegrationConnection"("isActive");
+
+-- CreateIndex
+CREATE INDEX "IntegrationUserMapping_employeeId_idx" ON "IntegrationUserMapping"("employeeId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "IntegrationUserMapping_connectionId_employeeId_key" ON "IntegrationUserMapping"("connectionId", "employeeId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "IntegrationUserMapping_connectionId_externalUserId_key" ON "IntegrationUserMapping"("connectionId", "externalUserId");
+
+-- CreateIndex
+CREATE INDEX "WorkItem_connectionId_idx" ON "WorkItem"("connectionId");
+
+-- CreateIndex
+CREATE INDEX "WorkItem_assignedToId_idx" ON "WorkItem"("assignedToId");
+
+-- CreateIndex
+CREATE INDEX "WorkItem_platform_idx" ON "WorkItem"("platform");
+
+-- CreateIndex
+CREATE INDEX "WorkItem_status_idx" ON "WorkItem"("status");
+
+-- CreateIndex
+CREATE INDEX "WorkItem_createdDate_idx" ON "WorkItem"("createdDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkItem_connectionId_externalId_key" ON "WorkItem"("connectionId", "externalId");
+
+-- CreateIndex
+CREATE INDEX "DeveloperCommit_employeeId_idx" ON "DeveloperCommit"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "DeveloperCommit_commitDate_idx" ON "DeveloperCommit"("commitDate");
+
+-- CreateIndex
+CREATE INDEX "DeveloperCommit_repositoryName_idx" ON "DeveloperCommit"("repositoryName");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DeveloperCommit_connectionId_commitHash_key" ON "DeveloperCommit"("connectionId", "commitHash");
+
+-- CreateIndex
+CREATE INDEX "PullRequest_createdById_idx" ON "PullRequest"("createdById");
+
+-- CreateIndex
+CREATE INDEX "PullRequest_createdDate_idx" ON "PullRequest"("createdDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PullRequest_connectionId_externalId_key" ON "PullRequest"("connectionId", "externalId");
+
+-- CreateIndex
+CREATE INDEX "ConfluencePage_connectionId_idx" ON "ConfluencePage"("connectionId");
+
+-- CreateIndex
+CREATE INDEX "ConfluencePage_spaceKey_idx" ON "ConfluencePage"("spaceKey");
+
+-- CreateIndex
+CREATE INDEX "ConfluencePage_parentId_idx" ON "ConfluencePage"("parentId");
+
+-- CreateIndex
+CREATE INDEX "ConfluencePage_createdDate_idx" ON "ConfluencePage"("createdDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ConfluencePage_connectionId_externalId_key" ON "ConfluencePage"("connectionId", "externalId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BankingDetails_employeeId_key" ON "BankingDetails"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "BankingDetails_employeeId_idx" ON "BankingDetails"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "EmployeeDocument_employeeId_idx" ON "EmployeeDocument"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "EmployeeDocument_documentType_idx" ON "EmployeeDocument"("documentType");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_userId_idx" ON "AuditLog"("userId");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_entityType_idx" ON "AuditLog"("entityType");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "Holiday_date_idx" ON "Holiday"("date");
+
+-- CreateIndex
+CREATE INDEX "Holiday_year_idx" ON "Holiday"("year");
+
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -586,6 +996,9 @@ ALTER TABLE "Employee" ADD CONSTRAINT "Employee_reportingHeadId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_attendanceId_fkey" FOREIGN KEY ("attendanceId") REFERENCES "Attendance"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Leave" ADD CONSTRAINT "Leave_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -619,4 +1032,25 @@ ALTER TABLE "Message" ADD CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("sende
 
 -- AddForeignKey
 ALTER TABLE "Lead" ADD CONSTRAINT "Lead_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "IntegrationUserMapping" ADD CONSTRAINT "IntegrationUserMapping_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "IntegrationConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkItem" ADD CONSTRAINT "WorkItem_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "IntegrationConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DeveloperCommit" ADD CONSTRAINT "DeveloperCommit_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "IntegrationConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DeveloperCommit" ADD CONSTRAINT "DeveloperCommit_workItemId_fkey" FOREIGN KEY ("workItemId") REFERENCES "WorkItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ConfluencePage" ADD CONSTRAINT "ConfluencePage_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "IntegrationConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BankingDetails" ADD CONSTRAINT "BankingDetails_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "EmployeeDocument" ADD CONSTRAINT "EmployeeDocument_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
