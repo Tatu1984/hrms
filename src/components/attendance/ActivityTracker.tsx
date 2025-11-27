@@ -57,7 +57,6 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     const keys = recent.map(e => e.key);
     const uniqueKeys = new Set(keys);
     if (uniqueKeys.size === 1) {
-      console.warn('[Anti-Bot] Detected repetitive key press:', keys[0]);
       return true;
     }
 
@@ -80,7 +79,6 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
 
     // If 8 out of 9 intervals are almost identical, it's suspicious
     if (similarIntervals >= 8) {
-      console.warn('[Anti-Bot] Detected regular interval keystrokes:', avgInterval.toFixed(0), 'ms');
       return true;
     }
 
@@ -96,7 +94,6 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
         }
       }
       if (isAlternating) {
-        console.warn('[Anti-Bot] Detected alternating key pattern:', key1, '<->', key2);
         return true;
       }
     }
@@ -132,7 +129,6 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     }
 
     if (similarDirections >= 8) {
-      console.warn('[Anti-Bot] Detected linear mouse movement pattern');
       return true;
     }
 
@@ -140,7 +136,6 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     const positions = recent.map(e => `${e.x},${e.y}`);
     const uniquePositions = new Set(positions);
     if (uniquePositions.size === 1) {
-      console.warn('[Anti-Bot] Mouse stuck at same position');
       return true;
     }
 
@@ -183,11 +178,9 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
 
       if (isSuspicious) {
         suspiciousActivityCountRef.current++;
-        console.warn(`[Anti-Bot] Suspicious activity count: ${suspiciousActivityCountRef.current}`);
 
         // If more than 3 suspicious patterns detected, don't count as activity
         if (suspiciousActivityCountRef.current > 3) {
-          console.error('[Anti-Bot] Activity blocked - suspicious pattern detected');
           return;
         }
       } else {
@@ -221,10 +214,8 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
 
       if (isSuspicious) {
         suspiciousActivityCountRef.current++;
-        console.warn(`[Anti-Bot] Suspicious mouse activity count: ${suspiciousActivityCountRef.current}`);
 
         if (suspiciousActivityCountRef.current > 3) {
-          console.error('[Anti-Bot] Mouse activity blocked - suspicious pattern detected');
           return;
         }
       } else {
@@ -267,12 +258,8 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
             }),
           });
           hasRecentActivityRef.current = false; // Reset flag after sending
-
-          if (isSuspiciousActivity) {
-            console.warn('[Anti-Bot] Heartbeat sent with suspicious flag');
-          }
         } catch (error) {
-          console.error('Failed to send activity heartbeat:', error);
+          // Silently fail - don't alert user
         }
       }
     }, 30000); // Every 30 seconds
