@@ -400,6 +400,29 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                       </p>
                     </div>
                   </div>
+                  {((record as any).punchInIp || (record as any).punchOutIp) && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-gray-500 text-xs font-semibold mb-2">IP Addresses</p>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        {(record as any).punchInIp && (
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 mb-1">Punch In:</span>
+                            <span className="font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                              {(record as any).punchInIp}
+                            </span>
+                          </div>
+                        )}
+                        {(record as any).punchOutIp && (
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 mb-1">Punch Out:</span>
+                            <span className="font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                              {(record as any).punchOutIp}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
