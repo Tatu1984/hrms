@@ -10,6 +10,7 @@ const sidebarItems = [
   { icon: 'Wifi', label: 'Employee Status', href: '/admin/employee-status' },
   { icon: 'Clock', label: 'Attendance', href: '/admin/attendance', children: [
     { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
+    { icon: 'Shield', label: 'Suspicious Activity', href: '/admin/suspicious-activity' },
     { icon: 'Calendar', label: 'Leave Management', href: '/admin/leave-management' },
     { icon: 'CalendarDays', label: 'Holidays', href: '/admin/holidays' },
   ]},
