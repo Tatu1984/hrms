@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { timestamp, active } = body;
+    const { timestamp, active, suspicious } = body;
 
     // Find today's attendance record
     const today = new Date();
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         attendanceId: attendance.id,
         timestamp: new Date(timestamp),
         active: active !== false, // Default to true
+        suspicious: suspicious === true, // Default to false
       },
     });
 
