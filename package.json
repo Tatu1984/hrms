@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma migrate deploy && prisma generate && next build",
+    "build": "prisma db push --accept-data-loss && prisma generate && next build",
     "build:dev": "NODE_ENV=development prisma generate && next build",
     "build:prod": "NODE_ENV=production prisma generate && next build",
     "start": "next start",
@@ -16,7 +16,7 @@
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev",
     "studio": "prisma studio",
-    "vercel-build": "prisma migrate deploy && prisma generate && next build"
+    "vercel-build": "prisma db push --accept-data-loss && prisma generate && next build"
   },
   "dependencies": {
     "@prisma/client": "^6.17.1",
