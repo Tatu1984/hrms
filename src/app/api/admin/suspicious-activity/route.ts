@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
       date: string;
       count: number;
       timestamps: Date[];
+      patterns: Array<{ type: string; details: string; timestamp: Date }>;
     }>();
 
     suspiciousLogs.forEach(log => {
@@ -84,12 +85,21 @@ export async function GET(request: NextRequest) {
           date: new Date(log.attendance.date).toISOString().split('T')[0],
           count: 0,
           timestamps: [],
+          patterns: [],
         });
       }
 
       const summary = summaryMap.get(key)!;
       summary.count++;
       summary.timestamps.push(new Date(log.timestamp));
+
+      if (log.patternType && log.patternDetails) {
+        summary.patterns.push({
+          type: log.patternType,
+          details: log.patternDetails,
+          timestamp: new Date(log.timestamp),
+        });
+      }
     });
 
     // Convert to array and sort by count (most suspicious first)

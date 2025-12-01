@@ -101,13 +101,15 @@ model Attendance {
 }
 
 model ActivityLog {
-  id           String     @id @default(cuid())
-  attendanceId String
-  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
-  timestamp    DateTime   // When the activity was detected
-  active       Boolean    @default(true) // Whether user was active at this timestamp
-  suspicious   Boolean    @default(false) // Whether automated/bot pattern was detected
-  createdAt    DateTime   @default(now())
+  id             String     @id @default(cuid())
+  attendanceId   String
+  attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  timestamp      DateTime   // When the activity was detected
+  active         Boolean    @default(true) // Whether user was active at this timestamp
+  suspicious     Boolean    @default(false) // Whether automated/bot pattern was detected
+  patternType    String?    // Type of pattern detected (REPETITIVE_KEY, LINEAR_MOUSE_MOVEMENT, etc.)
+  patternDetails String?    // Detailed description of the pattern
+  createdAt      DateTime   @default(now())
 
   @@index([attendanceId])
   @@index([timestamp])

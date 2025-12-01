@@ -5,8 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, Shield, Users, Calendar } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertTriangle, Shield, Users, Calendar, Eye, X } from 'lucide-react';
 import { format } from 'date-fns';
+
+interface PatternInfo {
+  type: string;
+  details: string;
+  timestamp: string;
+}
 
 interface SuspiciousSummary {
   employee: {
@@ -19,6 +26,7 @@ interface SuspiciousSummary {
   date: string;
   count: number;
   timestamps: string[];
+  patterns: PatternInfo[];
 }
 
 interface SuspiciousActivityData {
@@ -33,6 +41,10 @@ export default function SuspiciousActivityPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employees, setEmployees] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState<string>('30'); // days
+  const [detailsDialog, setDetailsDialog] = useState<{
+    open: boolean;
+    summary: SuspiciousSummary | null;
+  }>({ open: false, summary: null });
 
   useEffect(() => {
     fetchEmployees();
@@ -95,6 +107,31 @@ export default function SuspiciousActivityPage() {
     if (count > 20) return <Badge className="bg-orange-500">High</Badge>;
     if (count > 10) return <Badge className="bg-yellow-500">Medium</Badge>;
     return <Badge variant="secondary">Low</Badge>;
+  };
+
+  const getPatternTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      REPETITIVE_KEY: 'Repetitive Keystroke',
+      REGULAR_INTERVAL_KEYSTROKES: 'Auto-Typer',
+      ALTERNATING_KEYS: 'Keyboard Macro',
+      LINEAR_MOUSE_MOVEMENT: 'Mouse Jiggler',
+      STATIC_MOUSE: 'Fake Mouse App',
+    };
+    return labels[type] || type;
+  };
+
+  const getPatternIcon = (type: string) => {
+    if (type.includes('KEY') || type.includes('KEYSTROKE')) return '⌨️';
+    if (type.includes('MOUSE')) return '🖱️';
+    return '⚠️';
+  };
+
+  const openDetailsDialog = (summary: SuspiciousSummary) => {
+    setDetailsDialog({ open: true, summary });
+  };
+
+  const closeDetailsDialog = () => {
+    setDetailsDialog({ open: false, summary: null });
   };
 
   return (
@@ -223,7 +260,8 @@ export default function SuspiciousActivityPage() {
               {data.summary.map((item, index) => (
                 <div
                   key={`${item.employee.id}_${item.date}`}
-                  className={`p-4 rounded-lg border ${getSeverityColor(item.count)}`}
+                  className={`p-4 rounded-lg border ${getSeverityColor(item.count)} cursor-pointer hover:shadow-md transition-shadow`}
+                  onClick={() => openDetailsDialog(item)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -234,7 +272,7 @@ export default function SuspiciousActivityPage() {
                           {item.employee.employeeId}
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-700 space-y-1">
+                      <div className="text-sm text-gray-700 space-y-1 mb-2">
                         <p>
                           <span className="font-medium">Department:</span> {item.employee.department}
                         </p>
@@ -242,35 +280,29 @@ export default function SuspiciousActivityPage() {
                           <span className="font-medium">Date:</span>{' '}
                           {format(new Date(item.date), 'MMMM d, yyyy')}
                         </p>
-                        <p>
-                          <span className="font-medium">Pattern Type:</span>{' '}
-                          Automated activity detected (keystroke/mouse patterns)
-                        </p>
+                        {item.patterns.length > 0 && (
+                          <p>
+                            <span className="font-medium">Top Pattern:</span>{' '}
+                            {getPatternIcon(item.patterns[0].type)} {getPatternTypeLabel(item.patterns[0].type)}
+                          </p>
+                        )}
                       </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetailsDialog(item);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </Button>
                     </div>
                     <div className="text-right">
                       <div className="text-3xl font-bold text-red-600">{item.count}</div>
                       <div className="text-xs text-gray-600">suspicious events</div>
-                    </div>
-                  </div>
-
-                  {/* Time Distribution */}
-                  <div className="mt-3 pt-3 border-t border-gray-300">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">Time Distribution:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {item.timestamps.slice(0, 10).map((ts, i) => (
-                        <span
-                          key={i}
-                          className="text-xs bg-white px-2 py-1 rounded font-mono"
-                        >
-                          {format(new Date(ts), 'HH:mm:ss')}
-                        </span>
-                      ))}
-                      {item.timestamps.length > 10 && (
-                        <span className="text-xs text-gray-600 px-2 py-1">
-                          +{item.timestamps.length - 10} more
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -286,16 +318,127 @@ export default function SuspiciousActivityPage() {
         </CardContent>
       </Card>
 
+      {/* Details Dialog */}
+      <Dialog open={detailsDialog.open} onOpenChange={(open) => !open && closeDetailsDialog()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Detailed Suspicious Activity Report</span>
+              <Button variant="ghost" size="icon" onClick={closeDetailsDialog}>
+                <X className="w-5 h-5" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailsDialog.summary && (
+            <div className="space-y-6">
+              {/* Employee Info */}
+              <Card className="bg-gray-50">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Employee</p>
+                      <p className="font-semibold text-lg">{detailsDialog.summary.employee.name}</p>
+                      <p className="text-sm text-gray-600">{detailsDialog.summary.employee.employeeId}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Department</p>
+                      <p className="font-semibold">{detailsDialog.summary.employee.department}</p>
+                      <p className="text-sm text-gray-600">{detailsDialog.summary.employee.designation}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Date</p>
+                      <p className="font-semibold">{format(new Date(detailsDialog.summary.date), 'MMMM d, yyyy')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total Events</p>
+                      <p className="font-semibold text-2xl text-red-600">{detailsDialog.summary.count}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pattern Breakdown */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Detected Patterns</h3>
+                {detailsDialog.summary.patterns.length > 0 ? (
+                  <div className="space-y-3">
+                    {detailsDialog.summary.patterns.map((pattern, idx) => (
+                      <Card key={idx} className="border-l-4 border-red-500">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="text-3xl">{getPatternIcon(pattern.type)}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="destructive">{getPatternTypeLabel(pattern.type)}</Badge>
+                                <span className="text-xs text-gray-500">
+                                  {format(new Date(pattern.timestamp), 'h:mm:ss a')}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
+                                {pattern.details}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No detailed pattern information available</p>
+                )}
+              </div>
+
+              {/* Timeline */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Activity Timeline ({detailsDialog.summary.timestamps.length} events)</h3>
+                <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
+                  <div className="grid grid-cols-6 gap-2">
+                    {detailsDialog.summary.timestamps.slice(0, 50).map((ts, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs bg-white px-2 py-1 rounded font-mono border border-gray-200"
+                      >
+                        {format(new Date(ts), 'HH:mm:ss')}
+                      </span>
+                    ))}
+                  </div>
+                  {detailsDialog.summary.timestamps.length > 50 && (
+                    <p className="text-xs text-gray-500 mt-3 text-center">
+                      +{detailsDialog.summary.timestamps.length - 50} more events
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <Card className="bg-yellow-50 border-yellow-200">
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-yellow-900 mb-2">⚠️ Recommended Actions</h3>
+                  <ul className="text-sm text-yellow-800 space-y-1">
+                    <li>• Review employee's work output for this date</li>
+                    <li>• Check if automated tools were legitimately used for work</li>
+                    <li>• Verify IP address and location during these events</li>
+                    <li>• Consider discussing activity patterns with the employee</li>
+                    <li>• Document findings for HR records</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Info Box */}
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="p-4">
           <h3 className="font-semibold text-blue-900 mb-2">What Gets Detected?</h3>
           <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Repetitive keystroke patterns (same key pressed 10+ times)</li>
-            <li>• Regular interval keystrokes (exact timing every 5-10 seconds)</li>
-            <li>• Alternating key patterns (two keys pressed repeatedly)</li>
-            <li>• Linear mouse movements (mouse jiggler apps)</li>
-            <li>• Automated bot activity patterns</li>
+            <li>• <strong>Repetitive Keystroke:</strong> Same key pressed 10+ times consecutively</li>
+            <li>• <strong>Auto-Typer:</strong> Keys pressed at exact intervals (e.g., every 5 seconds)</li>
+            <li>• <strong>Keyboard Macro:</strong> Two keys alternating in perfect pattern</li>
+            <li>• <strong>Mouse Jiggler:</strong> Mouse moving in straight lines or geometric patterns</li>
+            <li>• <strong>Fake Mouse App:</strong> Mouse position not actually changing</li>
           </ul>
           <p className="text-xs text-blue-700 mt-3">
             Note: Detection is completely silent - employees are not notified when patterns are detected.
