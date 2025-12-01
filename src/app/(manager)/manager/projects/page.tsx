@@ -2,8 +2,10 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
+import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ManagerProjectsPage() {
   const session = await getSession();
@@ -64,7 +66,12 @@ export default async function ManagerProjectsPage() {
                   <span className="font-medium">{project.members.length}</span>
                 </div>
               </div>
-              <Button variant="outline" className="w-full mt-4">Manage Project</Button>
+              <Link
+                href={`/manager/projects/${project.id}`}
+                className="inline-flex w-full mt-4 items-center justify-center rounded-md border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground px-4 py-2 text-sm font-medium transition-all"
+              >
+                Manage Project
+              </Link>
             </CardContent>
           </Card>
         ))}

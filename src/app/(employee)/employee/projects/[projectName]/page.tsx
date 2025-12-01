@@ -5,12 +5,12 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface PageProps {
-  params: {
+  params: Promise<{
     projectName: string;
-  };
-  searchParams: {
+  }>;
+  searchParams: Promise<{
     connectionId?: string;
-  };
+  }>;
 }
 
 export default async function EmployeeProjectDetailsPage({
@@ -23,8 +23,9 @@ export default async function EmployeeProjectDetailsPage({
     redirect('/login');
   }
 
-  const projectName = decodeURIComponent(params.projectName);
-  const connectionId = searchParams.connectionId;
+  const { projectName: encodedProjectName } = await params;
+  const { connectionId } = await searchParams;
+  const projectName = decodeURIComponent(encodedProjectName);
 
   if (!connectionId) {
     redirect('/employee/work-items');
