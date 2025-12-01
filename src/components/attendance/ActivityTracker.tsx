@@ -42,13 +42,14 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
   const keystrokeHistoryRef = useRef<KeystrokeEvent[]>([]);
   const mouseHistoryRef = useRef<MouseEvent[]>([]);
   const suspiciousActivityCountRef = useRef<number>(0);
+  const lastPatternDetectedRef = useRef<{ type: string; details: string } | null>(null);
 
   /**
    * Detects if keystrokes are following a suspicious pattern
-   * Returns true if pattern appears automated/bot-like
+   * Returns pattern details if detected, null otherwise
    */
-  const detectSuspiciousKeystrokePattern = (history: KeystrokeEvent[]): boolean => {
-    if (history.length < 10) return false;
+  const detectSuspiciousKeystrokePattern = (history: KeystrokeEvent[]): { type: string; details: string } | null => {
+    if (history.length < 10) return null;
 
     // Check last 10 keystrokes
     const recent = history.slice(-10);
@@ -57,7 +58,10 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     const keys = recent.map(e => e.key);
     const uniqueKeys = new Set(keys);
     if (uniqueKeys.size === 1) {
-      return true;
+      return {
+        type: 'REPETITIVE_KEY',
+        details: `Same key "${keys[0]}" pressed ${keys.length} times consecutively`
+      };
     }
 
     // Pattern 2: Keys pressed at exact intervals (within 100ms tolerance)
@@ -79,7 +83,10 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
 
     // If 8 out of 9 intervals are almost identical, it's suspicious
     if (similarIntervals >= 8) {
-      return true;
+      return {
+        type: 'REGULAR_INTERVAL_KEYSTROKES',
+        details: `Keys pressed at regular ${Math.round(avgInterval)}ms intervals (${similarIntervals}/9 similar) - Auto-typer detected`
+      };
     }
 
     // Pattern 3: Alternating between exactly 2 keys repeatedly
@@ -94,19 +101,22 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
         }
       }
       if (isAlternating) {
-        return true;
+        return {
+          type: 'ALTERNATING_KEYS',
+          details: `Keys "${key1}" and "${key2}" alternating in perfect pattern - Macro detected`
+        };
       }
     }
 
-    return false;
+    return null;
   };
 
   /**
    * Detects if mouse movements are following a suspicious pattern
-   * Returns true if pattern appears automated
+   * Returns pattern details if detected, null otherwise
    */
-  const detectSuspiciousMousePattern = (history: MouseEvent[]): boolean => {
-    if (history.length < 10) return false;
+  const detectSuspiciousMousePattern = (history: MouseEvent[]): { type: string; details: string } | null => {
+    if (history.length < 10) return null;
 
     const recent = history.slice(-10);
 
@@ -120,6 +130,7 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     // Check if all movements have the same direction and similar magnitude
     const directions = movements.map(m => Math.atan2(m.dy, m.dx));
     const avgDirection = directions.reduce((a, b) => a + b, 0) / directions.length;
+    const avgDirectionDegrees = Math.round((avgDirection * 180) / Math.PI);
 
     let similarDirections = 0;
     for (const dir of directions) {
@@ -129,17 +140,25 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     }
 
     if (similarDirections >= 8) {
-      return true;
+      return {
+        type: 'LINEAR_MOUSE_MOVEMENT',
+        details: `Mouse moving in straight line at ${avgDirectionDegrees}° (${similarDirections}/9 movements) - Mouse jiggler detected`
+      };
     }
 
     // Pattern 2: Mouse not moving at all (stuck at same position)
     const positions = recent.map(e => `${e.x},${e.y}`);
     const uniquePositions = new Set(positions);
     if (uniquePositions.size === 1) {
-      return true;
+      const x = recent[0].x;
+      const y = recent[0].y;
+      return {
+        type: 'STATIC_MOUSE',
+        details: `Mouse stuck at position (${x}, ${y}) - Fake mouse movement app detected`
+      };
     }
 
-    return false;
+    return null;
   };
 
   useEffect(() => {
@@ -174,10 +193,11 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
       }
 
       // Check for suspicious patterns
-      const isSuspicious = detectSuspiciousKeystrokePattern(keystrokeHistoryRef.current);
+      const patternDetected = detectSuspiciousKeystrokePattern(keystrokeHistoryRef.current);
 
-      if (isSuspicious) {
+      if (patternDetected) {
         suspiciousActivityCountRef.current++;
+        lastPatternDetectedRef.current = patternDetected;
 
         // If more than 3 suspicious patterns detected, don't count as activity
         if (suspiciousActivityCountRef.current > 3) {
@@ -210,10 +230,11 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
       }
 
       // Check for suspicious patterns
-      const isSuspicious = detectSuspiciousMousePattern(mouseHistoryRef.current);
+      const patternDetected = detectSuspiciousMousePattern(mouseHistoryRef.current);
 
-      if (isSuspicious) {
+      if (patternDetected) {
         suspiciousActivityCountRef.current++;
+        lastPatternDetectedRef.current = patternDetected;
 
         if (suspiciousActivityCountRef.current > 3) {
           return;
@@ -246,6 +267,7 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
     heartbeatIntervalRef.current = setInterval(async () => {
       if (hasRecentActivityRef.current) {
         const isSuspiciousActivity = suspiciousActivityCountRef.current > 3;
+        const patternInfo = lastPatternDetectedRef.current;
 
         try {
           await fetch('/api/attendance/activity', {
@@ -255,9 +277,16 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
               timestamp: new Date().toISOString(),
               active: !isSuspiciousActivity, // Mark as inactive if suspicious
               suspicious: isSuspiciousActivity,
+              patternType: patternInfo?.type || null,
+              patternDetails: patternInfo?.details || null,
             }),
           });
           hasRecentActivityRef.current = false; // Reset flag after sending
+
+          // Reset pattern info after sending
+          if (isSuspiciousActivity) {
+            lastPatternDetectedRef.current = null;
+          }
         } catch (error) {
           // Silently fail - don't alert user
         }
