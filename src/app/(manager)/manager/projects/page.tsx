@@ -10,11 +10,23 @@ export const dynamic = 'force-dynamic';
 export default async function ManagerProjectsPage() {
   const session = await getSession();
 
+  if (!session || !session.employeeId) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-600">Unable to load projects. Please try again.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const projects = await prisma.project.findMany({
     where: {
       members: {
         some: {
-          employeeId: session!.employeeId!,
+          employeeId: session.employeeId,
         },
       },
     },
