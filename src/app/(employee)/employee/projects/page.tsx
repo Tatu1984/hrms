@@ -22,13 +22,25 @@ export default async function EmployeeProjectsPage() {
     );
   }
 
+  // Find projects where employee is either a member OR has tasks assigned
   const projects = await prisma.project.findMany({
     where: {
-      members: {
-        some: {
-          employeeId: session.employeeId,
+      OR: [
+        {
+          members: {
+            some: {
+              employeeId: session.employeeId,
+            },
+          },
         },
-      },
+        {
+          tasks: {
+            some: {
+              assignedTo: session.employeeId,
+            },
+          },
+        },
+      ],
     },
     include: {
       members: {
@@ -43,7 +55,7 @@ export default async function EmployeeProjectsPage() {
       },
       tasks: {
         where: {
-          assignedToId: session.employeeId,
+          assignedTo: session.employeeId,
         },
       },
     },
