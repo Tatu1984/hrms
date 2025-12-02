@@ -37,19 +37,6 @@ export async function PATCH(
       },
     });
 
-    // Optionally deactivate associated user account if employee is deactivated
-    if (!isActive) {
-      await prisma.user.updateMany({
-        where: { employeeId: id },
-        data: { isActive: false },
-      });
-    } else {
-      await prisma.user.updateMany({
-        where: { employeeId: id },
-        data: { isActive: true },
-      });
-    }
-
     return NextResponse.json({
       success: true,
       employee,

@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             employeeId: true,
+            isActive: true,
           },
         },
       },
@@ -31,6 +32,11 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // Check if employee is active (if user has an associated employee)
+    if (user.employee && !user.employee.isActive) {
+      return NextResponse.json({ error: 'Account has been deactivated. Please contact admin.' }, { status: 403 });
     }
 
     const isValidPassword = await verifyPassword(password, user.password);
