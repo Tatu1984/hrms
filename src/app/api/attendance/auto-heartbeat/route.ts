@@ -5,7 +5,8 @@ import { prisma } from '@/lib/db';
  * Auto-Heartbeat Background Service
  *
  * This endpoint fills in missing heartbeats for employees who are punched in
- * but their browser tab is closed/minimized.
+ * but have no client activity (browser closed/minimized or user idle/AFK).
+ * These heartbeats are marked as INACTIVE to track idle time.
  *
  * Call this endpoint every 3 minutes via a cron job or scheduled task.
  */
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
           data: {
             attendanceId: attendance.id,
             timestamp: now,
-            active: true, // Mark as active - employee is still punched in and working
+            active: false, // Mark as inactive - no client activity detected, likely idle/AFK
           },
         });
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
           employeeName: attendance.employee.name,
           lastHeartbeat: lastHeartbeatTime,
           minutesSince: minutesSinceLastHeartbeat,
-          action: 'created_active_heartbeat',
+          action: 'created_inactive_heartbeat',
         });
       } else {
         results.push({
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processed: activeAttendances.length,
-      heartbeatsCreated: results.filter(r => r.action === 'created_active_heartbeat').length,
+      heartbeatsCreated: results.filter(r => r.action === 'created_inactive_heartbeat').length,
       timestamp: now,
       results,
     });
