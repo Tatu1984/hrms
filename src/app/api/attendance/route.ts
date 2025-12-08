@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
+import { isFriday, isMonday, processWeekendCascade } from '@/lib/attendance-utils';
 
 /**
  * Calculate idle time based on activity logs
@@ -199,6 +200,12 @@ export async function POST(request: NextRequest) {
           userAgent: request.headers.get('user-agent') || 'unknown',
         },
       });
+
+      // Apply weekend cascade rule for ABSENT status
+      // Friday absent → Saturday absent, Monday absent → Sunday absent
+      if (status === 'ABSENT' && (isFriday(targetDate) || isMonday(targetDate))) {
+        await processWeekendCascade(employeeId, targetDate);
+      }
 
       return NextResponse.json(attendance, { status: 201 });
     }
@@ -543,6 +550,16 @@ export async function PUT(request: NextRequest) {
         userAgent: request.headers.get('user-agent') || 'unknown',
       },
     });
+
+    // Apply weekend cascade rule if status was changed to ABSENT
+    // Friday absent → Saturday absent, Monday absent → Sunday absent
+    if (status === 'ABSENT' && attendance.status !== 'ABSENT') {
+      const attendanceDate = new Date(updatedAttendance.date);
+      attendanceDate.setHours(0, 0, 0, 0);
+      if (isFriday(attendanceDate) || isMonday(attendanceDate)) {
+        await processWeekendCascade(attendance.employeeId, attendanceDate);
+      }
+    }
 
     return NextResponse.json(updatedAttendance);
   } catch (error) {

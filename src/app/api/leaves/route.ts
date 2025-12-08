@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { markLeaveAttendance, revertLeaveAttendance } from '@/lib/attendance-utils';
 
 // GET /api/leaves - Get leave requests
 export async function GET(request: NextRequest) {
@@ -270,6 +271,25 @@ export async function PUT(request: NextRequest) {
         },
       },
     });
+
+    // Handle attendance marking based on leave status change
+    if (status === 'APPROVED') {
+      // Mark all days in the leave period as LEAVE status in attendance
+      await markLeaveAttendance(
+        leave.employeeId,
+        updatedLeave.startDate,
+        updatedLeave.endDate
+      );
+    } else if (status === 'REJECTED' || status === 'CANCELLED') {
+      // If a previously approved leave is now rejected/cancelled, revert the attendance
+      if (leave.status === 'APPROVED') {
+        await revertLeaveAttendance(
+          leave.employeeId,
+          leave.startDate,
+          leave.endDate
+        );
+      }
+    }
 
     return NextResponse.json(updatedLeave);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { isFriday, isMonday, isSaturday, isSunday } from '@/lib/attendance-utils';
 
 // GET /api/payroll - Get payroll records
 export async function GET(request: NextRequest) {
@@ -173,6 +174,41 @@ export async function POST(request: NextRequest) {
       // Calculate present_days
       let presentDays = 0;
 
+      // Helper function to check if a weekend should be marked absent due to cascade rule
+      const isWeekendCascadedAbsent = (date: Date): boolean => {
+        // Saturday: check if Friday was absent
+        if (isSaturday(date)) {
+          const fridayDate = new Date(date);
+          fridayDate.setDate(fridayDate.getDate() - 1);
+          fridayDate.setHours(0, 0, 0, 0);
+          const fridayAttendance = attendance.find(a => {
+            const aDate = new Date(a.date);
+            aDate.setHours(0, 0, 0, 0);
+            return aDate.getTime() === fridayDate.getTime();
+          });
+          if (fridayAttendance?.status === 'ABSENT') {
+            return true;
+          }
+        }
+
+        // Sunday: check if Monday was absent
+        if (isSunday(date)) {
+          const mondayDate = new Date(date);
+          mondayDate.setDate(mondayDate.getDate() + 1);
+          mondayDate.setHours(0, 0, 0, 0);
+          const mondayAttendance = attendance.find(a => {
+            const aDate = new Date(a.date);
+            aDate.setHours(0, 0, 0, 0);
+            return aDate.getTime() === mondayDate.getTime();
+          });
+          if (mondayAttendance?.status === 'ABSENT') {
+            return true;
+          }
+        }
+
+        return false;
+      };
+
       // If effective_end < effective_start, present_days = 0
       if (effectiveEnd < effectiveStart) {
         console.log('Warning: effective_end < effective_start, present_days = 0');
@@ -181,6 +217,7 @@ export async function POST(request: NextRequest) {
         // Count days - iterate through each day in the effective window
         let fullPresentDays = 0;
         let halfDays = 0;
+        let cascadedAbsentDays = 0;
 
         const currentDate = new Date(effectiveStart);
         while (currentDate <= effectiveEnd) {
@@ -208,8 +245,16 @@ export async function POST(request: NextRequest) {
           } else {
             // No attendance record - check if it's a weekend
             if (isWeekend) {
-              // Weekends are paid days even without attendance record
-              fullPresentDays += 1;
+              // Check weekend cascade rule:
+              // - Saturday is absent if Friday was absent
+              // - Sunday is absent if Monday was absent
+              if (isWeekendCascadedAbsent(currentDate)) {
+                cascadedAbsentDays += 1;
+                // Do not count as present
+              } else {
+                // Weekends are paid days even without attendance record
+                fullPresentDays += 1;
+              }
             }
             // Weekdays without attendance record count as 0 (absent)
           }
@@ -218,7 +263,7 @@ export async function POST(request: NextRequest) {
         }
 
         presentDays = fullPresentDays + (0.5 * halfDays);
-        console.log(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Weekends included`);
+        console.log(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Cascaded absent weekends: ${cascadedAbsentDays}`);
       }
 
       console.log(`Present days (calculated): ${presentDays}`);

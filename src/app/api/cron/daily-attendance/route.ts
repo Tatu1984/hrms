@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import {
+  isFriday,
+  isMonday,
+  processWeekendCascade,
+} from '@/lib/attendance-utils';
 
 /**
  * Daily cron job to:
- * 1. Mark weekends (Saturday/Sunday) as PRESENT for all employees
+ * 1. Mark weekends (Saturday/Sunday) as PRESENT for all employees (unless cascaded absent)
  * 2. Mark holidays as PRESENT for all employees
  * 3. Mark weekdays with no punch-in as ABSENT for all employees
+ * 4. Apply weekend cascade rule:
+ *    - If absent on Friday → Following Saturday is marked ABSENT
+ *    - If absent on Monday → Preceding Sunday is marked ABSENT
  *
  * Should be called daily at end of day (e.g., 11:59 PM)
  * Can be triggered by Vercel Cron, external cron service, or manually
@@ -30,6 +38,7 @@ export async function GET(request: NextRequest) {
       weekendsMarked: 0,
       holidaysMarked: 0,
       absentsMarked: 0,
+      cascadedAbsents: 0,
       alreadyExists: 0,
       errors: [] as any[],
     };
@@ -125,6 +134,14 @@ export async function GET(request: NextRequest) {
             },
           });
           results.absentsMarked++;
+
+          // Apply weekend cascade rule for absences
+          // Friday absent → Saturday absent
+          // Monday absent → Sunday absent
+          if (isFriday(targetDate) || isMonday(targetDate)) {
+            const { cascadedRecords } = await processWeekendCascade(employee.id, targetDate);
+            results.cascadedAbsents += cascadedRecords.length;
+          }
         }
       } catch (error) {
         console.error(`Error processing employee ${employee.employeeId}:`, error);
@@ -177,6 +194,7 @@ export async function POST(request: NextRequest) {
       weekendsMarked: 0,
       holidaysMarked: 0,
       absentsMarked: 0,
+      cascadedAbsents: 0,
       alreadyExists: 0,
       errors: [] as any[],
     };
@@ -264,6 +282,14 @@ export async function POST(request: NextRequest) {
             },
           });
           results.absentsMarked++;
+
+          // Apply weekend cascade rule for absences
+          // Friday absent → Saturday absent
+          // Monday absent → Sunday absent
+          if (isFriday(targetDate) || isMonday(targetDate)) {
+            const { cascadedRecords } = await processWeekendCascade(employee.id, targetDate);
+            results.cascadedAbsents += cascadedRecords.length;
+          }
         }
       } catch (error) {
         console.error(`Error processing employee ${employee.employeeId}:`, error);
