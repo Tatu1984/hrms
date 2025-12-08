@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { isSaturday, isSunday } from '@/lib/attendance-utils';
 
 // GET /api/reports - Generate reports
 export async function GET(request: NextRequest) {
@@ -98,19 +99,62 @@ async function generateAttendanceReport(session: any, startDate: string | null, 
     },
   });
 
+  // Helper function to check if a weekend should be marked absent due to cascade rule
+  const isWeekendCascadedAbsent = (record: typeof attendance[0]): boolean => {
+    const date = new Date(record.date);
+
+    // Saturday: check if Friday was absent
+    if (isSaturday(date)) {
+      const fridayDate = new Date(date);
+      fridayDate.setDate(fridayDate.getDate() - 1);
+      fridayDate.setHours(0, 0, 0, 0);
+      const fridayAttendance = attendance.find(a => {
+        const aDate = new Date(a.date);
+        aDate.setHours(0, 0, 0, 0);
+        return aDate.getTime() === fridayDate.getTime() && a.employeeId === record.employeeId;
+      });
+      if (fridayAttendance?.status === 'ABSENT') {
+        return true;
+      }
+    }
+
+    // Sunday: check if Monday was absent
+    if (isSunday(date)) {
+      const mondayDate = new Date(date);
+      mondayDate.setDate(mondayDate.getDate() + 1);
+      mondayDate.setHours(0, 0, 0, 0);
+      const mondayAttendance = attendance.find(a => {
+        const aDate = new Date(a.date);
+        aDate.setHours(0, 0, 0, 0);
+        return aDate.getTime() === mondayDate.getTime() && a.employeeId === record.employeeId;
+      });
+      if (mondayAttendance?.status === 'ABSENT') {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Count cascaded absences (weekends that should be marked absent due to adjacent weekday absence)
+  const cascadedAbsentDays = attendance.filter(a =>
+    (a.status === 'WEEKEND' || a.status === 'PRESENT') && isWeekendCascadedAbsent(a)
+  ).length;
+
   // Calculate statistics
   const stats = {
     totalRecords: attendance.length,
     presentDays: attendance.filter(a =>
-      a.status === 'PRESENT' ||
+      (a.status === 'PRESENT' ||
       a.status === 'WEEKEND' ||
       a.status === 'HOLIDAY' ||
-      a.status === 'LEAVE'
+      a.status === 'LEAVE') && !isWeekendCascadedAbsent(a)
     ).length,
-    absentDays: attendance.filter(a => a.status === 'ABSENT').length,
+    absentDays: attendance.filter(a => a.status === 'ABSENT').length + cascadedAbsentDays,
+    cascadedAbsentDays: cascadedAbsentDays,
     halfDays: attendance.filter(a => a.status === 'HALF_DAY').length,
     leaveDays: attendance.filter(a => a.status === 'LEAVE').length,
-    weekendDays: attendance.filter(a => a.status === 'WEEKEND').length,
+    weekendDays: attendance.filter(a => a.status === 'WEEKEND' && !isWeekendCascadedAbsent(a)).length,
     holidayDays: attendance.filter(a => a.status === 'HOLIDAY').length,
     totalHours: attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0),
     avgHoursPerDay: 0,

@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AttendanceRecord {
   id: string;
@@ -14,6 +15,39 @@ interface AttendanceRecord {
   punchOut: Date | null;
   status: string;
   totalHours?: number | null;
+}
+
+/**
+ * Client-side helper functions for weekend cascade logic
+ */
+function isFriday(date: Date): boolean {
+  return date.getDay() === 5;
+}
+
+function isMonday(date: Date): boolean {
+  return date.getDay() === 1;
+}
+
+function isSaturday(date: Date): boolean {
+  return date.getDay() === 6;
+}
+
+function isSunday(date: Date): boolean {
+  return date.getDay() === 0;
+}
+
+function getNextDay(date: Date): Date {
+  const nextDay = new Date(date);
+  nextDay.setDate(nextDay.getDate() + 1);
+  nextDay.setHours(0, 0, 0, 0);
+  return nextDay;
+}
+
+function getPreviousDay(date: Date): Date {
+  const prevDay = new Date(date);
+  prevDay.setDate(prevDay.getDate() - 1);
+  prevDay.setHours(0, 0, 0, 0);
+  return prevDay;
 }
 
 export default function EmployeeAttendancePage() {
@@ -100,6 +134,38 @@ export default function EmployeeAttendancePage() {
   const isWeekend = (date: Date) => {
     const dayOfWeek = date.getDay();
     return dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+  };
+
+  /**
+   * Check if a weekend day should be marked as absent due to adjacent weekday absence
+   * - Saturday is absent if Friday was absent
+   * - Sunday is absent if Monday was absent
+   */
+  const getWeekendCascadeInfo = (date: Date): { isCascaded: boolean; reason: string | null } => {
+    // Only check weekend days
+    if (!isWeekend(date)) {
+      return { isCascaded: false, reason: null };
+    }
+
+    // Check if Saturday - look for Friday absence
+    if (isSaturday(date)) {
+      const fridayDate = getPreviousDay(date);
+      const fridayAttendance = getAttendanceForDate(fridayDate);
+      if (fridayAttendance?.status === 'ABSENT') {
+        return { isCascaded: true, reason: 'Friday was absent' };
+      }
+    }
+
+    // Check if Sunday - look for Monday absence
+    if (isSunday(date)) {
+      const mondayDate = getNextDay(date);
+      const mondayAttendance = getAttendanceForDate(mondayDate);
+      if (mondayAttendance?.status === 'ABSENT') {
+        return { isCascaded: true, reason: 'Monday was absent' };
+      }
+    }
+
+    return { isCascaded: false, reason: null };
   };
 
   const isHoliday = (date: Date) => {
@@ -199,44 +265,64 @@ export default function EmployeeAttendancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {allDates.map((date) => {
-                    const attendance = getAttendanceForDate(date);
-                    const weekend = isWeekend(date);
-                    const holiday = isHoliday(date);
-                    const onLeave = isOnLeave(date);
+                  <TooltipProvider>
+                    {allDates.map((date) => {
+                      const attendance = getAttendanceForDate(date);
+                      const weekend = isWeekend(date);
+                      const holiday = isHoliday(date);
+                      const onLeave = isOnLeave(date);
+                      const cascadeInfo = getWeekendCascadeInfo(date);
 
-                    // Determine status to display
-                    let displayStatus = 'ABSENT';
-                    if (attendance) {
-                      displayStatus = attendance.status;
-                    } else if (onLeave) {
-                      displayStatus = 'LEAVE';
-                    } else if (holiday) {
-                      displayStatus = 'HOLIDAY';
-                    } else if (weekend) {
-                      displayStatus = 'WEEKEND';
-                    }
+                      // Determine status to display
+                      let displayStatus = 'ABSENT';
+                      if (attendance) {
+                        displayStatus = attendance.status;
+                      } else if (onLeave) {
+                        displayStatus = 'LEAVE';
+                      } else if (holiday) {
+                        displayStatus = 'HOLIDAY';
+                      } else if (weekend) {
+                        // Check if weekend should be marked absent due to cascade rule
+                        if (cascadeInfo.isCascaded) {
+                          displayStatus = 'ABSENT';
+                        } else {
+                          displayStatus = 'WEEKEND';
+                        }
+                      }
 
-                    return (
-                      <tr key={date.toISOString()} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm">{formatDate(date.toString())}</td>
-                        <td className="px-4 py-3 text-sm">
-                          {attendance?.punchIn ? formatDateTime(attendance.punchIn.toString()) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {attendance?.punchOut ? formatDateTime(attendance.punchOut.toString()) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {attendance?.totalHours ? attendance.totalHours.toFixed(2) : '-'} hrs
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <Badge variant={getStatusBadgeVariant(displayStatus)}>
-                            {displayStatus}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr key={date.toISOString()} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm">{formatDate(date.toString())}</td>
+                          <td className="px-4 py-3 text-sm">
+                            {attendance?.punchIn ? formatDateTime(attendance.punchIn.toString()) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {attendance?.punchOut ? formatDateTime(attendance.punchOut.toString()) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {attendance?.totalHours ? attendance.totalHours.toFixed(2) : '-'} hrs
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={getStatusBadgeVariant(displayStatus)}>
+                                {displayStatus}
+                              </Badge>
+                              {cascadeInfo.isCascaded && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <AlertTriangle className="w-4 h-4 text-orange-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Marked absent: {cascadeInfo.reason}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </TooltipProvider>
                 </tbody>
               </table>
             </div>

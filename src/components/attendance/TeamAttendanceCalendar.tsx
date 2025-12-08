@@ -5,8 +5,46 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Users, Clock, Coffee, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Clock, Coffee, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths } from 'date-fns';
+
+/**
+ * Client-side helper functions for weekend cascade logic
+ */
+function isFriday(date: Date): boolean {
+  return date.getDay() === 5;
+}
+
+function isMonday(date: Date): boolean {
+  return date.getDay() === 1;
+}
+
+function isSaturday(date: Date): boolean {
+  return date.getDay() === 6;
+}
+
+function isSunday(date: Date): boolean {
+  return date.getDay() === 0;
+}
+
+function isWeekendDay(date: Date): boolean {
+  return date.getDay() === 0 || date.getDay() === 6;
+}
+
+function getNextDay(date: Date): Date {
+  const nextDay = new Date(date);
+  nextDay.setDate(nextDay.getDate() + 1);
+  nextDay.setHours(0, 0, 0, 0);
+  return nextDay;
+}
+
+function getPreviousDay(date: Date): Date {
+  const prevDay = new Date(date);
+  prevDay.setDate(prevDay.getDate() - 1);
+  prevDay.setHours(0, 0, 0, 0);
+  return prevDay;
+}
 
 interface Employee {
   id: string;
@@ -209,6 +247,44 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
     return { present, halfDay, absent, avgIdleTime };
   };
 
+  /**
+   * Check if a weekend day should be marked as absent due to adjacent weekday absence
+   * for a specific employee
+   */
+  const getWeekendCascadeInfoForEmployee = (
+    date: Date,
+    employeeId: string
+  ): { isCascaded: boolean; reason: string | null } => {
+    // Only check weekend days
+    if (!isWeekendDay(date)) {
+      return { isCascaded: false, reason: null };
+    }
+
+    // Check if Saturday - look for Friday absence
+    if (isSaturday(date)) {
+      const fridayDate = getPreviousDay(date);
+      const fridayDateKey = format(fridayDate, 'yyyy-MM-dd');
+      const fridayAttendance = monthAttendance.get(fridayDateKey);
+      const employeeFridayRecord = fridayAttendance?.find(a => a.employeeId === employeeId);
+      if (employeeFridayRecord?.status === 'ABSENT') {
+        return { isCascaded: true, reason: 'Friday was absent' };
+      }
+    }
+
+    // Check if Sunday - look for Monday absence
+    if (isSunday(date)) {
+      const mondayDate = getNextDay(date);
+      const mondayDateKey = format(mondayDate, 'yyyy-MM-dd');
+      const mondayAttendance = monthAttendance.get(mondayDateKey);
+      const employeeMondayRecord = mondayAttendance?.find(a => a.employeeId === employeeId);
+      if (employeeMondayRecord?.status === 'ABSENT') {
+        return { isCascaded: true, reason: 'Monday was absent' };
+      }
+    }
+
+    return { isCascaded: false, reason: null };
+  };
+
   const getIdleColor = (idleTime: number | null) => {
     if (!idleTime) return 'text-green-600';
     if (idleTime < 0.5) return 'text-green-600'; // < 30 min
@@ -348,29 +424,44 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
           </DialogHeader>
 
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {selectedDate && getAttendanceForDate(selectedDate).map((record) => (
-              <Card
-                key={record.id}
-                className="cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => record.employee && handleEmployeeClick(record.employee, record)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{record.employee?.name || 'Unknown Employee'}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {record.employee?.designation}
-                        </Badge>
-                        <span className="text-xs text-gray-500">{record.employee?.employeeId}</span>
+            <TooltipProvider>
+              {selectedDate && getAttendanceForDate(selectedDate).map((record) => {
+                const cascadeInfo = selectedDate ? getWeekendCascadeInfoForEmployee(selectedDate, record.employeeId) : { isCascaded: false, reason: null };
+                const displayStatus = cascadeInfo.isCascaded && record.status === 'WEEKEND' ? 'ABSENT' : record.status;
+
+                return (
+                  <Card
+                    key={record.id}
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => record.employee && handleEmployeeClick(record.employee, record)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{record.employee?.name || 'Unknown Employee'}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {record.employee?.designation}
+                            </Badge>
+                            <span className="text-xs text-gray-500">{record.employee?.employeeId}</span>
+                          </div>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <Badge variant={displayStatus === 'PRESENT' ? 'default' : displayStatus === 'ABSENT' ? 'destructive' : 'secondary'}>
+                            {displayStatus}
+                          </Badge>
+                          {cascadeInfo.isCascaded && (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <AlertTriangle className="w-4 h-4 text-orange-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Marked absent: {cascadeInfo.reason}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={record.status === 'PRESENT' ? 'default' : 'secondary'}>
-                        {record.status}
-                      </Badge>
-                    </div>
-                  </div>
                   <div className="grid grid-cols-4 gap-4 mt-3 text-sm">
                     <div>
                       <p className="text-gray-500 text-xs">Total Hours</p>
@@ -425,7 +516,9 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                   )}
                 </CardContent>
               </Card>
-            ))}
+                );
+              })}
+            </TooltipProvider>
           </div>
         </DialogContent>
       </Dialog>
