@@ -983,6 +983,46 @@ enum SalaryType {
   VARIABLE  // Base salary + variable/commission
 }
 
+// ============================================
+// ORGANIZATIONAL HIERARCHY
+// ============================================
+
+model Designation {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  level           Int       @default(0)  // Hierarchy level (0 = top, higher = lower in hierarchy)
+  departmentId    String?   // Optional: link designation to specific department
+  department      Department? @relation(fields: [departmentId], references: [id])
+  parentId        String?   // Parent designation for hierarchy
+  parent          Designation? @relation("DesignationHierarchy", fields: [parentId], references: [id])
+  children        Designation[] @relation("DesignationHierarchy")
+  description     String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([level])
+  @@index([departmentId])
+  @@index([isActive])
+}
+
+model Department {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  code            String?   @unique  // Short code like DEV, HR, SALES
+  description     String?
+  headId          String?   // Department head (employee ID)
+  parentId        String?   // Parent department for sub-departments
+  parent          Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children        Department[] @relation("DepartmentHierarchy")
+  designations    Designation[]
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
 model AuditLog {
   id            String   @id @default(cuid())
   userId        String   // Who made the change
