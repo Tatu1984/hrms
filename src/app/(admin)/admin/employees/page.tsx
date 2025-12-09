@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Trash2, Eye } from 'lucide-react';
+import { Search, Download, Trash2, Eye, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import EmployeeFormDialog from '@/components/admin/employee-form-dialog';
 import DeleteEmployeeButton from '@/components/admin/delete-employee-button';
@@ -13,13 +13,45 @@ import ToggleEmployeeActiveButton from '@/components/admin/toggle-employee-activ
 import { UserCredentialsDialog } from '@/components/forms/user-credentials-dialog';
 import Link from 'next/link';
 
+// Helper to get hierarchy level label
+function getHierarchyLevelLabel(level: number): string {
+  const labels: Record<number, string> = {
+    0: 'C-Level',
+    1: 'VP',
+    2: 'Director',
+    3: 'Manager',
+    4: 'Lead',
+    5: 'Senior',
+    6: 'Junior',
+    7: 'Support',
+  };
+  return labels[level] || `Level ${level}`;
+}
+
+// Helper to get hierarchy badge color
+function getHierarchyBadgeColor(level: number): string {
+  const colors: Record<number, string> = {
+    0: 'bg-purple-100 text-purple-800',
+    1: 'bg-indigo-100 text-indigo-800',
+    2: 'bg-blue-100 text-blue-800',
+    3: 'bg-cyan-100 text-cyan-800',
+    4: 'bg-teal-100 text-teal-800',
+    5: 'bg-green-100 text-green-800',
+    6: 'bg-yellow-100 text-yellow-800',
+    7: 'bg-gray-100 text-gray-800',
+  };
+  return colors[level] || 'bg-gray-100 text-gray-800';
+}
+
 export default async function EmployeesPage() {
+  // Fetch employees
   const employees = await prisma.employee.findMany({
     include: {
       reportingHead: {
         select: {
           id: true,
           name: true,
+          designation: true,
         },
       },
       user: {
@@ -35,6 +67,36 @@ export default async function EmployeesPage() {
       createdAt: 'desc',
     },
   });
+
+  // Fetch all designations to map hierarchy levels
+  const designations = await prisma.designation.findMany({
+    select: {
+      name: true,
+      level: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      parent: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  // Create a map of designation name to hierarchy info
+  const designationMap = new Map(
+    designations.map((d) => [
+      d.name,
+      {
+        level: d.level,
+        department: d.department?.name || null,
+        reportsTo: d.parent?.name || null,
+      },
+    ])
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -71,8 +133,9 @@ export default async function EmployeesPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Phone</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Designation</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Designation & Hierarchy</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Department</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Reports To</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Salary</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Login Access</th>
@@ -87,8 +150,30 @@ export default async function EmployeesPage() {
                     <td className="px-4 py-3 text-sm">{emp.name}</td>
                     <td className="px-4 py-3 text-sm">{emp.email}</td>
                     <td className="px-4 py-3 text-sm">{emp.phone}</td>
-                    <td className="px-4 py-3 text-sm">{emp.designation}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{emp.designation}</span>
+                        {designationMap.has(emp.designation) && (
+                          <Badge className={`text-xs w-fit ${getHierarchyBadgeColor(designationMap.get(emp.designation)!.level)}`}>
+                            {getHierarchyLevelLabel(designationMap.get(emp.designation)!.level)}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm">{emp.department}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {emp.reportingHead ? (
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-gray-700">
+                            <ChevronRight className="w-3 h-3" />
+                            <span className="font-medium">{emp.reportingHead.name}</span>
+                          </div>
+                          <span className="text-xs text-gray-500">{emp.reportingHead.designation}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Top Level</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm font-semibold">{formatCurrency(emp.salary)}</td>
                     <td className="px-4 py-3 text-sm">
                       <Badge variant={emp.isActive ? 'default' : 'secondary'} className={emp.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>

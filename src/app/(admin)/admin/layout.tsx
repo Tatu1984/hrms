@@ -28,6 +28,7 @@ const sidebarItems = [
     { icon: 'ArrowRightLeft', label: 'Currency Converter', href: '/admin/currency' },
   ]},
   { icon: 'FileText', label: 'HR Department', href: '/admin/hr-documents' },
+  { icon: 'Network', label: 'Hierarchy', href: '/admin/hierarchy' },
   { icon: 'MessageSquare', label: 'Messages', href: '/admin/messages' },
   { icon: 'BarChart3', label: 'Reports', href: '/admin/reports', children: [
     { icon: 'History', label: 'Change Log', href: '/admin/reports/change-log' },

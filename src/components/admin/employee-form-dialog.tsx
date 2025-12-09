@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,19 @@ interface Employee {
   department: string;
   reportingHeadId?: string;
   dateOfJoining: string;
+}
+
+interface DesignationOption {
+  id: string;
+  name: string;
+  level: number;
+  departmentId: string | null;
+}
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+  code: string | null;
 }
 
 interface BankingDetails {
@@ -58,10 +71,60 @@ interface EmployeeFormDialogProps {
   mode?: 'create' | 'edit';
 }
 
+// Fallback options if no dynamic data is available
+const fallbackDesignations = [
+  'HR Exec', 'HR Manager', 'VP HR', 'Director HR',
+  'CEO', 'CFO', 'COO', 'CTO',
+  'Jr Developer', 'Sr Developer',
+  'CDO', 'Sr Designer', 'Jr Designer',
+  'House Keeping', 'CSO', 'VP Sales',
+  'Operations Manager', 'Assistant Ops Manager', 'Team Leader',
+  'CSR', 'Sr CSR', 'Supervisor'
+];
+
+const fallbackDepartments = [
+  'Development', 'Design', 'Management', 'Sales',
+  'Marketing', 'HR', 'Finance', 'Administration'
+];
+
 export default function EmployeeFormDialog({ employee, employees = [], mode = 'create' }: EmployeeFormDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [designations, setDesignations] = useState<DesignationOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // Fetch designations and departments when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchOptions();
+    }
+  }, [open]);
+
+  const fetchOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const [desigRes, deptRes] = await Promise.all([
+        fetch('/api/designations'),
+        fetch('/api/departments'),
+      ]);
+
+      if (desigRes.ok) {
+        const data = await desigRes.json();
+        setDesignations(data);
+      }
+
+      if (deptRes.ok) {
+        const data = await deptRes.json();
+        setDepartments(data);
+      }
+    } catch (error) {
+      console.error('Error fetching options:', error);
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
 
   // Initialize form data with proper date formatting for edit mode
   const getInitialFormData = (): Employee => {
@@ -351,33 +414,22 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
               <Label htmlFor="designation">Designation *</Label>
               <Select value={formData.designation} onValueChange={(val) => handleChange('designation', val)} required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select designation" />
+                  <SelectValue placeholder={loadingOptions ? "Loading..." : "Select designation"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  {/* Developer Salary Structure */}
-                  <SelectItem value="HR Exec">HR Exec</SelectItem>
-                  <SelectItem value="HR Manager">HR Manager</SelectItem>
-                  <SelectItem value="VP HR">VP HR</SelectItem>
-                  <SelectItem value="Director HR">Director HR</SelectItem>
-                  <SelectItem value="CEO">CEO</SelectItem>
-                  <SelectItem value="CFO">CFO</SelectItem>
-                  <SelectItem value="COO">COO</SelectItem>
-                  <SelectItem value="CTO">CTO</SelectItem>
-                  <SelectItem value="Jr Developer">Jr Developer</SelectItem>
-                  <SelectItem value="Sr Developer">Sr Developer</SelectItem>
-                  <SelectItem value="CDO">CDO</SelectItem>
-                  <SelectItem value="Sr Designer">Sr Designer</SelectItem>
-                  <SelectItem value="Jr Designer">Jr Designer</SelectItem>
-                  <SelectItem value="House Keeping">House Keeping</SelectItem>
-                  <SelectItem value="CSO">CSO</SelectItem>
-                  <SelectItem value="VP Sales">VP Sales</SelectItem>
-                  <SelectItem value="Operations Manager">Operations Manager</SelectItem>
-                  <SelectItem value="Assistant Ops Manager">Assistant Ops Manager</SelectItem>
-                  <SelectItem value="Team Leader">Team Leader</SelectItem>
-                  {/* Sales Salary Structure */}
-                  <SelectItem value="CSR">CSR</SelectItem>
-                  <SelectItem value="Sr CSR">Sr CSR</SelectItem>
-                  <SelectItem value="Supervisor">Supervisor</SelectItem>
+                  {designations.length > 0 ? (
+                    designations.map((desig) => (
+                      <SelectItem key={desig.id} value={desig.name}>
+                        {desig.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    fallbackDesignations.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -385,17 +437,22 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
               <Label htmlFor="department">Department *</Label>
               <Select value={formData.department} onValueChange={(val) => handleChange('department', val)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
+                  <SelectValue placeholder={loadingOptions ? "Loading..." : "Select department"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Development">Development</SelectItem>
-                  <SelectItem value="Design">Design</SelectItem>
-                  <SelectItem value="Management">Management</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="Marketing">Marketing</SelectItem>
-                  <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="Finance">Finance</SelectItem>
-                  <SelectItem value="Administration">Administration</SelectItem>
+                  {departments.length > 0 ? (
+                    departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    fallbackDepartments.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

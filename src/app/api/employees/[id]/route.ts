@@ -68,26 +68,30 @@ export async function PUT(
 
     const body = await request.json();
 
+    // Build update data only with provided fields (supports partial updates)
+    const updateData: any = {};
+
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.email !== undefined) updateData.email = body.email;
+    if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.altPhone !== undefined) updateData.altPhone = body.altPhone;
+    if (body.altEmail !== undefined) updateData.altEmail = body.altEmail;
+    if (body.emergencyContactName !== undefined) updateData.emergencyContactName = body.emergencyContactName;
+    if (body.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = body.emergencyContactPhone;
+    if (body.emergencyContactRelation !== undefined) updateData.emergencyContactRelation = body.emergencyContactRelation;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.designation !== undefined) updateData.designation = body.designation;
+    if (body.salary !== undefined) updateData.salary = parseFloat(body.salary);
+    if (body.department !== undefined) updateData.department = body.department;
+    if (body.reportingHeadId !== undefined) updateData.reportingHeadId = body.reportingHeadId || null;
+    if (body.dateOfJoining !== undefined) updateData.dateOfJoining = new Date(body.dateOfJoining);
+    if (body.profilePicture !== undefined) updateData.profilePicture = body.profilePicture;
+    if (body.documents !== undefined) updateData.documents = body.documents;
+    if (body.isActive !== undefined) updateData.isActive = body.isActive;
+
     const updatedEmployee = await prisma.employee.update({
       where: { id: params.id },
-      data: {
-        name: body.name,
-        email: body.email,
-        phone: body.phone,
-        altPhone: body.altPhone,
-        altEmail: body.altEmail,
-        emergencyContactName: body.emergencyContactName,
-        emergencyContactPhone: body.emergencyContactPhone,
-        emergencyContactRelation: body.emergencyContactRelation,
-        address: body.address,
-        designation: body.designation,
-        salary: parseFloat(body.salary),
-        department: body.department,
-        reportingHeadId: body.reportingHeadId || null,
-        dateOfJoining: new Date(body.dateOfJoining),
-        profilePicture: body.profilePicture,
-        documents: body.documents || undefined,
-      },
+      data: updateData,
       include: {
         reportingHead: {
           select: {
@@ -100,13 +104,15 @@ export async function PUT(
     });
 
     // Update user email if changed
-    await prisma.user.updateMany({
-      where: { employeeId: params.id },
-      data: {
-        email: body.email,
-        username: body.email.split('@')[0],
-      },
-    });
+    if (body.email !== undefined) {
+      await prisma.user.updateMany({
+        where: { employeeId: params.id },
+        data: {
+          email: body.email,
+          username: body.email.split('@')[0],
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, employee: updatedEmployee });
   } catch (error) {
