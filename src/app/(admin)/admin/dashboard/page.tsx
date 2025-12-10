@@ -115,7 +115,7 @@ export default async function AdminDashboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
           <Card key={idx}>
             <CardContent className="p-6">
@@ -140,7 +140,7 @@ export default async function AdminDashboard() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {quickActions.map((action, idx) => (
               <Button
                 key={idx}
@@ -158,7 +158,7 @@ export default async function AdminDashboard() {
       </Card>
 
       {/* Sales Pipeline Widget */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
