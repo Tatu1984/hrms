@@ -61,6 +61,8 @@ interface AttendanceRecord {
   punchOut: string | null;
   totalHours: number | null;
   breakDuration: number | null;
+  breakStart: string | null;
+  breakEnd: string | null;
   idleTime: number | null;
   status: string;
   employee?: Employee;
@@ -70,6 +72,9 @@ interface ActivityLog {
   id: string;
   timestamp: string;
   active: boolean;
+  suspicious: boolean;
+  patternType: string | null;
+  patternDetails: string | null;
 }
 
 interface DailyWorkUpdate {
@@ -574,10 +579,58 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
               )}
             </div>
 
+            {/* Break Time Section */}
+            {selectedAttendanceRecord && (selectedAttendanceRecord.breakStart || selectedAttendanceRecord.breakDuration) && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Coffee className="w-5 h-5" />
+                  Break Time
+                </h3>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {selectedAttendanceRecord.breakStart && (
+                        <div>
+                          <p className="text-xs text-gray-500">Break Start</p>
+                          <p className="font-mono text-purple-600 font-semibold">
+                            {format(new Date(selectedAttendanceRecord.breakStart), 'HH:mm:ss')}
+                          </p>
+                        </div>
+                      )}
+                      {selectedAttendanceRecord.breakEnd && (
+                        <div>
+                          <p className="text-xs text-gray-500">Break End</p>
+                          <p className="font-mono text-purple-600 font-semibold">
+                            {format(new Date(selectedAttendanceRecord.breakEnd), 'HH:mm:ss')}
+                          </p>
+                        </div>
+                      )}
+                      {selectedAttendanceRecord.breakStart && !selectedAttendanceRecord.breakEnd && (
+                        <Badge variant="secondary" className="bg-purple-200 text-purple-800">
+                          On Break
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">Total Break Duration</p>
+                      <p className="font-semibold text-purple-700 text-lg">
+                        {selectedAttendanceRecord.breakDuration?.toFixed(1) || '0'}h
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Activity Timeline Section */}
             <div>
               <h3 className="text-lg font-semibold mb-3">
                 Activity Timeline {!detailsLoading && `(${activityLogs.length} heartbeats)`}
+                {!detailsLoading && activityLogs.some(log => log.suspicious) && (
+                  <Badge variant="destructive" className="ml-2 text-xs">
+                    ⚠️ Suspicious Activity Detected
+                  </Badge>
+                )}
               </h3>
               {detailsLoading ? (
                 <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
@@ -596,17 +649,42 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                       ? (new Date(nextLog.timestamp).getTime() - new Date(log.timestamp).getTime()) / (1000 * 60)
                       : 0;
                     const isLongGap = gap > 5;
+                    const isSuspicious = log.suspicious;
 
                     return (
                       <div key={log.id}>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-mono text-blue-600">
+                        <div className={`flex items-center justify-between text-sm ${isSuspicious ? 'bg-red-50 p-2 rounded border border-red-200' : ''}`}>
+                          <span className={`font-mono ${isSuspicious ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
                             {format(new Date(log.timestamp), 'HH:mm:ss')}
                           </span>
-                          <Badge variant="outline" className="text-xs">
-                            Active
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {isSuspicious ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge variant="destructive" className="text-xs font-bold">
+                                      ⚠️ Suspicious
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="font-semibold">{log.patternType?.replace(/_/g, ' ') || 'Unknown Pattern'}</p>
+                                    {log.patternDetails && <p className="text-xs">{log.patternDetails}</p>}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Active
+                              </Badge>
+                            )}
+                          </div>
                         </div>
+                        {isSuspicious && log.patternType && (
+                          <div className="flex items-center gap-2 my-1 text-xs text-red-700 bg-red-100 p-2 rounded font-bold">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{log.patternType.replace(/_/g, ' ')}: {log.patternDetails || 'Bot/automation pattern detected'}</span>
+                          </div>
+                        )}
                         {isLongGap && (
                           <div className="flex items-center gap-2 my-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
                             <AlertCircle className="w-3 h-3" />
