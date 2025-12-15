@@ -382,16 +382,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'break-start') {
-      if (attendance.breakStart) {
+      // Check if break is currently active (started but not ended)
+      if (attendance.breakStart && !attendance.breakEnd) {
         return NextResponse.json(
           { error: 'Break already started' },
           { status: 400 }
         );
       }
 
+      // If a previous break was completed, reset breakEnd to allow a new break
+      const breakData: { breakStart: Date; breakEnd?: null } = { breakStart: now };
+      if (attendance.breakEnd) {
+        breakData.breakEnd = null;
+      }
+
       const updatedAttendance = await prisma.attendance.update({
         where: { id: attendance.id },
-        data: { breakStart: now },
+        data: breakData,
         include: {
           employee: {
             select: {
