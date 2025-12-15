@@ -13,6 +13,20 @@ interface PatternInfo {
   type: string;
   details: string;
   timestamp: string;
+  confidence: string | null;
+  confidenceScore: number | null;
+  durationMs: number | null;
+}
+
+interface DeviceFingerprint {
+  ipAddress: string | null;
+  browserName: string | null;
+  browserVersion: string | null;
+  osName: string | null;
+  osVersion: string | null;
+  deviceType: string | null;
+  screenResolution: string | null;
+  timezone: string | null;
 }
 
 interface SuspiciousSummary {
@@ -27,6 +41,11 @@ interface SuspiciousSummary {
   count: number;
   timestamps: string[];
   patterns: PatternInfo[];
+  fingerprint: DeviceFingerprint | null;
+  uniqueIps: string[];
+  totalDurationMs: number;
+  highestConfidence: string | null;
+  highestConfidenceScore: number;
 }
 
 interface SuspiciousActivityData {
@@ -116,6 +135,7 @@ export default function SuspiciousActivityPage() {
       ALTERNATING_KEYS: 'Keyboard Macro',
       LINEAR_MOUSE_MOVEMENT: 'Mouse Jiggler',
       STATIC_MOUSE: 'Fake Mouse App',
+      OSCILLATING_MOUSE: 'Mouse Jiggler (Oscillating)',
     };
     return labels[type] || type;
   };
@@ -124,6 +144,40 @@ export default function SuspiciousActivityPage() {
     if (type.includes('KEY') || type.includes('KEYSTROKE')) return '⌨️';
     if (type.includes('MOUSE')) return '🖱️';
     return '⚠️';
+  };
+
+  const getConfidenceBadge = (confidence: string | null, score: number | null) => {
+    if (!confidence) return null;
+    const colors: Record<string, string> = {
+      HIGH: 'bg-red-600 text-white',
+      MEDIUM: 'bg-orange-500 text-white',
+      LOW: 'bg-yellow-500 text-black',
+    };
+    return (
+      <Badge className={colors[confidence] || 'bg-gray-500'}>
+        {confidence} {score ? `(${score}%)` : ''}
+      </Badge>
+    );
+  };
+
+  const formatDuration = (ms: number | null | undefined) => {
+    if (!ms || ms === 0) return 'N/A';
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  const getDeviceIcon = (deviceType: string | null) => {
+    if (deviceType === 'mobile') return '📱';
+    if (deviceType === 'tablet') return '📱';
+    return '💻';
   };
 
   const openDetailsDialog = (summary: SuspiciousSummary) => {
@@ -268,6 +322,7 @@ export default function SuspiciousActivityPage() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold text-lg">{item.employee.name}</h3>
                         {getSeverityBadge(item.count)}
+                        {item.highestConfidence && getConfidenceBadge(item.highestConfidence, item.highestConfidenceScore)}
                         <Badge variant="outline" className="text-xs">
                           {item.employee.employeeId}
                         </Badge>
@@ -284,6 +339,24 @@ export default function SuspiciousActivityPage() {
                           <p>
                             <span className="font-medium">Top Pattern:</span>{' '}
                             {getPatternIcon(item.patterns[0].type)} {getPatternTypeLabel(item.patterns[0].type)}
+                          </p>
+                        )}
+                        {item.totalDurationMs > 0 && (
+                          <p>
+                            <span className="font-medium">Total Duration:</span>{' '}
+                            {formatDuration(item.totalDurationMs)}
+                          </p>
+                        )}
+                        {item.fingerprint && (
+                          <p>
+                            <span className="font-medium">Device:</span>{' '}
+                            {getDeviceIcon(item.fingerprint.deviceType)} {item.fingerprint.browserName} on {item.fingerprint.osName}
+                          </p>
+                        )}
+                        {item.uniqueIps.length > 0 && (
+                          <p>
+                            <span className="font-medium">IP{item.uniqueIps.length > 1 ? 's' : ''}:</span>{' '}
+                            {item.uniqueIps.slice(0, 2).join(', ')}{item.uniqueIps.length > 2 ? ` +${item.uniqueIps.length - 2} more` : ''}
                           </p>
                         )}
                       </div>
@@ -354,9 +427,69 @@ export default function SuspiciousActivityPage() {
                       <p className="text-sm text-gray-600">Total Events</p>
                       <p className="font-semibold text-2xl text-red-600">{detailsDialog.summary.count}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Detection Confidence</p>
+                      <div className="flex items-center gap-2">
+                        {detailsDialog.summary.highestConfidence ? (
+                          getConfidenceBadge(detailsDialog.summary.highestConfidence, detailsDialog.summary.highestConfidenceScore)
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total Duration</p>
+                      <p className="font-semibold">{formatDuration(detailsDialog.summary.totalDurationMs)}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Device Fingerprint */}
+              {detailsDialog.summary.fingerprint && (
+                <Card className="bg-purple-50 border-purple-200">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-purple-900 mb-3">Device & Network Information</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-purple-600 text-xs">IP Address</p>
+                        <p className="font-mono font-semibold">{detailsDialog.summary.fingerprint.ipAddress || 'Unknown'}</p>
+                        {detailsDialog.summary.uniqueIps.length > 1 && (
+                          <p className="text-xs text-purple-500 mt-1">
+                            +{detailsDialog.summary.uniqueIps.length - 1} other IP(s): {detailsDialog.summary.uniqueIps.slice(1).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-purple-600 text-xs">Browser</p>
+                        <p className="font-semibold">
+                          {detailsDialog.summary.fingerprint.browserName} {detailsDialog.summary.fingerprint.browserVersion}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-purple-600 text-xs">Operating System</p>
+                        <p className="font-semibold">
+                          {detailsDialog.summary.fingerprint.osName} {detailsDialog.summary.fingerprint.osVersion}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-purple-600 text-xs">Device Type</p>
+                        <p className="font-semibold">
+                          {getDeviceIcon(detailsDialog.summary.fingerprint.deviceType)} {detailsDialog.summary.fingerprint.deviceType || 'Unknown'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-purple-600 text-xs">Screen Resolution</p>
+                        <p className="font-semibold">{detailsDialog.summary.fingerprint.screenResolution || 'Unknown'}</p>
+                      </div>
+                      <div>
+                        <p className="text-purple-600 text-xs">Timezone</p>
+                        <p className="font-semibold">{detailsDialog.summary.fingerprint.timezone || 'Unknown'}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Pattern Breakdown */}
               <div>
@@ -369,11 +502,17 @@ export default function SuspiciousActivityPage() {
                           <div className="flex items-start gap-3">
                             <div className="text-3xl">{getPatternIcon(pattern.type)}</div>
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <Badge variant="destructive">{getPatternTypeLabel(pattern.type)}</Badge>
+                                {pattern.confidence && getConfidenceBadge(pattern.confidence, pattern.confidenceScore)}
                                 <span className="text-xs text-gray-500">
                                   {format(new Date(pattern.timestamp), 'h:mm:ss a')}
                                 </span>
+                                {pattern.durationMs && pattern.durationMs > 0 && (
+                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                    Duration: {formatDuration(pattern.durationMs)}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
                                 {pattern.details}
@@ -414,7 +553,7 @@ export default function SuspiciousActivityPage() {
               {/* Recommendations */}
               <Card className="bg-yellow-50 border-yellow-200">
                 <CardContent className="p-4">
-                  <h3 className="font-semibold text-yellow-900 mb-2">⚠️ Recommended Actions</h3>
+                  <h3 className="font-semibold text-yellow-900 mb-2">Recommended Actions</h3>
                   <ul className="text-sm text-yellow-800 space-y-1">
                     <li>• Review employee's work output for this date</li>
                     <li>• Check if automated tools were legitimately used for work</li>
@@ -437,9 +576,18 @@ export default function SuspiciousActivityPage() {
             <li>• <strong>Repetitive Keystroke:</strong> Same key pressed 10+ times consecutively</li>
             <li>• <strong>Auto-Typer:</strong> Keys pressed at exact intervals (e.g., every 5 seconds)</li>
             <li>• <strong>Keyboard Macro:</strong> Two keys alternating in perfect pattern</li>
-            <li>• <strong>Mouse Jiggler:</strong> Mouse moving in straight lines or geometric patterns</li>
+            <li>• <strong>Mouse Jiggler (Linear):</strong> Mouse moving in straight lines</li>
+            <li>• <strong>Mouse Jiggler (Oscillating):</strong> Mouse oscillating back and forth</li>
             <li>• <strong>Fake Mouse App:</strong> Mouse position not actually changing</li>
           </ul>
+          <div className="mt-4 pt-3 border-t border-blue-200">
+            <h4 className="font-semibold text-blue-900 mb-2">Confidence Levels</h4>
+            <div className="flex gap-3 flex-wrap">
+              <span className="text-xs"><Badge className="bg-red-600 text-white">HIGH (85%+)</Badge> - Very likely automated</span>
+              <span className="text-xs"><Badge className="bg-orange-500 text-white">MEDIUM (65-84%)</Badge> - Possibly automated</span>
+              <span className="text-xs"><Badge className="bg-yellow-500 text-black">LOW (&lt;65%)</Badge> - Could be false positive</span>
+            </div>
+          </div>
           <p className="text-xs text-blue-700 mt-3">
             Note: Detection is completely silent - employees are not notified when patterns are detected.
           </p>

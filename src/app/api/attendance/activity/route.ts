@@ -17,7 +17,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { timestamp, active, suspicious, patternType, patternDetails } = body;
+    const {
+      timestamp,
+      active,
+      suspicious,
+      patternType,
+      patternDetails,
+      // Enhanced fields
+      confidence,
+      confidenceScore,
+      durationMs,
+      patternStartTime,
+      // Fingerprint data
+      userAgent,
+      browserName,
+      browserVersion,
+      osName,
+      osVersion,
+      deviceType,
+      screenResolution,
+      timezone,
+      language,
+    } = body;
+
+    // Get IP address from request headers
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ipAddress = forwarded ? forwarded.split(',')[0].trim() : request.headers.get('x-real-ip') || 'unknown';
 
     // Find today's attendance record
     const today = new Date();
@@ -49,7 +74,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log the activity
+    // Log the activity with all enhanced fields
     await prisma.activityLog.create({
       data: {
         attendanceId: attendance.id,
@@ -58,6 +83,22 @@ export async function POST(request: NextRequest) {
         suspicious: suspicious === true, // Default to false
         patternType: patternType || null,
         patternDetails: patternDetails || null,
+        // Enhanced detection fields
+        confidence: confidence || null,
+        confidenceScore: confidenceScore ? parseFloat(confidenceScore) : null,
+        durationMs: durationMs ? parseInt(durationMs) : null,
+        patternStartTime: patternStartTime ? new Date(patternStartTime) : null,
+        // Fingerprint/Device info
+        ipAddress: ipAddress,
+        userAgent: userAgent || null,
+        browserName: browserName || null,
+        browserVersion: browserVersion || null,
+        osName: osName || null,
+        osVersion: osVersion || null,
+        deviceType: deviceType || null,
+        screenResolution: screenResolution || null,
+        timezone: timezone || null,
+        language: language || null,
       },
     });
 

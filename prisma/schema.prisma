@@ -109,11 +109,32 @@ model ActivityLog {
   suspicious     Boolean    @default(false) // Whether automated/bot pattern was detected
   patternType    String?    // Type of pattern detected (REPETITIVE_KEY, LINEAR_MOUSE_MOVEMENT, etc.)
   patternDetails String?    // Detailed description of the pattern
+
+  // Enhanced detection fields
+  confidence     String?    // LOW, MEDIUM, HIGH - confidence level of detection
+  confidenceScore Float?    // Numerical score 0-100 for detection confidence
+  durationMs     Int?       // How long the suspicious pattern persisted in milliseconds
+  patternStartTime DateTime? // When the suspicious pattern started
+
+  // Fingerprint/Device info
+  ipAddress      String?    // IP address of the user
+  userAgent      String?    // Browser user agent string
+  browserName    String?    // Parsed browser name
+  browserVersion String?    // Parsed browser version
+  osName         String?    // Operating system name
+  osVersion      String?    // Operating system version
+  deviceType     String?    // desktop, mobile, tablet
+  screenResolution String?  // e.g., "1920x1080"
+  timezone       String?    // User's timezone
+  language       String?    // Browser language
+
   createdAt      DateTime   @default(now())
 
   @@index([attendanceId])
   @@index([timestamp])
   @@index([suspicious])
+  @@index([confidence])
+  @@index([ipAddress])
 }
 
 model Leave {

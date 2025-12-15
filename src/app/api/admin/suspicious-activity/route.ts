@@ -73,7 +73,32 @@ export async function GET(request: NextRequest) {
       date: string;
       count: number;
       timestamps: Date[];
-      patterns: Array<{ type: string; details: string; timestamp: Date }>;
+      patterns: Array<{
+        type: string;
+        details: string;
+        timestamp: Date;
+        confidence: string | null;
+        confidenceScore: number | null;
+        durationMs: number | null;
+      }>;
+      // Aggregated fingerprint info (take from first log of the day)
+      fingerprint: {
+        ipAddress: string | null;
+        browserName: string | null;
+        browserVersion: string | null;
+        osName: string | null;
+        osVersion: string | null;
+        deviceType: string | null;
+        screenResolution: string | null;
+        timezone: string | null;
+      } | null;
+      // Track unique IPs for the day
+      uniqueIps: Set<string>;
+      // Total duration of suspicious patterns
+      totalDurationMs: number;
+      // Highest confidence level seen
+      highestConfidence: string | null;
+      highestConfidenceScore: number;
     }>();
 
     suspiciousLogs.forEach(log => {
@@ -86,6 +111,20 @@ export async function GET(request: NextRequest) {
           count: 0,
           timestamps: [],
           patterns: [],
+          fingerprint: log.browserName ? {
+            ipAddress: log.ipAddress,
+            browserName: log.browserName,
+            browserVersion: log.browserVersion,
+            osName: log.osName,
+            osVersion: log.osVersion,
+            deviceType: log.deviceType,
+            screenResolution: log.screenResolution,
+            timezone: log.timezone,
+          } : null,
+          uniqueIps: new Set(),
+          totalDurationMs: 0,
+          highestConfidence: null,
+          highestConfidenceScore: 0,
         });
       }
 
@@ -93,17 +132,41 @@ export async function GET(request: NextRequest) {
       summary.count++;
       summary.timestamps.push(new Date(log.timestamp));
 
+      // Track unique IPs
+      if (log.ipAddress) {
+        summary.uniqueIps.add(log.ipAddress);
+      }
+
+      // Track total duration
+      if (log.durationMs) {
+        summary.totalDurationMs += log.durationMs;
+      }
+
+      // Track highest confidence
+      if (log.confidenceScore && log.confidenceScore > summary.highestConfidenceScore) {
+        summary.highestConfidenceScore = log.confidenceScore;
+        summary.highestConfidence = log.confidence;
+      }
+
       if (log.patternType && log.patternDetails) {
         summary.patterns.push({
           type: log.patternType,
           details: log.patternDetails,
           timestamp: new Date(log.timestamp),
+          confidence: log.confidence,
+          confidenceScore: log.confidenceScore,
+          durationMs: log.durationMs,
         });
       }
     });
 
     // Convert to array and sort by count (most suspicious first)
+    // Also convert Sets to arrays for JSON serialization
     const summary = Array.from(summaryMap.values())
+      .map(item => ({
+        ...item,
+        uniqueIps: Array.from(item.uniqueIps),
+      }))
       .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
