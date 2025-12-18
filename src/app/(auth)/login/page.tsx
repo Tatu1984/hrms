@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function LoginPage() {
+  // Check if user is already authenticated to prevent redirect loops
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role) {
+            const redirectMap: Record<string, string> = {
+              ADMIN: '/admin/dashboard',
+              MANAGER: '/manager/dashboard',
+              EMPLOYEE: '/employee/dashboard',
+            };
+            window.location.href = redirectMap[data.role] || '/login';
+          }
+        }
+      } catch {
+        // Not authenticated, stay on login page
+      }
+    };
+    checkAuth();
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

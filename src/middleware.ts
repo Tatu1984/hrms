@@ -31,14 +31,23 @@ function checkSectionPermission(pathname: string, permissions: any): boolean {
     return true; // If no permissions set, allow access (backward compatibility)
   }
 
+  // Always allow dashboard access - it's the base/fallback page
+  // This prevents redirect loops when users don't have other permissions
+  if (pathname.endsWith('/dashboard')) {
+    return true;
+  }
+
   // Find the section from the pathname
   for (const [path, permissionKey] of Object.entries(pathToPermissionMap)) {
+    // Skip dashboard in permission check (handled above)
+    if (path === '/dashboard') continue;
+
     if (pathname.includes(path)) {
       return permissions[permissionKey] === true;
     }
   }
 
-  // Allow dashboard by default
+  // Allow access by default for unmatched paths
   return true;
 }
 
