@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EditAttendanceDialog } from '@/components/admin/EditAttendanceDialog';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { formatHoursMinutes } from '@/lib/utils';
 
 interface AttendanceRecord {
   id: string;
@@ -282,7 +283,7 @@ export default function AttendanceEditPage() {
           )}
           {attendance && attendance.totalHours !== null && attendance.totalHours > 0 && (
             <div className="text-xs text-gray-600 mt-1">
-              {attendance.totalHours.toFixed(2)}h
+              {formatHoursMinutes(attendance.totalHours)}
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, formatHoursMinutes } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -300,7 +300,7 @@ export default function EmployeeAttendancePage() {
                             {attendance?.punchOut ? formatDateTime(attendance.punchOut.toString()) : '-'}
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            {attendance?.totalHours ? attendance.totalHours.toFixed(2) : '-'} hrs
+                            {formatHoursMinutes(attendance?.totalHours)} hrs
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex items-center gap-2">

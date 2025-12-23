@@ -47,7 +47,7 @@ interface DeviceFingerprint {
  *   - Repetitive keystrokes at exact intervals (e.g., every 5-10 seconds)
  *   - Mouse movements in exact patterns
  *   - Same key pressed repeatedly at regular intervals
- * - Sends heartbeat every 30 seconds if GENUINE activity detected
+ * - Sends heartbeat every 20 minutes if GENUINE activity detected
  * - If no activity for 5 minutes, user is considered idle
  * - Flags suspicious patterns and marks activity as potentially fake
  */
@@ -596,7 +596,7 @@ export function ActivityTracker({ isActive, onActivityDetected }: ActivityTracke
           // Silently fail - don't alert user
         }
       }
-    }, 30000); // Every 30 seconds
+    }, 20 * 60 * 1000); // Every 20 minutes
 
     // Check for idle state every minute
     idleCheckIntervalRef.current = setInterval(() => {

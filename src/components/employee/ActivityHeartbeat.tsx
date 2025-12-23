@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * Activity Heartbeat Component
- * Tracks employee activity and sends heartbeats every 3 minutes
+ * Tracks employee activity and sends heartbeats every 5 minutes
  * Continues heartbeat even when tab is closed/minimized using localStorage
  */
 export function ActivityHeartbeat() {
@@ -33,7 +33,7 @@ export function ActivityHeartbeat() {
     window.addEventListener('click', trackActivity);
     window.addEventListener('scroll', trackActivity);
 
-    // Send heartbeat every 3 minutes
+    // Send heartbeat every 5 minutes
     const sendHeartbeat = async () => {
       if (!checkPunchInStatus()) {
         console.log('[Heartbeat] Skipping - not punched in');
@@ -73,9 +73,9 @@ export function ActivityHeartbeat() {
     console.log('[ActivityHeartbeat] Sending initial heartbeat');
     sendHeartbeat();
 
-    // Set up interval to send heartbeat every 3 minutes (180000ms)
-    heartbeatIntervalRef.current = setInterval(sendHeartbeat, 3 * 60 * 1000);
-    console.log('[ActivityHeartbeat] Interval set up for every 3 minutes');
+    // Set up interval to send heartbeat every 5 minutes (300000ms)
+    heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5 * 60 * 1000);
+    console.log('[ActivityHeartbeat] Interval set up for every 5 minutes');
 
     // Handle page visibility changes
     const handleVisibilityChange = () => {
@@ -84,8 +84,8 @@ export function ActivityHeartbeat() {
         const lastHeartbeat = parseInt(localStorage.getItem('hrms_last_heartbeat') || '0');
         const timeSince = Date.now() - lastHeartbeat;
 
-        // If more than 3 minutes passed, send heartbeat immediately
-        if (timeSince > 3 * 60 * 1000) {
+        // If more than 5 minutes passed, send heartbeat immediately
+        if (timeSince > 5 * 60 * 1000) {
           console.log('[Heartbeat] Missed heartbeat detected, sending now');
           sendHeartbeat();
         }
