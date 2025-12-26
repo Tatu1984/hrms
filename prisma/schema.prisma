@@ -787,6 +787,53 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model BrowserActivityLog {
+  id               String              @id @default(cuid())
+  userId           String
+  userName         String
+  userRole         String
+  employeeId       String?
+  eventType        BrowserEventType
+  sessionId        String?
+  tabId            String?
+  browserName      String?
+  browserVersion   String?
+  osName           String?
+  osVersion        String?
+  deviceType       String?
+  screenResolution String?
+  timezone         String?
+  language         String?
+  ipAddress        String?
+  userAgent        String?
+  pageUrl          String?
+  pagePath         String?
+  duration         Int?                // Duration in seconds (for session end events)
+  metadata         Json?
+  createdAt        DateTime            @default(now())
+
+  @@index([userId])
+  @@index([employeeId])
+  @@index([eventType])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+enum BrowserEventType {
+  TAB_OPENED
+  TAB_CLOSED
+  TAB_VISIBLE
+  TAB_HIDDEN
+  TAB_FOCUSED
+  TAB_BLURRED
+  SESSION_START
+  SESSION_END
+  PAGE_LOAD
+  PAGE_UNLOAD
+  WINDOW_MINIMIZED
+  WINDOW_RESTORED
+}
+
 model Holiday {
   id          String   @id @default(cuid())
   name        String

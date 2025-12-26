@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import Sidebar from '@/components/shared/sidebar';
 import Navbar from '@/components/shared/navbar';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
+import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
 
 const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/admin/dashboard' },
@@ -32,6 +33,7 @@ const sidebarItems = [
   { icon: 'MessageSquare', label: 'Messages', href: '/admin/messages' },
   { icon: 'BarChart3', label: 'Reports', href: '/admin/reports', children: [
     { icon: 'History', label: 'Change Log', href: '/admin/reports/change-log' },
+    { icon: 'Monitor', label: 'Browser Activity', href: '/admin/reports/browser-activity' },
   ]},
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
@@ -51,6 +53,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex h-screen bg-gray-100">
+      <BrowserActivityTracker />
       <Sidebar items={sidebarItems} baseUrl="/admin" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar userName={session.name} userRole="Admin" />
