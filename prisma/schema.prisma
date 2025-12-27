@@ -993,3 +993,361 @@ enum SalaryType {
   FIXED
   VARIABLE
 }
+
+// ==========================================
+// AI/ML MODELS
+// ==========================================
+
+// AI Document Processing
+model AIDocumentExtraction {
+  id            String   @id @default(cuid())
+  documentId    String?
+  documentType  String
+  fileName      String
+  filePath      String?
+  extractedData Json
+  entities      Json?
+  confidence    Float
+  processingTime Int?
+  status        AIProcessingStatus @default(PENDING)
+  error         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([documentType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// AI Predictions (Attrition, Performance, etc.)
+model AIPrediction {
+  id            String   @id @default(cuid())
+  employeeId    String
+  predictionType PredictionType
+  riskScore     Float
+  riskLevel     String
+  factors       Json
+  recommendations Json?
+  confidence    Float
+  validFrom     DateTime @default(now())
+  validUntil    DateTime
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([predictionType])
+  @@index([riskLevel])
+  @@index([isActive])
+}
+
+// AI Chat Sessions
+model AIChatSession {
+  id          String   @id @default(cuid())
+  userId      String
+  employeeId  String?
+  context     Json?
+  status      ChatSessionStatus @default(ACTIVE)
+  messageCount Int     @default(0)
+  lastMessageAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  messages    AIChatMessage[]
+
+  @@index([userId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+// AI Chat Messages
+model AIChatMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  role        ChatRole
+  content     String
+  metadata    Json?
+  intent      String?
+  action      Json?
+  tokens      Int?
+  createdAt   DateTime @default(now())
+  session     AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+// Sentiment Analysis Results
+model AISentimentAnalysis {
+  id          String   @id @default(cuid())
+  sourceType  SentimentSourceType
+  sourceId    String
+  text        String
+  sentiment   String
+  score       Float
+  confidence  Float
+  aspects     Json?
+  emotions    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([sentiment])
+  @@index([createdAt])
+}
+
+// Resume Parsing Results
+model AIResumeAnalysis {
+  id            String   @id @default(cuid())
+  candidateId   String?
+  fileName      String
+  filePath      String?
+  parsedData    Json
+  skills        Json
+  experience    Json
+  education     Json
+  overallScore  Float?
+  matchScores   Json?
+  biasFlags     Json?
+  status        AIProcessingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([candidateId])
+  @@index([status])
+}
+
+// Skill Gap Analysis
+model AISkillGap {
+  id            String   @id @default(cuid())
+  employeeId    String
+  currentRole   String
+  targetRole    String?
+  gaps          Json
+  overallScore  Float
+  learningPath  Json?
+  priority      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([isActive])
+}
+
+// AI Automation Rules
+model AIAutomationRule {
+  id          String   @id @default(cuid())
+  name        String
+  type        AutomationType
+  conditions  Json
+  actions     Json
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  triggerCount Int     @default(0)
+  lastTriggered DateTime?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  logs        AIAutomationLog[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+// AI Automation Logs
+model AIAutomationLog {
+  id          String   @id @default(cuid())
+  ruleId      String
+  entityType  String
+  entityId    String
+  action      String
+  result      String
+  details     Json?
+  createdAt   DateTime @default(now())
+  rule        AIAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+// Anomaly Detection
+model AIAnomaly {
+  id          String   @id @default(cuid())
+  type        String
+  severity    String
+  entityType  String
+  entityId    String
+  description String
+  data        Json
+  status      AnomalyStatus @default(OPEN)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  resolution  String?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([entityType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// AI Generated Insights
+model AIInsight {
+  id          String   @id @default(cuid())
+  type        InsightType
+  category    String
+  title       String
+  description String
+  data        Json
+  importance  Float
+  actionable  Boolean  @default(false)
+  actions     Json?
+  dismissed   Boolean  @default(false)
+  dismissedBy String?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([category])
+  @@index([importance])
+  @@index([dismissed])
+  @@index([createdAt])
+}
+
+// Natural Language Queries
+model AINLQuery {
+  id            String   @id @default(cuid())
+  userId        String
+  originalQuery String
+  parsedIntent  String?
+  generatedSQL  String?
+  result        Json?
+  executionTime Int?
+  success       Boolean  @default(false)
+  error         String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([success])
+  @@index([createdAt])
+}
+
+// Learning Recommendations
+model AILearningRecommendation {
+  id            String   @id @default(cuid())
+  employeeId    String
+  courseId      String?
+  courseName    String
+  provider      String?
+  skillsCovered Json
+  reason        String
+  priority      Int      @default(0)
+  status        LearningStatus @default(RECOMMENDED)
+  completedAt   DateTime?
+  feedback      String?
+  rating        Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([priority])
+}
+
+// Mentor Matching
+model AIMentorMatch {
+  id            String   @id @default(cuid())
+  mentorId      String
+  menteeId      String
+  matchScore    Float
+  matchReasons  Json
+  topics        Json?
+  status        MentorMatchStatus @default(SUGGESTED)
+  acceptedAt    DateTime?
+  completedAt   DateTime?
+  feedback      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([mentorId, menteeId])
+  @@index([mentorId])
+  @@index([menteeId])
+  @@index([status])
+}
+
+// AI Enums
+enum AIProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PredictionType {
+  ATTRITION
+  PERFORMANCE
+  WORKLOAD
+  ENGAGEMENT
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  CLOSED
+  EXPIRED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum SentimentSourceType {
+  FEEDBACK
+  SURVEY
+  MESSAGE
+  REVIEW
+  COMMENT
+}
+
+enum AutomationType {
+  LEAVE_APPROVAL
+  EXPENSE_APPROVAL
+  ATTENDANCE_ALERT
+  PERFORMANCE_ALERT
+  COMPLIANCE_CHECK
+}
+
+enum AnomalyStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+enum InsightType {
+  ANOMALY
+  TREND
+  PATTERN
+  CORRELATION
+  THRESHOLD
+  COMPARISON
+  FORECAST
+}
+
+enum LearningStatus {
+  RECOMMENDED
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum MentorMatchStatus {
+  SUGGESTED
+  ACCEPTED
+  ACTIVE
+  COMPLETED
+  REJECTED
+}

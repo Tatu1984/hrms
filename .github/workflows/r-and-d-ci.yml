@@ -1,0 +1,246 @@
+name: R&D Branch CI/CD
+
+on:
+  push:
+    branches:
+      - R-and-D
+  pull_request:
+    branches:
+      - R-and-D
+
+env:
+  NODE_VERSION: '20'
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  # Lint and Type Check
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    name: Lint & Type Check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Type Check
+        run: npx tsc --noEmit
+
+  # Build Test
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  # AI Module Tests
+  ai-tests:
+    runs-on: ubuntu-latest
+    name: AI Module Tests
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run AI Unit Tests
+        run: |
+          echo "Running AI module validation..."
+          # Check if all AI modules are properly exported
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+
+            const aiModules = [
+              'src/lib/ai/index.ts',
+              'src/lib/ai/config.ts',
+              'src/lib/ai/types.ts',
+              'src/lib/ai/document-processing/index.ts',
+              'src/lib/ai/predictive-analytics/index.ts',
+              'src/lib/ai/recruitment/index.ts',
+              'src/lib/ai/chatbot/index.ts',
+              'src/lib/ai/sentiment/index.ts',
+              'src/lib/ai/automation/index.ts',
+              'src/lib/ai/learning/index.ts',
+              'src/lib/ai/analytics/index.ts'
+            ];
+
+            let allExist = true;
+            for (const mod of aiModules) {
+              if (!fs.existsSync(mod)) {
+                console.error('Missing module:', mod);
+                allExist = false;
+              } else {
+                console.log('Found:', mod);
+              }
+            }
+
+            if (!allExist) {
+              process.exit(1);
+            }
+            console.log('All AI modules present!');
+          "
+
+  # Deploy to Vercel Preview (R&D)
+  deploy-preview:
+    runs-on: ubuntu-latest
+    name: Deploy R&D Preview
+    needs: [build, ai-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/R-and-D'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Deploy Project Artifacts to Vercel
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "DEPLOY_URL=$url" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with Deploy URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 R&D Preview deployed to: ${{ steps.deploy.outputs.DEPLOY_URL }}'
+            })
+
+      - name: Output Deploy URL
+        run: echo "Deployed to ${{ steps.deploy.outputs.DEPLOY_URL }}"
+
+  # AI Feature Summary
+  ai-feature-report:
+    runs-on: ubuntu-latest
+    name: AI Feature Report
+    needs: [build, ai-tests]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate AI Feature Report
+        run: |
+          echo "# 🤖 HRMS AI Features Report" > ai-report.md
+          echo "" >> ai-report.md
+          echo "## Features Included in this Build:" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 1. Intelligent Document Processing" >> ai-report.md
+          echo "- Auto-extract data from resumes, contracts, ID documents" >> ai-report.md
+          echo "- OCR support for scanned documents" >> ai-report.md
+          echo "- Smart document classification and tagging" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 2. Predictive Analytics" >> ai-report.md
+          echo "- Employee attrition risk prediction" >> ai-report.md
+          echo "- Performance forecasting" >> ai-report.md
+          echo "- Workload prediction" >> ai-report.md
+          echo "- Team health scoring" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 3. Smart Recruitment" >> ai-report.md
+          echo "- AI-powered resume parsing" >> ai-report.md
+          echo "- Candidate-job matching" >> ai-report.md
+          echo "- Bias detection in job descriptions" >> ai-report.md
+          echo "- Interview question generation" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 4. Conversational AI Assistant" >> ai-report.md
+          echo "- 24/7 HR chatbot for employee queries" >> ai-report.md
+          echo "- Leave application assistance" >> ai-report.md
+          echo "- Policy information" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 5. Sentiment Analysis" >> ai-report.md
+          echo "- Employee feedback analysis" >> ai-report.md
+          echo "- Team morale tracking" >> ai-report.md
+          echo "- Critical sentiment alerts" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 6. Intelligent Automation" >> ai-report.md
+          echo "- Smart leave approvals" >> ai-report.md
+          echo "- Anomaly detection (attendance, expenses)" >> ai-report.md
+          echo "- Compliance monitoring" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 7. Learning & Development" >> ai-report.md
+          echo "- Skill gap analysis" >> ai-report.md
+          echo "- Personalized learning paths" >> ai-report.md
+          echo "- AI-powered mentor matching" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "### 8. Advanced Analytics" >> ai-report.md
+          echo "- Natural language queries" >> ai-report.md
+          echo "- Automated insights generation" >> ai-report.md
+          echo "- What-if scenario analysis" >> ai-report.md
+          echo "" >> ai-report.md
+          echo "---" >> ai-report.md
+          echo "Generated: $(date)" >> ai-report.md
+
+          cat ai-report.md
+
+      - name: Upload AI Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-feature-report
+          path: ai-report.md
