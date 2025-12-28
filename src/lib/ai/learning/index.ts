@@ -8,7 +8,7 @@ import type {
   SkillGapItem,
   Milestone
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 // Skill level mapping
 const SKILL_LEVELS = {

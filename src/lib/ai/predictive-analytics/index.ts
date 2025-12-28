@@ -7,7 +7,7 @@ import type {
   RiskFactor,
   RiskLevel
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 export class PredictiveAnalyticsEngine {
 
