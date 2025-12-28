@@ -7,7 +7,7 @@ import type {
   ChatAction,
   ChatActionType
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 // Intent classification for routing
 const INTENT_EXAMPLES = `

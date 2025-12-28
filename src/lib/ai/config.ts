@@ -1,10 +1,24 @@
 // AI Configuration and Constants
 import OpenAI from 'openai';
 
-// OpenAI client instance
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy-loaded OpenAI client instance
+let _openai: OpenAI | null = null;
+
+export const getOpenAI = (): OpenAI => {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder-key',
+    });
+  }
+  return _openai;
+};
+
+// For backwards compatibility - will be lazy loaded when accessed
+export const openai = {
+  get chat() {
+    return getOpenAI().chat;
+  },
+};
 
 // AI Model configurations
 export const AI_MODELS = {

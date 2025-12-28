@@ -31,6 +31,12 @@ const sidebarItems = [
   { icon: 'FileText', label: 'HR Department', href: '/admin/hr-documents' },
   { icon: 'Network', label: 'Hierarchy', href: '/admin/hierarchy' },
   { icon: 'MessageSquare', label: 'Messages', href: '/admin/messages' },
+  { icon: 'Brain', label: 'AI Hub', href: '/admin/ai', children: [
+    { icon: 'Bot', label: 'AI Assistant', href: '/admin/ai/assistant' },
+    { icon: 'BarChart3', label: 'AI Analytics', href: '/admin/ai/analytics' },
+    { icon: 'Users', label: 'Smart Recruitment', href: '/admin/ai/recruitment' },
+    { icon: 'GraduationCap', label: 'Learning & Dev', href: '/admin/ai/learning' },
+  ]},
   { icon: 'BarChart3', label: 'Reports', href: '/admin/reports', children: [
     { icon: 'History', label: 'Change Log', href: '/admin/reports/change-log' },
     { icon: 'Monitor', label: 'Browser Activity', href: '/admin/reports/browser-activity' },

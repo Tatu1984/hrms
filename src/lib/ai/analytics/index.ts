@@ -9,7 +9,7 @@ import type {
   VisualizationSuggestion,
   InsightType
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 // Schema description for query generation
 const SCHEMA_DESCRIPTION = `

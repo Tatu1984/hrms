@@ -8,7 +8,7 @@ import type {
   EmotionScore,
   EmotionType
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 export class SentimentAnalyzer {
 

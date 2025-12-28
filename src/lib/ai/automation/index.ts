@@ -7,7 +7,7 @@ import type {
   ApprovalCondition,
   AnomalyType
 } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 export class IntelligentAutomation {
 
