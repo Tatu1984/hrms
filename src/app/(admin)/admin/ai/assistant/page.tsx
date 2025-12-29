@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,32 @@ import {
   FileText,
   Calendar,
   DollarSign,
-  Clock
+  Clock,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
+
+// Simple markdown renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    // Bold text
+    let processed = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic text
+    processed = processed.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // Bullet points
+    if (processed.startsWith('- ') || processed.startsWith('• ')) {
+      processed = '• ' + processed.substring(2);
+    }
+
+    return (
+      <span key={i}>
+        <span dangerouslySetInnerHTML={{ __html: processed }} />
+        {i < lines.length - 1 && <br />}
+      </span>
+    );
+  });
+}
 
 interface Message {
   id: string;
@@ -48,8 +72,21 @@ export default function AIAssistantPage() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  const clearChat = () => {
+    setMessages([
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: "Hello! I'm your AI HR Assistant. I'm here to help you with any HR-related questions or tasks. I can assist you with:\n\n• Leave management and applications\n• Attendance tracking and queries\n• Payroll and salary information\n• Company policies and procedures\n• General HR inquiries\n\nFeel free to ask me anything!",
+        timestamp: new Date(),
+        suggestions: ['Check my leave balance', 'Show my attendance', 'View company policies'],
+      },
+    ]);
+    setSessionId(crypto.randomUUID());
+  };
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -159,9 +196,15 @@ export default function AIAssistantPage() {
         {/* Chat Area */}
         <Card className="lg:col-span-3 flex flex-col h-[600px]">
           <CardHeader className="border-b">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              <CardTitle>Chat</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                <CardTitle>Chat</CardTitle>
+              </div>
+              <Button variant="ghost" size="sm" onClick={clearChat} disabled={isLoading}>
+                <RotateCcw className="h-4 w-4 mr-1" />
+                New Chat
+              </Button>
             </div>
             <CardDescription>Ask me anything about HR matters</CardDescription>
           </CardHeader>
@@ -187,7 +230,7 @@ export default function AIAssistantPage() {
                           : 'bg-muted'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      <div className="text-sm">{renderMarkdown(message.content)}</div>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1 px-1">
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
