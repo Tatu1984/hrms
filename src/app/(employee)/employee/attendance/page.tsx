@@ -283,15 +283,13 @@ export default function EmployeeAttendancePage() {
                       const cascadeInfo = getWeekendCascadeInfo(date);
 
                       // Determine status to display
-                      // Priority: Holiday > Leave > Attendance record > Weekend > Absent
                       let displayStatus = 'ABSENT';
-                      if (holiday) {
-                        // Holidays take priority - even over ABSENT attendance records
-                        displayStatus = 'HOLIDAY';
+                      if (attendance) {
+                        displayStatus = attendance.status;
                       } else if (onLeave) {
                         displayStatus = 'LEAVE';
-                      } else if (attendance) {
-                        displayStatus = attendance.status;
+                      } else if (holiday) {
+                        displayStatus = 'HOLIDAY';
                       } else if (weekend) {
                         // Check if weekend should be marked absent due to cascade rule
                         if (cascadeInfo.isCascaded) {
