@@ -60,6 +60,14 @@ export default function AttendanceEditPage() {
     }
   };
 
+  // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const fetchMonthAttendance = async () => {
     if (!selectedEmployeeId) return;
 
@@ -68,8 +76,10 @@ export default function AttendanceEditPage() {
       const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-      const startDate = firstDay.toISOString().split('T')[0];
-      const endDate = lastDay.toISOString().split('T')[0];
+      // Use local date format to avoid timezone issues
+      // toISOString() converts to UTC which causes issues for timezones ahead of UTC
+      const startDate = formatLocalDate(firstDay);
+      const endDate = formatLocalDate(lastDay);
 
       const response = await fetch(
         `/api/attendance?employeeId=${selectedEmployeeId}&startDate=${startDate}&endDate=${endDate}`

@@ -45,7 +45,8 @@ export function AttendanceDateDetailModal({ date, isOpen, onClose }: AttendanceD
 
     setLoading(true);
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      // Use local date methods to avoid timezone issues
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const response = await fetch(`/api/attendance?date=${dateStr}`);
       if (response.ok) {
         const data = await response.json();
