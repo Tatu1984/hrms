@@ -255,6 +255,11 @@ export default function AttendanceEditPage() {
       const holiday = isHoliday(day);
       const holidayName = getHolidayName(day);
 
+      // Determine effective status - holidays take priority over ABSENT records
+      const effectiveStatus = holiday
+        ? 'HOLIDAY'
+        : attendance?.status || (weekend ? 'WEEKEND' : (isFutureDate ? null : 'ABSENT'));
+
       days.push(
         <div
           key={day}
@@ -262,18 +267,18 @@ export default function AttendanceEditPage() {
           className={`
             p-2 min-h-[80px] border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors
             ${weekend && !attendance && !holiday ? 'bg-gray-100' : ''}
-            ${holiday && !attendance ? 'bg-purple-50' : ''}
+            ${holiday ? 'bg-purple-50' : ''}
             ${isFutureDate ? 'opacity-50' : ''}
           `}
         >
           <div className="text-sm font-medium text-gray-700 mb-1">{day}</div>
-          {attendance ? (
+          {holiday ? (
+            <div className="text-xs px-2 py-1 rounded bg-purple-500 text-white">
+              HOLIDAY
+            </div>
+          ) : attendance ? (
             <div className={`text-xs px-2 py-1 rounded ${getStatusColor(attendance.status)}`}>
               {attendance.status}
-            </div>
-          ) : holiday ? (
-            <div className="text-xs px-2 py-1 rounded bg-purple-500 text-white">
-              Holiday
             </div>
           ) : weekend ? (
             <div className="text-xs px-2 py-1 rounded bg-gray-300 text-gray-700">
@@ -291,7 +296,7 @@ export default function AttendanceEditPage() {
               {holidayName}
             </div>
           )}
-          {attendance && attendance.totalHours !== null && attendance.totalHours > 0 && (
+          {attendance && attendance.totalHours !== null && attendance.totalHours !== undefined && attendance.totalHours > 0 && (
             <div className="text-xs text-gray-600 mt-1">
               {formatHoursMinutes(attendance.totalHours)}
             </div>
