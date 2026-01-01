@@ -39,6 +39,7 @@ export default function AttendanceEditPage() {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -92,6 +93,8 @@ export default function AttendanceEditPage() {
     if (!selectedEmployeeId) return;
 
     setLoading(true);
+    setError(null);
+
     try {
       const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
@@ -101,16 +104,37 @@ export default function AttendanceEditPage() {
       const startDate = formatLocalDate(firstDay);
       const endDate = formatLocalDate(lastDay);
 
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       const response = await fetch(
-        `/api/attendance?employeeId=${selectedEmployeeId}&startDate=${startDate}&endDate=${endDate}`
+        `/api/attendance?employeeId=${selectedEmployeeId}&startDate=${startDate}&endDate=${endDate}`,
+        { signal: controller.signal }
       );
+
+      clearTimeout(timeoutId);
+
       if (response.ok) {
         const data = await response.json();
         setAttendanceRecords(data);
         setLastRefresh(new Date());
+      } else {
+        // Handle non-OK response
+        const errorText = await response.text().catch(() => response.statusText);
+        console.error('Attendance API error:', response.status, errorText);
+        setError(`Failed to load: ${response.status} ${response.statusText}`);
+        setAttendanceRecords([]);
+        setLastRefresh(new Date());
       }
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
+    } catch (err: any) {
+      console.error('Error fetching attendance:', err);
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError('Failed to load attendance data. Please try again.');
+      }
+      setAttendanceRecords([]);
     } finally {
       setLoading(false);
     }
@@ -420,7 +444,18 @@ export default function AttendanceEditPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="py-12 text-center text-gray-500">Loading attendance data...</div>
+              <div className="py-12 text-center text-gray-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                Loading attendance data...
+              </div>
+            ) : error ? (
+              <div className="py-12 text-center">
+                <div className="text-red-500 mb-4">{error}</div>
+                <Button variant="outline" onClick={handleManualRefresh}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
             ) : (
               <>
                 <div className="mb-4 flex gap-4 text-xs flex-wrap">
