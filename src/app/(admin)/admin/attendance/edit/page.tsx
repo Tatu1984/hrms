@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EditAttendanceDialog } from '@/components/admin/EditAttendanceDialog';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, RefreshCw, Play, Pause } from 'lucide-react';
 import { formatHoursMinutes } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 interface AttendanceRecord {
   id: string;
@@ -36,6 +37,8 @@ export default function AttendanceEditPage() {
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [holidays, setHolidays] = useState<any[]>([]);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -47,6 +50,23 @@ export default function AttendanceEditPage() {
       fetchHolidays();
     }
   }, [selectedEmployeeId, currentMonth]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    if (autoRefresh && selectedEmployeeId) {
+      intervalId = setInterval(() => {
+        fetchMonthAttendance();
+      }, 30000); // Refresh every 30 seconds
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [autoRefresh, selectedEmployeeId, currentMonth]);
 
   const fetchEmployees = async () => {
     try {
@@ -87,12 +107,18 @@ export default function AttendanceEditPage() {
       if (response.ok) {
         const data = await response.json();
         setAttendanceRecords(data);
+        setLastRefresh(new Date());
       }
     } catch (error) {
       console.error('Error fetching attendance:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualRefresh = () => {
+    fetchMonthAttendance();
+    fetchHolidays();
   };
 
   const fetchHolidays = async () => {
@@ -344,21 +370,51 @@ export default function AttendanceEditPage() {
       {selectedEmployeeId && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 {selectedEmployee?.name} - Attendance Calendar
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={previousMonth}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-medium min-w-[150px] text-center">
-                  {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </span>
-                <Button variant="outline" size="sm" onClick={nextMonth}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Refresh Controls */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleManualRefresh}
+                    disabled={loading}
+                    title="Refresh now"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="auto-refresh"
+                      checked={autoRefresh}
+                      onCheckedChange={setAutoRefresh}
+                    />
+                    <Label htmlFor="auto-refresh" className="text-xs cursor-pointer">
+                      Auto (30s)
+                    </Label>
+                  </div>
+                  {lastRefresh && (
+                    <span className="text-xs text-gray-500">
+                      Last: {lastRefresh.toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+                {/* Month Navigation */}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={previousMonth}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm font-medium min-w-[150px] text-center">
+                    {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={nextMonth}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardHeader>
