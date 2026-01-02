@@ -8,6 +8,7 @@ import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTrack
 const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/manager/dashboard' },
   { icon: 'Clock', label: 'Attendance', href: '/manager/attendance' },
+  { icon: 'Timer', label: 'Time Analytics', href: '/manager/time-analytics' },
   { icon: 'Calendar', label: 'Leave', href: '/manager/leave' },
   { icon: 'FolderKanban', label: 'Projects', href: '/manager/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/manager/tasks' },

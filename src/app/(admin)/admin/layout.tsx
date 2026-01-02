@@ -15,6 +15,7 @@ const sidebarItems = [
     { icon: 'Calendar', label: 'Leave Management', href: '/admin/leave-management' },
     { icon: 'CalendarDays', label: 'Holidays', href: '/admin/holidays' },
   ]},
+  { icon: 'Timer', label: 'Time Analytics', href: '/admin/time-analytics' },
   { icon: 'FolderKanban', label: 'Projects', href: '/admin/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/admin/tasks' },
     { icon: 'FileText', label: 'Daily Updates', href: '/admin/daily-updates' },
