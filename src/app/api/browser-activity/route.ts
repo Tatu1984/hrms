@@ -120,7 +120,10 @@ export async function GET(request: NextRequest) {
         where.createdAt.gte = new Date(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        // Set to end of day (23:59:59.999) to include the entire end date
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endDateTime;
       }
     }
 
