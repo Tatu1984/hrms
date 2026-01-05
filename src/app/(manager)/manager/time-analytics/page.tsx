@@ -95,6 +95,7 @@ interface TimeAnalyticsResponse {
     distribution: DistributionData[];
   };
   employeeDetails: EmployeeDetail[];
+  message?: string;
 }
 
 const COLORS = {
@@ -376,6 +377,17 @@ export default function ManagerTimeAnalyticsPage() {
         </div>
       ) : data ? (
         <>
+          {data.message && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Clock className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="font-medium text-amber-800">Notice</p>
+                <p className="text-sm text-amber-700">{data.message}</p>
+              </div>
+            </div>
+          )}
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
@@ -635,7 +647,7 @@ export default function ManagerTimeAnalyticsPage() {
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
-            Failed to load data. Please try again.
+            {data?.message || 'Failed to load data. Please try again.'}
           </CardContent>
         </Card>
       )}

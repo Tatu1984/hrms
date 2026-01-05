@@ -102,11 +102,42 @@ export async function GET(request: NextRequest) {
 
     if (session.role === 'EMPLOYEE') {
       // Employees can only see their own data
+      if (!session.employeeId) {
+        return NextResponse.json({
+          summary: {
+            totalWorkHours: 0,
+            totalBreakHours: 0,
+            totalIdleHours: 0,
+            averageWorkHours: 0,
+            employeeCount: 0,
+            daysAnalyzed: 0,
+          },
+          chartData: { byDate: [], byEmployee: [], distribution: [] },
+          employeeDetails: [],
+          message: 'No employee record linked to your account',
+        });
+      }
       employeeWhere.id = session.employeeId;
     } else if (session.role === 'MANAGER') {
       // Managers can see their team's data
+      if (!session.employeeId) {
+        return NextResponse.json({
+          summary: {
+            totalWorkHours: 0,
+            totalBreakHours: 0,
+            totalIdleHours: 0,
+            averageWorkHours: 0,
+            employeeCount: 0,
+            daysAnalyzed: 0,
+          },
+          chartData: { byDate: [], byEmployee: [], distribution: [] },
+          employeeDetails: [],
+          message: 'No employee record linked to your account',
+        });
+      }
+
       const manager = await prisma.employee.findUnique({
-        where: { id: session.employeeId! },
+        where: { id: session.employeeId },
         include: { subordinates: { select: { id: true } } },
       });
 
@@ -114,6 +145,9 @@ export async function GET(request: NextRequest) {
         employeeWhere.id = {
           in: [manager.id, ...manager.subordinates.map(s => s.id)],
         };
+      } else {
+        // Manager's employee record not found - show only based on session
+        employeeWhere.id = session.employeeId;
       }
     }
     // Admins can see all employees (no additional filter)
