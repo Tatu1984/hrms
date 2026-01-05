@@ -83,42 +83,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Calculate idle time based on gaps in activity logs
-    // Now also counts suspicious activity periods as idle time
-    const activityLogs = await prisma.activityLog.findMany({
+    // Calculate idle time based on inactive heartbeats
+    // Each inactive heartbeat (active=false) represents ~3 minutes of idle time
+    // This includes: user AFK with browser open, browser closed (server heartbeats), or bot activity
+    const inactiveHeartbeats = await prisma.activityLog.count({
       where: {
         attendanceId: attendance.id,
-      },
-      orderBy: {
-        timestamp: 'asc',
+        active: false,
       },
     });
 
-    let totalIdleMinutes = 0;
-    let suspiciousMinutes = 0;
-
-    for (let i = 1; i < activityLogs.length; i++) {
-      const prevLog = activityLogs[i - 1];
-      const currentLog = activityLogs[i];
-      const gapMinutes =
-        (new Date(currentLog.timestamp).getTime() -
-          new Date(prevLog.timestamp).getTime()) /
-        (1000 * 60);
-
-      // If gap is more than 5 minutes, count as idle time
-      if (gapMinutes > 5) {
-        totalIdleMinutes += gapMinutes - 5; // Subtract 5 min threshold
-      }
-
-      // Count time during suspicious activity as idle
-      if (currentLog.suspicious) {
-        suspiciousMinutes += gapMinutes;
-      }
-    }
-
-    // Add suspicious time to idle time (bot activity = not real work)
-    const totalIdle = totalIdleMinutes + suspiciousMinutes;
-    const idleHours = totalIdle / 60;
+    // Each inactive heartbeat = 3 minutes of idle time
+    const HEARTBEAT_INTERVAL_MINUTES = 3;
+    const totalIdleMinutes = inactiveHeartbeats * HEARTBEAT_INTERVAL_MINUTES;
+    const idleHours = totalIdleMinutes / 60;
 
     // Update attendance with new idle time
     await prisma.attendance.update({
