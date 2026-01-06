@@ -1,28 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Clock, Coffee } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { ActivityTracker } from '@/components/attendance/ActivityTracker';
 import { formatHoursMinutes } from '@/lib/utils';
 
-interface AttendanceControlsProps {
-  attendance: {
-    id: string;
-    punchIn: Date | null;
-    punchOut: Date | null;
-    breakStart: Date | null;
-    breakEnd: Date | null;
-    punchInIp?: string | null;
-    punchOutIp?: string | null;
-    totalHours?: number | null;
-  } | null;
+interface AttendanceData {
+  id: string;
+  punchIn: Date | null;
+  punchOut: Date | null;
+  breakStart: Date | null;
+  breakEnd: Date | null;
+  punchInIp?: string | null;
+  punchOutIp?: string | null;
+  totalHours?: number | null;
 }
 
-export function AttendanceControls({ attendance }: AttendanceControlsProps) {
+interface AttendanceControlsProps {
+  attendance: AttendanceData | null;
+}
+
+export function AttendanceControls({ attendance: initialAttendance }: AttendanceControlsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [attendance, setAttendance] = useState<AttendanceData | null>(initialAttendance);
+
+  // Sync with prop changes
+  useEffect(() => {
+    setAttendance(initialAttendance);
+  }, [initialAttendance]);
 
   const handleAction = async (action: 'punch-in' | 'punch-out' | 'break-start' | 'break-end') => {
     if (loading) return; // Prevent double-clicks
@@ -42,27 +50,43 @@ export function AttendanceControls({ attendance }: AttendanceControlsProps) {
         return;
       }
 
-      // Wait for response and then refresh
+      // Wait for response and update local state immediately
       const responseData = await res.json();
 
-      // Update localStorage AND cookies for heartbeat tracking
+      // Update local state for immediate UI update
       if (action === 'punch-in') {
+        setAttendance({
+          id: responseData.id,
+          punchIn: new Date(),
+          punchOut: null,
+          breakStart: null,
+          breakEnd: null,
+          punchInIp: responseData.punchInIp,
+          punchOutIp: null,
+        });
         localStorage.setItem('hrms_punched_in', 'true');
         localStorage.setItem('hrms_last_activity', Date.now().toString());
-        // Set cookie that expires in 24 hours
         document.cookie = `hrms_punched_in=true; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `hrms_attendance_id=${responseData.id}; path=/; max-age=86400; SameSite=Lax`;
-        console.log('[Attendance] Punch in - localStorage and cookies updated');
       } else if (action === 'punch-out') {
+        setAttendance(prev => prev ? {
+          ...prev,
+          punchOut: new Date(),
+          totalHours: responseData.totalHours,
+          punchOutIp: responseData.punchOutIp,
+        } : null);
         localStorage.setItem('hrms_punched_in', 'false');
         localStorage.removeItem('hrms_last_activity');
         localStorage.removeItem('hrms_last_heartbeat');
-        // Clear cookies
         document.cookie = 'hrms_punched_in=false; path=/; max-age=0';
         document.cookie = 'hrms_attendance_id=; path=/; max-age=0';
-        console.log('[Attendance] Punch out - localStorage and cookies cleared');
+      } else if (action === 'break-start') {
+        setAttendance(prev => prev ? { ...prev, breakStart: new Date() } : null);
+      } else if (action === 'break-end') {
+        setAttendance(prev => prev ? { ...prev, breakEnd: new Date() } : null);
       }
 
+      setLoading(false);
       router.refresh();
     } catch (error) {
       console.error('Attendance action error:', error);
