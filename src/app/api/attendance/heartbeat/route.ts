@@ -76,20 +76,22 @@ export async function POST(request: NextRequest) {
       data: {
         attendanceId: attendance.id,
         timestamp: now,
-        active: effectiveActive, // FALSE if bot detected
+        active: effectiveActive, // FALSE if bot detected or user AFK
+        source: 'client', // Client-generated heartbeat - inactive ones count as idle
         suspicious: isSuspicious,
         patternType: patternType,
         patternDetails: patternDetails,
       },
     });
 
-    // Calculate idle time based on inactive heartbeats
-    // Each inactive heartbeat (active=false) represents ~3 minutes of idle time
-    // This includes: user AFK with browser open, browser closed (server heartbeats), or bot activity
+    // Calculate idle time based on CLIENT inactive heartbeats only
+    // Server heartbeats (browser closed) are NOT counted as idle - user might be working elsewhere
+    // Only client-reported inactivity (AFK with browser open) counts as idle
     const inactiveHeartbeats = await prisma.activityLog.count({
       where: {
         attendanceId: attendance.id,
         active: false,
+        source: 'client', // Only count client-reported inactivity
       },
     });
 

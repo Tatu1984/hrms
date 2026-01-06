@@ -17,21 +17,21 @@ async function calculateIdleTime(
   punchOutTime: number
 ): Promise<number> {
   // Idle time calculation strategy:
-  // - Count only client-reported inactive heartbeats (user AFK with browser open)
-  // - Server heartbeats (browser closed) are not counted as idle
+  // - Count only CLIENT-reported inactive heartbeats (user AFK with browser open)
+  // - Server heartbeats (browser closed) are NOT counted as idle - user might be working elsewhere
   // - Each inactive heartbeat = 3 minutes of idle time
 
-  const activityLogs = await prisma.activityLog.findMany({
+  const inactiveCount = await prisma.activityLog.count({
     where: {
       attendanceId,
-      active: false, // Only count inactive heartbeats
+      active: false,
+      source: 'client', // Only count client-reported inactivity
     },
-    orderBy: { timestamp: 'asc' },
   });
 
   // Each inactive heartbeat represents 3 minutes of inactivity
   const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
-  const totalIdleMs = activityLogs.length * HEARTBEAT_INTERVAL_MS;
+  const totalIdleMs = inactiveCount * HEARTBEAT_INTERVAL_MS;
 
   // Convert to hours
   return totalIdleMs / (1000 * 60 * 60);

@@ -57,11 +57,12 @@ export async function POST(request: NextRequest) {
     const HEARTBEAT_INTERVAL_MINUTES = 3;
 
     for (const attendance of attendanceRecords) {
-      // Count inactive heartbeats for this attendance
+      // Count only CLIENT inactive heartbeats (not server/auto-heartbeats)
       const inactiveCount = await prisma.activityLog.count({
         where: {
           attendanceId: attendance.id,
           active: false,
+          source: 'client', // Only client-reported inactivity counts as idle
         },
       });
 

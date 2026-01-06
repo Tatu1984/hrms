@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
           data: {
             attendanceId: attendance.id,
             timestamp: now,
-            active: false, // Mark as inactive - no client activity detected, likely idle/AFK
+            active: false, // Mark as inactive - no client activity detected
+            source: 'server', // Server-generated heartbeat (browser closed) - NOT counted as idle
           },
         });
 

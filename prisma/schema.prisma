@@ -107,6 +107,7 @@ model ActivityLog {
   suspicious       Boolean    @default(false)
   patternDetails   String?
   patternType      String?
+  source           String?    // 'client' or 'server' - to distinguish heartbeat origin
   browserName      String?
   browserVersion   String?
   confidence       String?
