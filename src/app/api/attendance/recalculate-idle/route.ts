@@ -70,12 +70,35 @@ export async function POST(request: NextRequest) {
       const correctIdleMinutes = inactiveCount * HEARTBEAT_INTERVAL_MINUTES;
       const correctIdleHours = correctIdleMinutes / 60;
       const oldIdleHours = attendance.idleTime || 0;
+      const oldTotalHours = attendance.totalHours || 0;
 
-      // Update if different
-      if (Math.abs(correctIdleHours - oldIdleHours) > 0.01) {
+      // Calculate work hours if we have punch times
+      let newTotalHours = oldTotalHours;
+      if (attendance.punchIn && attendance.punchOut) {
+        const punchInTime = new Date(attendance.punchIn).getTime();
+        const punchOutTime = new Date(attendance.punchOut).getTime();
+        const totalElapsedHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
+        const breakDuration = attendance.breakDuration || 0;
+
+        // Work hours = Total elapsed - Break - Idle
+        let actualWorkHours = totalElapsedHours - breakDuration - correctIdleHours;
+
+        // Apply idle penalty: if idle > 1 hour, deduct excess from work hours
+        const idlePenalty = Math.max(0, correctIdleHours - 1);
+        newTotalHours = Math.max(0, actualWorkHours - idlePenalty);
+      }
+
+      // Update if idle time or work hours changed
+      const idleChanged = Math.abs(correctIdleHours - oldIdleHours) > 0.01;
+      const hoursChanged = Math.abs(newTotalHours - oldTotalHours) > 0.01;
+
+      if (idleChanged || hoursChanged) {
         await prisma.attendance.update({
           where: { id: attendance.id },
-          data: { idleTime: Math.round(correctIdleHours * 100) / 100 },
+          data: {
+            idleTime: Math.round(correctIdleHours * 100) / 100,
+            totalHours: Math.round(newTotalHours * 100) / 100,
+          },
         });
 
         results.push({
@@ -86,6 +109,8 @@ export async function POST(request: NextRequest) {
           inactiveHeartbeats: inactiveCount,
           oldIdleMinutes: Math.round(oldIdleHours * 60),
           newIdleMinutes: correctIdleMinutes,
+          oldWorkHours: Math.round(oldTotalHours * 100) / 100,
+          newWorkHours: Math.round(newTotalHours * 100) / 100,
           fixed: true,
         });
       } else {
@@ -95,6 +120,7 @@ export async function POST(request: NextRequest) {
           date: attendance.date,
           inactiveHeartbeats: inactiveCount,
           idleMinutes: correctIdleMinutes,
+          workHours: Math.round(newTotalHours * 100) / 100,
           fixed: false,
           reason: 'already_correct',
         });

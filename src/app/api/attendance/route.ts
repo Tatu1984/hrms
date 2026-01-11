@@ -338,17 +338,25 @@ export async function POST(request: NextRequest) {
       // Calculate idle time based on activity logs
       const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
 
-      // Calculate total work hours: Total time - Break time
-      const totalHours = totalElapsedHours - breakDuration;
+      // Calculate actual work hours: Total time - Break time - Idle time
+      // Formula: Actual Work Hrs + Break Hrs + Idle Hrs = Total Hrs
+      let actualWorkHours = totalElapsedHours - breakDuration - idleTime;
 
-      // Determine attendance status based on total hours (NOT actual work hours)
-      // Logic: < 6 hours total = HALF_DAY, >= 6 hours = PRESENT
+      // Apply idle penalty: if idle > 1 hour, deduct excess from work hours
+      // First 1 hour of idle is allowed, excess is penalized
+      const idlePenalty = Math.max(0, idleTime - 1);
+      const totalHours = Math.max(0, actualWorkHours - idlePenalty);
+
+      // Determine attendance status based on effective work hours
+      // Logic: < 6 hours = HALF_DAY, >= 6 hours = PRESENT
       const attendanceStatus = totalHours >= 6 ? 'PRESENT' : 'HALF_DAY';
 
       console.log('Punch-out calculation:', {
         totalElapsedHours: totalElapsedHours.toFixed(2),
         breakDuration: breakDuration.toFixed(2),
         idleTime: idleTime.toFixed(2),
+        actualWorkHours: actualWorkHours.toFixed(2),
+        idlePenalty: idlePenalty.toFixed(2),
         totalHours: totalHours.toFixed(2),
         status: attendanceStatus,
       });

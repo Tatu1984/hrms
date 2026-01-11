@@ -4,9 +4,11 @@ import { getSession } from '@/lib/auth';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, eachDayOfInterval } from 'date-fns';
 
 interface TimeAnalyticsSummary {
-  totalWorkHours: number;
+  totalLoggedHours: number; // Total logged time (punchOut - punchIn)
+  totalWorkHours: number;   // Actual work hours after deductions
   totalBreakHours: number;
   totalIdleHours: number;
+  totalIdlePenalty: number; // Hours deducted for idle > 1hr
   averageWorkHours: number;
   employeeCount: number;
   daysAnalyzed: number;
@@ -39,9 +41,11 @@ interface EmployeeDetail {
   employeeName: string;
   department: string;
   designation: string;
-  totalWorkHours: number;
+  totalLoggedHours: number;  // Total logged time (punchOut - punchIn)
+  totalWorkHours: number;    // Actual work hours after deductions
   totalBreakHours: number;
   totalIdleHours: number;
+  idlePenalty: number;       // Hours deducted for idle > 1hr
   daysPresent: number;
   avgDailyHours: number;
 }
@@ -203,14 +207,34 @@ export async function GET(request: NextRequest) {
     const totalWorkHours = attendanceData.reduce((sum, a) => sum + (a.totalHours || 0), 0);
     const totalBreakHours = attendanceData.reduce((sum, a) => sum + (a.breakDuration || 0), 0);
     const totalIdleHours = attendanceData.reduce((sum, a) => sum + (a.idleTime || 0), 0);
+
+    // Calculate total logged hours (time between punch in and punch out)
+    const totalLoggedHours = attendanceData.reduce((sum, a) => {
+      if (a.punchIn && a.punchOut) {
+        const punchInTime = new Date(a.punchIn).getTime();
+        const punchOutTime = new Date(a.punchOut).getTime();
+        return sum + (punchOutTime - punchInTime) / (1000 * 60 * 60);
+      }
+      // Fallback: logged hours = work + break + idle (approximate)
+      return sum + (a.totalHours || 0) + (a.breakDuration || 0) + (a.idleTime || 0);
+    }, 0);
+
+    // Calculate idle penalty (excess idle above 1 hour per record)
+    const totalIdlePenalty = attendanceData.reduce((sum, a) => {
+      const idleTime = a.idleTime || 0;
+      return sum + Math.max(0, idleTime - 1);
+    }, 0);
+
     const uniqueEmployees = new Set(attendanceData.map(a => a.employeeId)).size;
     const uniqueDates = new Set(attendanceData.map(a => format(a.date, 'yyyy-MM-dd'))).size;
     const averageWorkHours = uniqueEmployees > 0 ? totalWorkHours / uniqueEmployees : 0;
 
     const summary: TimeAnalyticsSummary = {
+      totalLoggedHours: Math.round(totalLoggedHours * 100) / 100,
       totalWorkHours: Math.round(totalWorkHours * 100) / 100,
       totalBreakHours: Math.round(totalBreakHours * 100) / 100,
       totalIdleHours: Math.round(totalIdleHours * 100) / 100,
+      totalIdlePenalty: Math.round(totalIdlePenalty * 100) / 100,
       averageWorkHours: Math.round(averageWorkHours * 100) / 100,
       employeeCount: uniqueEmployees,
       daysAnalyzed: uniqueDates,
@@ -234,9 +258,11 @@ export async function GET(request: NextRequest) {
     const employeeMap = new Map<string, {
       name: string;
       employeeId: string;
+      loggedHours: number;
       workHours: number;
       breakHours: number;
       idleHours: number;
+      idlePenalty: number;
       daysPresent: number;
     }>();
 
@@ -244,15 +270,29 @@ export async function GET(request: NextRequest) {
       const existing = employeeMap.get(a.employeeId) || {
         name: a.employee.name,
         employeeId: a.employee.employeeId,
+        loggedHours: 0,
         workHours: 0,
         breakHours: 0,
         idleHours: 0,
+        idlePenalty: 0,
         daysPresent: 0,
       };
 
+      // Calculate logged hours for this record
+      let recordLoggedHours = 0;
+      if (a.punchIn && a.punchOut) {
+        const punchInTime = new Date(a.punchIn).getTime();
+        const punchOutTime = new Date(a.punchOut).getTime();
+        recordLoggedHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
+      } else {
+        recordLoggedHours = (a.totalHours || 0) + (a.breakDuration || 0) + (a.idleTime || 0);
+      }
+
+      existing.loggedHours += recordLoggedHours;
       existing.workHours += a.totalHours || 0;
       existing.breakHours += a.breakDuration || 0;
       existing.idleHours += a.idleTime || 0;
+      existing.idlePenalty += Math.max(0, (a.idleTime || 0) - 1);
       existing.daysPresent += 1;
 
       employeeMap.set(a.employeeId, existing);
@@ -293,6 +333,7 @@ export async function GET(request: NextRequest) {
       const empData = employeeMap.get(emp.id);
       const daysPresent = empData?.daysPresent || 0;
       const workHours = empData?.workHours || 0;
+      const loggedHours = empData?.loggedHours || 0;
 
       return {
         id: emp.id,
@@ -300,9 +341,11 @@ export async function GET(request: NextRequest) {
         employeeName: emp.name,
         department: emp.department || 'N/A',
         designation: emp.designation || 'N/A',
+        totalLoggedHours: Math.round(loggedHours * 100) / 100,
         totalWorkHours: Math.round(workHours * 100) / 100,
         totalBreakHours: Math.round((empData?.breakHours || 0) * 100) / 100,
         totalIdleHours: Math.round((empData?.idleHours || 0) * 100) / 100,
+        idlePenalty: Math.round((empData?.idlePenalty || 0) * 100) / 100,
         daysPresent,
         avgDailyHours: daysPresent > 0 ? Math.round((workHours / daysPresent) * 100) / 100 : 0,
       };
