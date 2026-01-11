@@ -4,12 +4,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { formatCurrency, getMonthName } from '@/lib/utils';
+import { redirect } from 'next/navigation';
 
 export default async function EmployeePayslipsPage() {
   const session = await getSession();
+
+  if (!session) {
+    redirect('/login');
+  }
+
+  if (!session.employeeId) {
+    return (
+      <div className="p-6">
+        <h1 className="text-3xl font-bold mb-4">Payslips</h1>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-600">Your account is not linked to an employee record. Please contact HR.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const payroll = await prisma.payroll.findMany({
     where: {
-      employeeId: session!.employeeId!,
+      employeeId: session.employeeId,
     },
     orderBy: [
       { year: 'desc' },
