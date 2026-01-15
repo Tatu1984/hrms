@@ -54,6 +54,14 @@ interface Employee {
   designation: string;
 }
 
+interface Break {
+  id: string;
+  startTime: string;
+  endTime: string | null;
+  duration: number | null;
+  reason: string | null;
+}
+
 interface AttendanceRecord {
   id: string;
   employeeId: string;
@@ -62,8 +70,9 @@ interface AttendanceRecord {
   punchOut: string | null;
   totalHours: number | null;
   breakDuration: number | null;
-  breakStart: string | null;
-  breakEnd: string | null;
+  breakStart: string | null;  // Legacy
+  breakEnd: string | null;    // Legacy
+  breaks?: Break[];           // New: array of breaks
   idleTime: number | null;
   status: string;
   employee?: Employee;
@@ -581,43 +590,96 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             </div>
 
             {/* Break Time Section */}
-            {selectedAttendanceRecord && (selectedAttendanceRecord.breakStart || selectedAttendanceRecord.breakDuration) && (
+            {selectedAttendanceRecord && (selectedAttendanceRecord.breaks?.length || selectedAttendanceRecord.breakStart || selectedAttendanceRecord.breakDuration) && (
               <div>
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Coffee className="w-5 h-5" />
                   Break Time
+                  {selectedAttendanceRecord.breaks && selectedAttendanceRecord.breaks.length > 1 && (
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                      {selectedAttendanceRecord.breaks.length} breaks
+                    </Badge>
+                  )}
                 </h3>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {selectedAttendanceRecord.breakStart && (
-                        <div>
-                          <p className="text-xs text-gray-500">Break Start</p>
-                          <p className="font-mono text-purple-600 font-semibold">
-                            {format(new Date(selectedAttendanceRecord.breakStart), 'HH:mm:ss')}
-                          </p>
-                        </div>
-                      )}
-                      {selectedAttendanceRecord.breakEnd && (
-                        <div>
-                          <p className="text-xs text-gray-500">Break End</p>
-                          <p className="font-mono text-purple-600 font-semibold">
-                            {format(new Date(selectedAttendanceRecord.breakEnd), 'HH:mm:ss')}
-                          </p>
-                        </div>
-                      )}
-                      {selectedAttendanceRecord.breakStart && !selectedAttendanceRecord.breakEnd && (
-                        <Badge variant="secondary" className="bg-purple-200 text-purple-800">
-                          On Break
-                        </Badge>
-                      )}
+                <div className="bg-purple-50 p-4 rounded-lg space-y-3">
+                  {/* Multiple breaks list */}
+                  {selectedAttendanceRecord.breaks && selectedAttendanceRecord.breaks.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedAttendanceRecord.breaks.map((brk, idx) => {
+                        const duration = brk.endTime
+                          ? (new Date(brk.endTime).getTime() - new Date(brk.startTime).getTime()) / (1000 * 60)
+                          : null;
+                        const isOngoing = !brk.endTime;
+                        return (
+                          <div key={brk.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-200">
+                            <div className="flex items-center gap-4">
+                              <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                                Break {idx + 1}
+                              </span>
+                              <div>
+                                <p className="text-xs text-gray-500">Start</p>
+                                <p className="font-mono text-purple-600 font-semibold">
+                                  {format(new Date(brk.startTime), 'HH:mm:ss')}
+                                </p>
+                              </div>
+                              {brk.endTime ? (
+                                <div>
+                                  <p className="text-xs text-gray-500">End</p>
+                                  <p className="font-mono text-purple-600 font-semibold">
+                                    {format(new Date(brk.endTime), 'HH:mm:ss')}
+                                  </p>
+                                </div>
+                              ) : (
+                                <Badge variant="secondary" className="bg-purple-200 text-purple-800 animate-pulse">
+                                  On Break
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Duration</p>
+                              <p className="font-semibold text-purple-700">
+                                {isOngoing ? 'Ongoing...' : `${Math.round(duration || 0)} min`}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Total Break Duration</p>
-                      <p className="font-semibold text-purple-700 text-lg">
-                        {formatHoursMinutes(selectedAttendanceRecord.breakDuration)}
-                      </p>
+                  ) : (
+                    /* Legacy single break display */
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {selectedAttendanceRecord.breakStart && (
+                          <div>
+                            <p className="text-xs text-gray-500">Break Start</p>
+                            <p className="font-mono text-purple-600 font-semibold">
+                              {format(new Date(selectedAttendanceRecord.breakStart), 'HH:mm:ss')}
+                            </p>
+                          </div>
+                        )}
+                        {selectedAttendanceRecord.breakEnd && (
+                          <div>
+                            <p className="text-xs text-gray-500">Break End</p>
+                            <p className="font-mono text-purple-600 font-semibold">
+                              {format(new Date(selectedAttendanceRecord.breakEnd), 'HH:mm:ss')}
+                            </p>
+                          </div>
+                        )}
+                        {selectedAttendanceRecord.breakStart && !selectedAttendanceRecord.breakEnd && (
+                          <Badge variant="secondary" className="bg-purple-200 text-purple-800">
+                            On Break
+                          </Badge>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  {/* Total break duration */}
+                  <div className="flex items-center justify-between pt-3 border-t border-purple-200">
+                    <span className="text-sm text-gray-600">Total Break Duration</span>
+                    <span className="font-bold text-purple-700 text-lg">
+                      {formatHoursMinutes(selectedAttendanceRecord.breakDuration)}
+                    </span>
                   </div>
                 </div>
               </div>
