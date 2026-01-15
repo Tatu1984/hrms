@@ -7,8 +7,8 @@ import { isFriday, isMonday, processWeekendCascade } from '@/lib/attendance-util
 /**
  * Calculate idle time based on activity logs
  * @param attendanceId - The attendance record ID
- * @param punchInTime - Punch in timestamp in milliseconds
- * @param punchOutTime - Punch out timestamp in milliseconds
+ * @param punchInTime - Punch in timestamp in milliseconds (unused, kept for interface compatibility)
+ * @param punchOutTime - Punch out timestamp in milliseconds (unused, kept for interface compatibility)
  * @returns Idle time in hours
  */
 async function calculateIdleTime(
@@ -19,7 +19,11 @@ async function calculateIdleTime(
   // Idle time calculation strategy:
   // - Count only CLIENT-reported inactive heartbeats (user AFK with browser open)
   // - Server heartbeats (browser closed) are NOT counted as idle - user might be working elsewhere
-  // - Each inactive heartbeat = 3 minutes of idle time
+  // - Each inactive heartbeat = 5 minutes of idle time (matching the heartbeat interval in ActivityHeartbeat.tsx)
+  //
+  // IMPORTANT: The heartbeat interval in ActivityHeartbeat.tsx is 5 minutes.
+  // Each inactive heartbeat means the user was idle for the ENTIRE 5-minute period.
+  // This keeps the calculation consistent with the client-side tracking.
 
   const inactiveCount = await prisma.activityLog.count({
     where: {
@@ -29,12 +33,13 @@ async function calculateIdleTime(
     },
   });
 
-  // Each inactive heartbeat represents 3 minutes of inactivity
-  const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
-  const totalIdleMs = inactiveCount * HEARTBEAT_INTERVAL_MS;
+  // Each inactive heartbeat represents 5 minutes of inactivity
+  // This MUST match the interval in ActivityHeartbeat.tsx (line 367: 5 * 60 * 1000)
+  const HEARTBEAT_INTERVAL_MINUTES = 5;
+  const totalIdleMinutes = inactiveCount * HEARTBEAT_INTERVAL_MINUTES;
 
   // Convert to hours
-  return totalIdleMs / (1000 * 60 * 60);
+  return totalIdleMinutes / 60;
 }
 
 // GET /api/attendance - Get attendance records

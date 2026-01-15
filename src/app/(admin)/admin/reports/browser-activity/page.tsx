@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import {
   Monitor,
@@ -21,6 +21,8 @@ import {
   Tablet,
   Clock,
   User,
+  Info,
+  HelpCircle,
 } from 'lucide-react';
 
 interface BrowserActivityLog {
@@ -55,25 +57,138 @@ interface UniqueUser {
   userRole: string;
 }
 
-const eventTypeConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  TAB_OPENED: { label: 'Tab Opened', icon: <Monitor className="h-4 w-4" />, color: 'bg-green-100 text-green-800' },
-  TAB_CLOSED: { label: 'Tab Closed', icon: <LogOut className="h-4 w-4" />, color: 'bg-red-100 text-red-800' },
-  TAB_VISIBLE: { label: 'Tab Visible', icon: <Eye className="h-4 w-4" />, color: 'bg-blue-100 text-blue-800' },
-  TAB_HIDDEN: { label: 'Tab Hidden', icon: <EyeOff className="h-4 w-4" />, color: 'bg-gray-100 text-gray-800' },
-  TAB_FOCUSED: { label: 'Tab Focused', icon: <MousePointer className="h-4 w-4" />, color: 'bg-indigo-100 text-indigo-800' },
-  TAB_BLURRED: { label: 'Tab Blurred', icon: <EyeOff className="h-4 w-4" />, color: 'bg-slate-100 text-slate-800' },
-  SESSION_START: { label: 'Session Start', icon: <LogIn className="h-4 w-4" />, color: 'bg-emerald-100 text-emerald-800' },
-  SESSION_END: { label: 'Session End', icon: <LogOut className="h-4 w-4" />, color: 'bg-orange-100 text-orange-800' },
-  PAGE_LOAD: { label: 'Page Load', icon: <Globe className="h-4 w-4" />, color: 'bg-cyan-100 text-cyan-800' },
-  PAGE_UNLOAD: { label: 'Page Unload', icon: <LogOut className="h-4 w-4" />, color: 'bg-amber-100 text-amber-800' },
-  WINDOW_MINIMIZED: { label: 'Window Minimized', icon: <Minimize2 className="h-4 w-4" />, color: 'bg-purple-100 text-purple-800' },
-  WINDOW_RESTORED: { label: 'Window Restored', icon: <Maximize2 className="h-4 w-4" />, color: 'bg-teal-100 text-teal-800' },
+const eventTypeConfig: Record<string, {
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  description: string;
+  employeeExplanation: string;
+  impactOnWork: 'none' | 'low' | 'medium' | 'high';
+}> = {
+  TAB_OPENED: {
+    label: 'Tab Opened',
+    icon: <Monitor className="h-4 w-4" />,
+    color: 'bg-green-100 text-green-800',
+    description: 'Employee opened the HRMS application in a new browser tab',
+    employeeExplanation: 'The employee opened the HRMS portal. This happens when they click on a link to HRMS or type the URL.',
+    impactOnWork: 'none'
+  },
+  TAB_CLOSED: {
+    label: 'Tab Closed',
+    icon: <LogOut className="h-4 w-4" />,
+    color: 'bg-red-100 text-red-800',
+    description: 'Employee closed the HRMS tab or navigated away',
+    employeeExplanation: 'The employee closed the HRMS browser tab, closed the browser window, or navigated to a different website. After this, they are no longer viewing HRMS.',
+    impactOnWork: 'medium'
+  },
+  TAB_VISIBLE: {
+    label: 'Tab Visible',
+    icon: <Eye className="h-4 w-4" />,
+    color: 'bg-blue-100 text-blue-800',
+    description: 'HRMS tab became visible again after being hidden',
+    employeeExplanation: 'The employee returned to viewing the HRMS tab. This happens when they click on the HRMS tab after having another application/tab in front, or when they restore a minimized browser window.',
+    impactOnWork: 'none'
+  },
+  TAB_HIDDEN: {
+    label: 'Tab Hidden',
+    icon: <EyeOff className="h-4 w-4" />,
+    color: 'bg-gray-100 text-gray-800',
+    description: 'HRMS tab was hidden (switched to another tab, minimized, or another window came in front)',
+    employeeExplanation: 'The employee switched away from the HRMS tab. Common reasons: (1) Opened another browser tab (like email, Google, etc.), (2) Opened another application (like Word, Excel, Slack), (3) Minimized the browser window, (4) Locked their computer screen. This does NOT mean they stopped working - they may be working on other tasks.',
+    impactOnWork: 'low'
+  },
+  TAB_FOCUSED: {
+    label: 'Tab Focused',
+    icon: <MousePointer className="h-4 w-4" />,
+    color: 'bg-indigo-100 text-indigo-800',
+    description: 'HRMS tab received keyboard/mouse focus (employee clicked on or tabbed to HRMS)',
+    employeeExplanation: 'The employee clicked inside the HRMS window or used keyboard shortcuts to switch to it. The HRMS application is now the active window receiving their keyboard and mouse input.',
+    impactOnWork: 'none'
+  },
+  TAB_BLURRED: {
+    label: 'Tab Blurred',
+    icon: <EyeOff className="h-4 w-4" />,
+    color: 'bg-slate-100 text-slate-800',
+    description: 'HRMS tab lost keyboard/mouse focus (employee clicked elsewhere)',
+    employeeExplanation: 'The employee clicked outside the HRMS window, like: (1) Clicking on the desktop, (2) Clicking on another application window, (3) Opening the Start menu or taskbar, (4) Clicking on browser address bar. This is normal when multitasking - the HRMS tab may still be visible but they are interacting with something else.',
+    impactOnWork: 'low'
+  },
+  SESSION_START: {
+    label: 'Session Start',
+    icon: <LogIn className="h-4 w-4" />,
+    color: 'bg-emerald-100 text-emerald-800',
+    description: 'New HRMS browsing session started',
+    employeeExplanation: 'A new session began. This happens when the employee first opens HRMS after: (1) Opening the browser for the first time, (2) Their previous session expired due to inactivity, (3) They cleared browser cookies, (4) They opened HRMS in a private/incognito window.',
+    impactOnWork: 'none'
+  },
+  SESSION_END: {
+    label: 'Session End',
+    icon: <LogOut className="h-4 w-4" />,
+    color: 'bg-orange-100 text-orange-800',
+    description: 'HRMS session ended (closed browser or session expired)',
+    employeeExplanation: 'The browsing session ended. This happens when: (1) Employee closed all HRMS tabs, (2) Session timed out due to inactivity, (3) Employee logged out, (4) Browser crashed or was force-closed.',
+    impactOnWork: 'medium'
+  },
+  PAGE_LOAD: {
+    label: 'Page Load',
+    icon: <Globe className="h-4 w-4" />,
+    color: 'bg-cyan-100 text-cyan-800',
+    description: 'HRMS page finished loading',
+    employeeExplanation: 'A page within HRMS finished loading. This happens when: (1) Employee navigated to a new section (e.g., from Dashboard to Attendance), (2) Page was refreshed, (3) Employee used browser back/forward buttons.',
+    impactOnWork: 'none'
+  },
+  PAGE_UNLOAD: {
+    label: 'Page Unload',
+    icon: <LogOut className="h-4 w-4" />,
+    color: 'bg-amber-100 text-amber-800',
+    description: 'Employee navigated away from current HRMS page',
+    employeeExplanation: 'The employee left the current HRMS page. This happens when: (1) Navigating to a different HRMS section, (2) Closing the tab/browser, (3) Going to an external website. If followed by another PAGE_LOAD, they are still using HRMS.',
+    impactOnWork: 'low'
+  },
+  WINDOW_MINIMIZED: {
+    label: 'Window Minimized',
+    icon: <Minimize2 className="h-4 w-4" />,
+    color: 'bg-purple-100 text-purple-800',
+    description: 'Browser window was minimized to taskbar',
+    employeeExplanation: 'The employee minimized the browser window (clicked the minimize button or used Win+D). The HRMS tab is still open but not visible. Common reasons: (1) Taking a break, (2) Working on desktop applications, (3) Attending a video call on another app.',
+    impactOnWork: 'low'
+  },
+  WINDOW_RESTORED: {
+    label: 'Window Restored',
+    icon: <Maximize2 className="h-4 w-4" />,
+    color: 'bg-teal-100 text-teal-800',
+    description: 'Browser window was restored from minimized state',
+    employeeExplanation: 'The employee brought back the browser window from the taskbar. They are now viewing the browser again and can see the HRMS tab (if it was the active tab).',
+    impactOnWork: 'none'
+  },
 };
 
 const deviceIcons: Record<string, React.ReactNode> = {
   Desktop: <Monitor className="h-4 w-4" />,
   Mobile: <Smartphone className="h-4 w-4" />,
   Tablet: <Tablet className="h-4 w-4" />,
+};
+
+// Impact indicator component
+const ImpactIndicator = ({ impact }: { impact: 'none' | 'low' | 'medium' | 'high' }) => {
+  const colors = {
+    none: 'bg-gray-200',
+    low: 'bg-yellow-400',
+    medium: 'bg-orange-500',
+    high: 'bg-red-500',
+  };
+  const labels = {
+    none: 'No impact on work',
+    low: 'Minor - employee may be multitasking',
+    medium: 'Notable - employee left HRMS',
+    high: 'Significant - session ended',
+  };
+  return (
+    <div className="flex items-center gap-1.5" title={labels[impact]}>
+      <span className={`w-2 h-2 rounded-full ${colors[impact]}`} />
+      <span className="text-xs text-gray-500 capitalize">{impact === 'none' ? 'No' : impact} impact</span>
+    </div>
+  );
 };
 
 export default function BrowserActivityPage() {
@@ -83,6 +198,7 @@ export default function BrowserActivityPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // Filters
   const [selectedUser, setSelectedUser] = useState<string>('');
@@ -311,6 +427,31 @@ export default function BrowserActivityPage() {
         </div>
       </div>
 
+      {/* Event Type Legend */}
+      <details className="bg-white rounded-lg shadow-sm border mb-6">
+        <summary className="px-4 py-3 cursor-pointer flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <HelpCircle className="h-4 w-4 text-blue-500" />
+          Understanding Browser Events (Click to expand)
+        </summary>
+        <div className="px-4 pb-4 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+            {Object.entries(eventTypeConfig).map(([key, config]) => (
+              <div key={key} className={`p-3 rounded-lg border ${config.color.replace('text-', 'border-').replace('bg-', 'bg-opacity-50 bg-')}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  {config.icon}
+                  <span className="font-medium text-sm">{config.label}</span>
+                  <ImpactIndicator impact={config.impactOnWork} />
+                </div>
+                <p className="text-xs text-gray-600">{config.description}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <strong>Tip:</strong> Click on any row in the table below to see a detailed explanation of what that specific event means for the employee's work.
+          </div>
+        </div>
+      </details>
+
       {/* Activity Log Table */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
@@ -361,67 +502,114 @@ export default function BrowserActivityPage() {
                     label: log.eventType,
                     icon: <Monitor className="h-4 w-4" />,
                     color: 'bg-gray-100 text-gray-800',
+                    description: 'Unknown event type',
+                    employeeExplanation: 'No additional details available.',
+                    impactOnWork: 'none' as const,
                   };
+                  const isExpanded = expandedRow === log.id;
 
                   return (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {format(new Date(log.createdAt), 'MMM dd, yyyy')}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {format(new Date(log.createdAt), 'HH:mm:ss')}
-                            </p>
+                    <React.Fragment key={log.id}>
+                      <tr
+                        className={`hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
+                        onClick={() => setExpandedRow(isExpanded ? null : log.id)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {format(new Date(log.createdAt), 'MMM dd, yyyy')}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {format(new Date(log.createdAt), 'HH:mm:ss')}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{log.userName}</p>
-                          <p className="text-xs text-gray-500">{log.userRole}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${eventConfig.color}`}
-                        >
-                          {eventConfig.icon}
-                          {eventConfig.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p
-                          className="text-sm text-gray-900 truncate max-w-[200px]"
-                          title={log.pagePath || ''}
-                        >
-                          {log.pagePath || '-'}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {deviceIcons[log.deviceType || 'Desktop'] || (
-                            <Monitor className="h-4 w-4 text-gray-400" />
-                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div>
-                            <p className="text-sm text-gray-900">
-                              {log.browserName || 'Unknown'} {log.browserVersion || ''}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {log.osName || 'Unknown'} {log.osVersion || ''}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900">{log.userName}</p>
+                            <p className="text-xs text-gray-500">{log.userRole}</p>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-600 font-mono">{log.ipAddress || '-'}</p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-600">{formatDuration(log.duration)}</p>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${eventConfig.color}`}
+                            >
+                              {eventConfig.icon}
+                              {eventConfig.label}
+                            </span>
+                            <button
+                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Click row for details"
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p
+                            className="text-sm text-gray-900 truncate max-w-[200px]"
+                            title={log.pagePath || ''}
+                          >
+                            {log.pagePath || '-'}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {deviceIcons[log.deviceType || 'Desktop'] || (
+                              <Monitor className="h-4 w-4 text-gray-400" />
+                            )}
+                            <div>
+                              <p className="text-sm text-gray-900">
+                                {log.browserName || 'Unknown'} {log.browserVersion || ''}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {log.osName || 'Unknown'} {log.osVersion || ''}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-600 font-mono">{log.ipAddress || '-'}</p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-600">{formatDuration(log.duration)}</p>
+                        </td>
+                      </tr>
+                      {/* Expanded detail row */}
+                      {isExpanded && (
+                        <tr key={`${log.id}-detail`} className="bg-blue-50 border-l-4 border-blue-500">
+                          <td colSpan={7} className="px-6 py-4">
+                            <div className="flex gap-6">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Info className="h-4 w-4 text-blue-600" />
+                                  <span className="text-sm font-semibold text-blue-900">What This Means</span>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-3">{eventConfig.description}</p>
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <p className="text-xs font-medium text-gray-500 mb-1">Detailed Explanation:</p>
+                                  <p className="text-sm text-gray-700">{eventConfig.employeeExplanation}</p>
+                                </div>
+                              </div>
+                              <div className="w-48 border-l border-blue-200 pl-4">
+                                <p className="text-xs font-medium text-gray-500 mb-2">Work Impact</p>
+                                <ImpactIndicator impact={eventConfig.impactOnWork} />
+                                {log.duration && log.duration > 0 && (
+                                  <div className="mt-3">
+                                    <p className="text-xs font-medium text-gray-500 mb-1">Duration</p>
+                                    <p className="text-lg font-bold text-gray-900">{formatDuration(log.duration)}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })
               )}

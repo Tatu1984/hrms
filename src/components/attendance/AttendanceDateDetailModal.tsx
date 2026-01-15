@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatHoursMinutes } from '@/lib/utils';
+import { Clock, Coffee, Laptop, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -14,14 +15,233 @@ interface Employee {
 }
 
 interface AttendanceDetail {
+  id?: string;
   employee: Employee;
   status: string;
   punchIn?: Date | null;
   punchOut?: Date | null;
+  breakStart?: Date | null;
+  breakEnd?: Date | null;
   totalHours?: number | null;
   breakDuration?: number | null;
   idleTime?: number | null;
 }
+
+// Timeline segment component for visual representation
+interface TimelineSegmentProps {
+  startTime: Date;
+  endTime: Date;
+  type: 'work' | 'break' | 'idle';
+  totalDayMinutes: number;
+  dayStartTime: Date;
+}
+
+const TimelineSegment = ({ startTime, endTime, type, totalDayMinutes, dayStartTime }: TimelineSegmentProps) => {
+  const startMinutes = (startTime.getTime() - dayStartTime.getTime()) / (1000 * 60);
+  const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+
+  const leftPercent = (startMinutes / totalDayMinutes) * 100;
+  const widthPercent = (durationMinutes / totalDayMinutes) * 100;
+
+  const colors = {
+    work: 'bg-green-500',
+    break: 'bg-orange-400',
+    idle: 'bg-pink-400',
+  };
+
+  const labels = {
+    work: 'Working',
+    break: 'On Break',
+    idle: 'Idle',
+  };
+
+  const formatTimeRange = () => {
+    const start = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const end = endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return `${start} - ${end}`;
+  };
+
+  return (
+    <div
+      className={`absolute h-full ${colors[type]} rounded-sm opacity-80 hover:opacity-100 cursor-pointer transition-opacity group`}
+      style={{ left: `${Math.max(0, leftPercent)}%`, width: `${Math.max(0.5, widthPercent)}%` }}
+      title={`${labels[type]}: ${formatTimeRange()}`}
+    >
+      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block z-10">
+        <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+          <div className="font-medium">{labels[type]}</div>
+          <div>{formatTimeRange()}</div>
+          <div>{Math.round(durationMinutes)} min</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Visual Timeline component
+interface VisualTimelineProps {
+  attendance: AttendanceDetail;
+}
+
+const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
+  if (!attendance.punchIn) {
+    return (
+      <div className="text-sm text-gray-500 italic py-4">No punch-in data available</div>
+    );
+  }
+
+  const punchIn = new Date(attendance.punchIn);
+  const punchOut = attendance.punchOut ? new Date(attendance.punchOut) : new Date();
+  const breakStart = attendance.breakStart ? new Date(attendance.breakStart) : null;
+  const breakEnd = attendance.breakEnd ? new Date(attendance.breakEnd) : null;
+
+  // Calculate timeline boundaries (round to nearest hour for display)
+  const dayStartTime = new Date(punchIn);
+  dayStartTime.setMinutes(0, 0, 0);
+
+  const dayEndTime = new Date(punchOut);
+  dayEndTime.setHours(dayEndTime.getHours() + 1, 0, 0, 0);
+
+  const totalDayMinutes = (dayEndTime.getTime() - dayStartTime.getTime()) / (1000 * 60);
+
+  // Generate hour markers
+  const hourMarkers = [];
+  let currentHour = new Date(dayStartTime);
+  while (currentHour <= dayEndTime) {
+    const leftPercent = ((currentHour.getTime() - dayStartTime.getTime()) / (dayEndTime.getTime() - dayStartTime.getTime())) * 100;
+    hourMarkers.push({
+      time: new Date(currentHour),
+      leftPercent,
+    });
+    currentHour.setHours(currentHour.getHours() + 1);
+  }
+
+  // Build segments
+  const segments: Array<{ start: Date; end: Date; type: 'work' | 'break' | 'idle' }> = [];
+
+  // If there's a break, split work time around it
+  if (breakStart && breakEnd) {
+    // Work before break
+    if (punchIn < breakStart) {
+      segments.push({ start: punchIn, end: breakStart, type: 'work' });
+    }
+    // Break period
+    segments.push({ start: breakStart, end: breakEnd, type: 'break' });
+    // Work after break
+    if (breakEnd < punchOut) {
+      segments.push({ start: breakEnd, end: punchOut, type: 'work' });
+    }
+  } else if (breakStart && !breakEnd) {
+    // Break started but not ended (currently on break or punched out during break)
+    if (punchIn < breakStart) {
+      segments.push({ start: punchIn, end: breakStart, type: 'work' });
+    }
+    segments.push({ start: breakStart, end: punchOut, type: 'break' });
+  } else {
+    // No break, all work time
+    segments.push({ start: punchIn, end: punchOut, type: 'work' });
+  }
+
+  return (
+    <div className="my-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Clock className="h-4 w-4 text-gray-500" />
+        <span className="text-sm font-medium text-gray-700">Day Timeline</span>
+      </div>
+
+      {/* Timeline container */}
+      <div className="relative">
+        {/* Hour markers */}
+        <div className="relative h-4 text-xs text-gray-500">
+          {hourMarkers.map((marker, idx) => (
+            <div
+              key={idx}
+              className="absolute transform -translate-x-1/2"
+              style={{ left: `${marker.leftPercent}%` }}
+            >
+              {marker.time.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })}
+            </div>
+          ))}
+        </div>
+
+        {/* Timeline bar */}
+        <div className="relative h-8 bg-gray-200 rounded-lg overflow-hidden mt-1">
+          {segments.map((seg, idx) => (
+            <TimelineSegment
+              key={idx}
+              startTime={seg.start}
+              endTime={seg.end}
+              type={seg.type}
+              totalDayMinutes={totalDayMinutes}
+              dayStartTime={dayStartTime}
+            />
+          ))}
+        </div>
+
+        {/* Tick marks */}
+        <div className="relative h-2">
+          {hourMarkers.map((marker, idx) => (
+            <div
+              key={idx}
+              className="absolute w-px h-full bg-gray-300"
+              style={{ left: `${marker.leftPercent}%` }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-green-500 rounded-sm" />
+          <span className="text-gray-600">Working</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-orange-400 rounded-sm" />
+          <span className="text-gray-600">Break</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-pink-400 rounded-sm" />
+          <span className="text-gray-600">Idle</span>
+        </div>
+      </div>
+
+      {/* Time summary cards */}
+      <div className="grid grid-cols-4 gap-2 mt-4">
+        <div className="bg-gray-50 p-2 rounded-lg text-center">
+          <div className="text-xs text-gray-500">Punch In</div>
+          <div className="text-sm font-semibold text-gray-900">
+            {punchIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+        <div className="bg-gray-50 p-2 rounded-lg text-center">
+          <div className="text-xs text-gray-500">Punch Out</div>
+          <div className="text-sm font-semibold text-gray-900">
+            {attendance.punchOut
+              ? punchOut.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              : 'Still working'}
+          </div>
+        </div>
+        <div className="bg-orange-50 p-2 rounded-lg text-center">
+          <div className="text-xs text-orange-600 flex items-center justify-center gap-1">
+            <Coffee className="h-3 w-3" /> Break
+          </div>
+          <div className="text-sm font-semibold text-orange-700">
+            {formatHoursMinutes(attendance.breakDuration)}
+          </div>
+        </div>
+        <div className="bg-pink-50 p-2 rounded-lg text-center">
+          <div className="text-xs text-pink-600 flex items-center justify-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> Idle
+          </div>
+          <div className="text-sm font-semibold text-pink-700">
+            {formatHoursMinutes(attendance.idleTime)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface AttendanceDateDetailModalProps {
   date: Date | null;
@@ -33,6 +253,7 @@ export function AttendanceDateDetailModal({ date, isOpen, onClose }: AttendanceD
   const [loading, setLoading] = useState(false);
   const [attendanceData, setAttendanceData] = useState<AttendanceDetail[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
 
   useEffect(() => {
     if (date && isOpen) {
@@ -133,30 +354,67 @@ export function AttendanceDateDetailModal({ date, isOpen, onClose }: AttendanceD
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Work Hours</th>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Break</th>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Idle</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Timeline</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {presentEmployees.map((att) => (
-                          <tr key={att.employee.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-sm">
-                              <div>
-                                <div className="font-medium">{att.employee.name}</div>
-                                <div className="text-xs text-gray-500">{att.employee.employeeId} • {att.employee.designation}</div>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-sm">{formatTime(att.punchIn)}</td>
-                            <td className="px-3 py-2 text-sm">{formatTime(att.punchOut)}</td>
-                            <td className="px-3 py-2 text-sm font-semibold text-green-600">
-                              {formatHoursMinutes(att.totalHours)}
-                            </td>
-                            <td className="px-3 py-2 text-sm text-orange-600">
-                              {formatHoursMinutes(att.breakDuration)}
-                            </td>
-                            <td className="px-3 py-2 text-sm text-pink-600">
-                              {formatHoursMinutes(att.idleTime)}
-                            </td>
-                          </tr>
-                        ))}
+                        {presentEmployees.map((att) => {
+                          const isExpanded = expandedEmployee === att.employee.id;
+                          return (
+                            <React.Fragment key={att.employee.id}>
+                              <tr
+                                className="hover:bg-gray-50 cursor-pointer"
+                                onClick={() => setExpandedEmployee(isExpanded ? null : att.employee.id)}
+                              >
+                                <td className="px-3 py-2 text-sm">
+                                  <div>
+                                    <div className="font-medium">{att.employee.name}</div>
+                                    <div className="text-xs text-gray-500">{att.employee.employeeId} • {att.employee.designation}</div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-sm">{formatTime(att.punchIn)}</td>
+                                <td className="px-3 py-2 text-sm">{formatTime(att.punchOut)}</td>
+                                <td className="px-3 py-2 text-sm font-semibold text-green-600">
+                                  {formatHoursMinutes(att.totalHours)}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-orange-600">
+                                  {formatHoursMinutes(att.breakDuration)}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-pink-600">
+                                  {formatHoursMinutes(att.idleTime)}
+                                </td>
+                                <td className="px-3 py-2 text-sm">
+                                  <button
+                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedEmployee(isExpanded ? null : att.employee.id);
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <ChevronUp className="h-4 w-4" />
+                                        Hide
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="h-4 w-4" />
+                                        View
+                                      </>
+                                    )}
+                                  </button>
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr className="bg-blue-50">
+                                  <td colSpan={7} className="px-3 py-2">
+                                    <VisualTimeline attendance={att} />
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

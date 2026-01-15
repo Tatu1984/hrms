@@ -136,8 +136,99 @@ export default function SuspiciousActivityPage() {
       LINEAR_MOUSE_MOVEMENT: 'Mouse Jiggler',
       STATIC_MOUSE: 'Fake Mouse App',
       OSCILLATING_MOUSE: 'Mouse Jiggler (Oscillating)',
+      MOUSE_JIGGLER: 'Mouse Jiggler',
+      LINEAR_JIGGLER: 'Linear Jiggler',
+      AUTO_CLICKER: 'Auto-Clicker',
+      AUTO_TYPER: 'Auto-Typer',
+      ALTERNATING_MACRO: 'Alternating Key Macro',
+      STATIC_MOUSE_PATTERN: 'Static Mouse (No Movement)',
     };
     return labels[type] || type;
+  };
+
+  // Detailed explanations for each pattern type
+  const getPatternExplanation = (type: string): { title: string; description: string; concern: string; recommendation: string } => {
+    const explanations: Record<string, { title: string; description: string; concern: string; recommendation: string }> = {
+      REPETITIVE_KEY: {
+        title: 'Repetitive Keystroke Detected',
+        description: 'The same key was pressed many times in rapid succession with unnaturally consistent timing.',
+        concern: 'This pattern often indicates use of keyboard macro software or physical key-holding devices designed to simulate activity.',
+        recommendation: 'Review the employee\'s actual work output during this period to determine if they were genuinely productive.',
+      },
+      REGULAR_INTERVAL_KEYSTROKES: {
+        title: 'Auto-Typer Software Detected',
+        description: 'Keystrokes occurred at mathematically exact intervals (e.g., every 3.000 seconds), which is humanly impossible.',
+        concern: 'This is a strong indicator of automated typing software designed to simulate work activity without actual productivity.',
+        recommendation: 'Check if the employee completed any measurable work tasks. This is high-confidence automation detection.',
+      },
+      ALTERNATING_KEYS: {
+        title: 'Keyboard Macro Pattern',
+        description: 'Two keys were pressed in perfect alternation (A-B-A-B pattern) with identical timing between each press.',
+        concern: 'This pattern suggests a programmed keyboard macro rather than genuine typing activity.',
+        recommendation: 'Verify if there was any legitimate work that required such repetitive input patterns.',
+      },
+      LINEAR_MOUSE_MOVEMENT: {
+        title: 'Linear Mouse Movement Detected',
+        description: 'The mouse moved in perfectly straight lines with exact distances and timing between movements.',
+        concern: 'Human mouse movements are naturally curved and varied. Perfect linear patterns indicate automation.',
+        recommendation: 'This is often caused by mouse jiggler software. Review the employee\'s screen activity if possible.',
+      },
+      MOUSE_JIGGLER: {
+        title: 'Mouse Jiggler Pattern',
+        description: 'The mouse showed an oscillating back-and-forth movement pattern with consistent timing and distance.',
+        concern: 'Mouse jigglers are specifically designed to prevent the screen from locking, keeping the user "active" without actual work.',
+        recommendation: 'This is a classic automation pattern. Discuss with the employee about their activity during this time.',
+      },
+      LINEAR_JIGGLER: {
+        title: 'Linear Mouse Jiggler',
+        description: 'The mouse moved in one direction with exact, repeated movements and perfect timing intervals.',
+        concern: 'Unlike natural mouse use, this shows mechanical precision indicative of automation software.',
+        recommendation: 'High probability of automated activity. Cross-reference with work output and deliverables.',
+      },
+      STATIC_MOUSE: {
+        title: 'Fake Mouse Activity',
+        description: 'Mouse move events were detected but the cursor position did not actually change.',
+        concern: 'This indicates software that generates fake mouse events without real cursor movement - a sophisticated evasion technique.',
+        recommendation: 'This is highly suspicious. The employee may be using advanced activity simulation software.',
+      },
+      STATIC_MOUSE_PATTERN: {
+        title: 'No Real Mouse Movement',
+        description: 'Mouse activity was reported but the actual cursor stayed in the same position or moved minimally.',
+        concern: 'Legitimate work involves cursor movement. Static mouse with activity events is abnormal.',
+        recommendation: 'Verify if the employee was actually present at their workstation.',
+      },
+      OSCILLATING_MOUSE: {
+        title: 'Oscillating Mouse Pattern',
+        description: 'The mouse moved back and forth in a repetitive oscillating pattern.',
+        concern: 'This is a signature pattern of mouse jiggler devices or software.',
+        recommendation: 'Review attendance records and actual work completed during the flagged period.',
+      },
+      AUTO_CLICKER: {
+        title: 'Auto-Clicker Detected',
+        description: 'Mouse clicks occurred at perfectly regular intervals (e.g., exactly every 2.000 seconds).',
+        concern: 'Human clicking has natural variation. Exact intervals indicate automated clicking software.',
+        recommendation: 'Check if there was any task that legitimately required such repetitive clicking.',
+      },
+      AUTO_TYPER: {
+        title: 'Automated Typing Detected',
+        description: 'Keys were pressed at exact intervals with no natural variation in typing speed.',
+        concern: 'Real typing has variable speeds. Constant-interval typing is automated.',
+        recommendation: 'Verify if any documents or messages were actually created during this activity.',
+      },
+      ALTERNATING_MACRO: {
+        title: 'Key Alternation Macro',
+        description: 'Two specific keys alternated in perfect sequence with identical timing.',
+        concern: 'This mechanical pattern is impossible with natural typing behavior.',
+        recommendation: 'Often used in gaming but suspicious in work context. Discuss with the employee.',
+      },
+    };
+
+    return explanations[type] || {
+      title: 'Unusual Activity Pattern',
+      description: 'An activity pattern was detected that differs significantly from normal human behavior.',
+      concern: 'The detected pattern may indicate automated activity simulation.',
+      recommendation: 'Review the employee\'s work output and discuss the activity with them.',
+    };
   };
 
   const getPatternIcon = (type: string) => {
@@ -495,33 +586,57 @@ export default function SuspiciousActivityPage() {
               <div>
                 <h3 className="text-lg font-semibold mb-3">Detected Patterns</h3>
                 {detailsDialog.summary.patterns.length > 0 ? (
-                  <div className="space-y-3">
-                    {detailsDialog.summary.patterns.map((pattern, idx) => (
-                      <Card key={idx} className="border-l-4 border-red-500">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="text-3xl">{getPatternIcon(pattern.type)}</div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <Badge variant="destructive">{getPatternTypeLabel(pattern.type)}</Badge>
-                                {pattern.confidence && getConfidenceBadge(pattern.confidence, pattern.confidenceScore)}
-                                <span className="text-xs text-gray-500">
-                                  {format(new Date(pattern.timestamp), 'h:mm:ss a')}
-                                </span>
-                                {pattern.durationMs && pattern.durationMs > 0 && (
-                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                    Duration: {formatDuration(pattern.durationMs)}
+                  <div className="space-y-4">
+                    {detailsDialog.summary.patterns.map((pattern, idx) => {
+                      const explanation = getPatternExplanation(pattern.type);
+                      return (
+                        <Card key={idx} className="border-l-4 border-red-500">
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="text-3xl">{getPatternIcon(pattern.type)}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                  <Badge variant="destructive">{getPatternTypeLabel(pattern.type)}</Badge>
+                                  {pattern.confidence && getConfidenceBadge(pattern.confidence, pattern.confidenceScore)}
+                                  <span className="text-xs text-gray-500">
+                                    {format(new Date(pattern.timestamp), 'h:mm:ss a')}
                                   </span>
-                                )}
+                                  {pattern.durationMs && pattern.durationMs > 0 && (
+                                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                      Duration: {formatDuration(pattern.durationMs)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Explanation section */}
+                                <div className="space-y-2 mb-3">
+                                  <h4 className="text-sm font-semibold text-gray-900">{explanation.title}</h4>
+                                  <p className="text-sm text-gray-700">{explanation.description}</p>
+                                  <div className="bg-red-50 border border-red-200 rounded p-2">
+                                    <p className="text-xs font-medium text-red-800">Why this is concerning:</p>
+                                    <p className="text-xs text-red-700 mt-1">{explanation.concern}</p>
+                                  </div>
+                                  <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                                    <p className="text-xs font-medium text-blue-800">Recommended action:</p>
+                                    <p className="text-xs text-blue-700 mt-1">{explanation.recommendation}</p>
+                                  </div>
+                                </div>
+
+                                {/* Raw detection details (collapsible) */}
+                                <details className="mt-2">
+                                  <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                                    View technical details
+                                  </summary>
+                                  <p className="text-xs text-gray-600 font-mono bg-gray-50 p-2 rounded mt-1">
+                                    {pattern.details}
+                                  </p>
+                                </details>
                               </div>
-                              <p className="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
-                                {pattern.details}
-                              </p>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500 italic">No detailed pattern information available</p>
@@ -571,26 +686,100 @@ export default function SuspiciousActivityPage() {
       {/* Info Box */}
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">What Gets Detected?</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• <strong>Repetitive Keystroke:</strong> Same key pressed 10+ times consecutively</li>
-            <li>• <strong>Auto-Typer:</strong> Keys pressed at exact intervals (e.g., every 5 seconds)</li>
-            <li>• <strong>Keyboard Macro:</strong> Two keys alternating in perfect pattern</li>
-            <li>• <strong>Mouse Jiggler (Linear):</strong> Mouse moving in straight lines</li>
-            <li>• <strong>Mouse Jiggler (Oscillating):</strong> Mouse oscillating back and forth</li>
-            <li>• <strong>Fake Mouse App:</strong> Mouse position not actually changing</li>
-          </ul>
-          <div className="mt-4 pt-3 border-t border-blue-200">
-            <h4 className="font-semibold text-blue-900 mb-2">Confidence Levels</h4>
-            <div className="flex gap-3 flex-wrap">
-              <span className="text-xs"><Badge className="bg-red-600 text-white">HIGH (85%+)</Badge> - Very likely automated</span>
-              <span className="text-xs"><Badge className="bg-orange-500 text-white">MEDIUM (65-84%)</Badge> - Possibly automated</span>
-              <span className="text-xs"><Badge className="bg-yellow-500 text-black">LOW (&lt;65%)</Badge> - Could be false positive</span>
+          <h3 className="font-semibold text-blue-900 mb-3">Understanding Suspicious Activity Detection</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <h4 className="font-medium text-blue-800 mb-2">Keyboard Activity Patterns</h4>
+              <ul className="text-sm text-blue-700 space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">⌨️</span>
+                  <div>
+                    <strong>Repetitive Keystroke:</strong>
+                    <p className="text-xs mt-0.5">Same key pressed 10+ times in a row. May indicate holding a key down artificially.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">⌨️</span>
+                  <div>
+                    <strong>Auto-Typer:</strong>
+                    <p className="text-xs mt-0.5">Keys pressed at exact intervals. Real typing has natural variation - perfect timing is automated.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">⌨️</span>
+                  <div>
+                    <strong>Keyboard Macro:</strong>
+                    <p className="text-xs mt-0.5">Two keys alternating perfectly (A-B-A-B). Common in gaming macros repurposed to fake work.</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-blue-800 mb-2">Mouse Activity Patterns</h4>
+              <ul className="text-sm text-blue-700 space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">🖱️</span>
+                  <div>
+                    <strong>Mouse Jiggler:</strong>
+                    <p className="text-xs mt-0.5">Mouse oscillating back and forth. Designed to prevent screen lock without actual work.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">🖱️</span>
+                  <div>
+                    <strong>Linear Movement:</strong>
+                    <p className="text-xs mt-0.5">Mouse moving in perfect straight lines. Natural mouse movement is curved and varied.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-lg">🖱️</span>
+                  <div>
+                    <strong>Static/Fake Mouse:</strong>
+                    <p className="text-xs mt-0.5">Mouse events detected but cursor didn't actually move. Sophisticated activity simulation.</p>
+                  </div>
+                </li>
+              </ul>
             </div>
           </div>
-          <p className="text-xs text-blue-700 mt-3">
-            Note: Detection is completely silent - employees are not notified when patterns are detected.
-          </p>
+
+          <div className="pt-3 border-t border-blue-200">
+            <h4 className="font-semibold text-blue-900 mb-2">Confidence Levels Explained</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div className="bg-white rounded p-2 border border-red-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className="bg-red-600 text-white">HIGH (85%+)</Badge>
+                </div>
+                <p className="text-xs text-gray-700">Very likely automated activity. The pattern shows clear signs of software or hardware automation.</p>
+              </div>
+              <div className="bg-white rounded p-2 border border-orange-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className="bg-orange-500 text-white">MEDIUM (65-84%)</Badge>
+                </div>
+                <p className="text-xs text-gray-700">Possibly automated. Some patterns match automation but could have legitimate explanations.</p>
+              </div>
+              <div className="bg-white rounded p-2 border border-yellow-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className="bg-yellow-500 text-black">LOW (&lt;65%)</Badge>
+                </div>
+                <p className="text-xs text-gray-700">Weak detection signal. May be a false positive from unusual but legitimate behavior.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-blue-200">
+            <h4 className="font-semibold text-blue-900 mb-2">How This Works</h4>
+            <p className="text-xs text-blue-700">
+              The system analyzes mouse movements, keystrokes, and clicks for patterns that are humanly impossible or extremely unlikely.
+              For example, humans cannot click at exactly 2.000-second intervals or move a mouse in perfectly straight lines.
+              When such patterns are detected, they are flagged for review.
+            </p>
+            <p className="text-xs text-blue-700 mt-2">
+              <strong>Important:</strong> Detection is completely silent - employees are not notified when patterns are detected.
+              Always review actual work output before drawing conclusions, as some legitimate workflows may trigger false positives.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
