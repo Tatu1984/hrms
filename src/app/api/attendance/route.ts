@@ -105,6 +105,9 @@ export async function GET(request: NextRequest) {
             department: true,
           },
         },
+        breaks: {
+          orderBy: { startTime: 'asc' },
+        },
       },
       orderBy: { date: 'desc' },
     });
@@ -395,23 +398,36 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'break-start') {
-      // Check if break is currently active (started but not ended)
-      if (attendance.breakStart && !attendance.breakEnd) {
+      // Check if there's an active break (started but not ended)
+      const activeBreak = await prisma.break.findFirst({
+        where: {
+          attendanceId: attendance.id,
+          endTime: null,
+        },
+      });
+
+      if (activeBreak) {
         return NextResponse.json(
-          { error: 'Break already started' },
+          { error: 'Break already started. Please end the current break before starting a new one.' },
           { status: 400 }
         );
       }
 
-      // If a previous break was completed, reset breakEnd to allow a new break
-      const breakData: { breakStart: Date; breakEnd?: null } = { breakStart: now };
-      if (attendance.breakEnd) {
-        breakData.breakEnd = null;
-      }
+      // Create a new break record
+      const newBreak = await prisma.break.create({
+        data: {
+          attendanceId: attendance.id,
+          startTime: now,
+        },
+      });
 
+      // Also update legacy breakStart field for backward compatibility
       const updatedAttendance = await prisma.attendance.update({
         where: { id: attendance.id },
-        data: breakData,
+        data: {
+          breakStart: now,
+          breakEnd: null,
+        },
         include: {
           employee: {
             select: {
@@ -421,6 +437,9 @@ export async function POST(request: NextRequest) {
               email: true,
             },
           },
+          breaks: {
+            orderBy: { startTime: 'asc' },
+          },
         },
       });
 
@@ -428,23 +447,56 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'break-end') {
-      if (!attendance.breakStart) {
+      // Find the active break (started but not ended)
+      const activeBreak = await prisma.break.findFirst({
+        where: {
+          attendanceId: attendance.id,
+          endTime: null,
+        },
+        orderBy: { startTime: 'desc' },
+      });
+
+      if (!activeBreak) {
         return NextResponse.json(
-          { error: 'No break started' },
+          { error: 'No active break to end. Please start a break first.' },
           { status: 400 }
         );
       }
 
-      if (attendance.breakEnd) {
-        return NextResponse.json(
-          { error: 'Break already ended' },
-          { status: 400 }
-        );
-      }
+      // Calculate break duration in hours
+      const breakDurationHours = (now.getTime() - activeBreak.startTime.getTime()) / (1000 * 60 * 60);
 
+      // Update the break record with end time and duration
+      await prisma.break.update({
+        where: { id: activeBreak.id },
+        data: {
+          endTime: now,
+          duration: Math.round(breakDurationHours * 100) / 100,
+        },
+      });
+
+      // Calculate total break duration from all completed breaks
+      const allBreaks = await prisma.break.findMany({
+        where: { attendanceId: attendance.id },
+      });
+
+      const totalBreakDuration = allBreaks.reduce((total, brk) => {
+        if (brk.duration) {
+          return total + brk.duration;
+        } else if (brk.endTime) {
+          // Calculate duration if not stored
+          return total + (brk.endTime.getTime() - brk.startTime.getTime()) / (1000 * 60 * 60);
+        }
+        return total;
+      }, 0);
+
+      // Update attendance with total break duration and legacy fields
       const updatedAttendance = await prisma.attendance.update({
         where: { id: attendance.id },
-        data: { breakEnd: now },
+        data: {
+          breakEnd: now,
+          breakDuration: Math.round(totalBreakDuration * 100) / 100,
+        },
         include: {
           employee: {
             select: {
@@ -453,6 +505,9 @@ export async function POST(request: NextRequest) {
               name: true,
               email: true,
             },
+          },
+          breaks: {
+            orderBy: { startTime: 'asc' },
           },
         },
       });

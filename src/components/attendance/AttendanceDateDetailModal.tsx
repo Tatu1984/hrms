@@ -14,14 +14,23 @@ interface Employee {
   designation: string;
 }
 
+interface Break {
+  id: string;
+  startTime: Date;
+  endTime?: Date | null;
+  duration?: number | null;
+  reason?: string | null;
+}
+
 interface AttendanceDetail {
   id?: string;
   employee: Employee;
   status: string;
   punchIn?: Date | null;
   punchOut?: Date | null;
-  breakStart?: Date | null;
-  breakEnd?: Date | null;
+  breakStart?: Date | null;  // Legacy - for backward compatibility
+  breakEnd?: Date | null;    // Legacy - for backward compatibility
+  breaks?: Break[];          // New: array of breaks
   totalHours?: number | null;
   breakDuration?: number | null;
   idleTime?: number | null;
@@ -92,8 +101,25 @@ const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
 
   const punchIn = new Date(attendance.punchIn);
   const punchOut = attendance.punchOut ? new Date(attendance.punchOut) : new Date();
-  const breakStart = attendance.breakStart ? new Date(attendance.breakStart) : null;
-  const breakEnd = attendance.breakEnd ? new Date(attendance.breakEnd) : null;
+
+  // Get breaks from the new breaks array, or fallback to legacy breakStart/breakEnd
+  const breaks: Array<{ start: Date; end: Date | null }> = [];
+
+  if (attendance.breaks && attendance.breaks.length > 0) {
+    // Use new breaks array
+    attendance.breaks.forEach(brk => {
+      breaks.push({
+        start: new Date(brk.startTime),
+        end: brk.endTime ? new Date(brk.endTime) : null,
+      });
+    });
+  } else if (attendance.breakStart) {
+    // Fallback to legacy single break
+    breaks.push({
+      start: new Date(attendance.breakStart),
+      end: attendance.breakEnd ? new Date(attendance.breakEnd) : null,
+    });
+  }
 
   // Calculate timeline boundaries (round to nearest hour for display)
   const dayStartTime = new Date(punchIn);
@@ -116,30 +142,35 @@ const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
     currentHour.setHours(currentHour.getHours() + 1);
   }
 
-  // Build segments
+  // Build segments - interleave work and breaks
   const segments: Array<{ start: Date; end: Date; type: 'work' | 'break' | 'idle' }> = [];
 
-  // If there's a break, split work time around it
-  if (breakStart && breakEnd) {
-    // Work before break
-    if (punchIn < breakStart) {
-      segments.push({ start: punchIn, end: breakStart, type: 'work' });
-    }
-    // Break period
-    segments.push({ start: breakStart, end: breakEnd, type: 'break' });
-    // Work after break
-    if (breakEnd < punchOut) {
-      segments.push({ start: breakEnd, end: punchOut, type: 'work' });
-    }
-  } else if (breakStart && !breakEnd) {
-    // Break started but not ended (currently on break or punched out during break)
-    if (punchIn < breakStart) {
-      segments.push({ start: punchIn, end: breakStart, type: 'work' });
-    }
-    segments.push({ start: breakStart, end: punchOut, type: 'break' });
-  } else {
-    // No break, all work time
+  if (breaks.length === 0) {
+    // No breaks, all work time
     segments.push({ start: punchIn, end: punchOut, type: 'work' });
+  } else {
+    // Sort breaks by start time
+    const sortedBreaks = [...breaks].sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    let currentTime = punchIn;
+
+    for (const brk of sortedBreaks) {
+      // Work period before this break
+      if (currentTime < brk.start) {
+        segments.push({ start: currentTime, end: brk.start, type: 'work' });
+      }
+
+      // Break period
+      const breakEnd = brk.end || punchOut;
+      segments.push({ start: brk.start, end: breakEnd, type: 'break' });
+
+      currentTime = breakEnd;
+    }
+
+    // Work period after last break
+    if (currentTime < punchOut) {
+      segments.push({ start: currentTime, end: punchOut, type: 'work' });
+    }
   }
 
   return (
@@ -147,6 +178,11 @@ const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
       <div className="flex items-center gap-2 mb-2">
         <Clock className="h-4 w-4 text-gray-500" />
         <span className="text-sm font-medium text-gray-700">Day Timeline</span>
+        {breaks.length > 0 && (
+          <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+            {breaks.length} break{breaks.length > 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Timeline container */}
@@ -224,7 +260,7 @@ const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
         </div>
         <div className="bg-orange-50 p-2 rounded-lg text-center">
           <div className="text-xs text-orange-600 flex items-center justify-center gap-1">
-            <Coffee className="h-3 w-3" /> Break
+            <Coffee className="h-3 w-3" /> Break{breaks.length > 1 ? 's' : ''}
           </div>
           <div className="text-sm font-semibold text-orange-700">
             {formatHoursMinutes(attendance.breakDuration)}
@@ -239,6 +275,34 @@ const VisualTimeline = ({ attendance }: VisualTimelineProps) => {
           </div>
         </div>
       </div>
+
+      {/* Break details list */}
+      {breaks.length > 0 && (
+        <div className="mt-4 border-t pt-3">
+          <div className="text-xs font-medium text-gray-600 mb-2">Break Details:</div>
+          <div className="space-y-1">
+            {breaks.map((brk, idx) => {
+              const duration = brk.end
+                ? (brk.end.getTime() - brk.start.getTime()) / (1000 * 60)
+                : null;
+              return (
+                <div key={idx} className="flex items-center justify-between text-xs bg-orange-50 px-2 py-1 rounded">
+                  <span className="text-orange-700">
+                    Break {idx + 1}: {brk.start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    {' - '}
+                    {brk.end
+                      ? brk.end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                      : 'ongoing'}
+                  </span>
+                  <span className="text-orange-600 font-medium">
+                    {duration ? `${Math.round(duration)} min` : 'In progress'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

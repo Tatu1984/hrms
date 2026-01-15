@@ -79,10 +79,10 @@ model Attendance {
   date          DateTime
   punchIn       DateTime?
   punchOut      DateTime?
-  breakStart    DateTime?
-  breakEnd      DateTime?
+  breakStart    DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
+  breakEnd      DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
   totalHours    Float?
-  breakDuration Float?
+  breakDuration Float?           // Total break duration (calculated from all breaks)
   idleTime      Float?
   status        AttendanceStatus @default(ABSENT)
   createdAt     DateTime         @default(now())
@@ -90,12 +90,28 @@ model Attendance {
   punchInIp     String?
   punchOutIp    String?
   activityLogs  ActivityLog[]
+  breaks        Break[]          // Multiple breaks per attendance
   employee      Employee         @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date], name: "employeeId_date")
   @@index([employeeId])
   @@index([date])
   @@index([status])
+}
+
+model Break {
+  id           String     @id @default(cuid())
+  attendanceId String
+  startTime    DateTime
+  endTime      DateTime?
+  duration     Float?     // Duration in hours (calculated when break ends)
+  reason       String?    // Optional reason for break (lunch, personal, etc.)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId])
+  @@index([startTime])
 }
 
 model ActivityLog {
