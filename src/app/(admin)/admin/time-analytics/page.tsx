@@ -45,7 +45,8 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subD
 import { exportTimeAnalyticsToCSV, exportToPDF } from '@/lib/export-utils';
 
 interface TimeAnalyticsSummary {
-  totalWorkHours: number;
+  totalGrossHours: number;  // Total time in office (punchOut - punchIn)
+  totalWorkHours: number;   // Active work hours
   totalBreakHours: number;
   totalIdleHours: number;
   averageWorkHours: number;
@@ -80,7 +81,8 @@ interface EmployeeDetail {
   employeeName: string;
   department: string;
   designation: string;
-  totalWorkHours: number;
+  totalGrossHours: number;   // Total time in office
+  totalWorkHours: number;    // Active work hours
   totalBreakHours: number;
   totalIdleHours: number;
   daysPresent: number;
@@ -393,17 +395,62 @@ export default function TimeAnalyticsPage() {
         </div>
       ) : data ? (
         <>
+          {/* Time Breakdown Equation Card */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Time Utilization Breakdown</h3>
+                <p className="text-sm text-blue-700">How office hours are distributed</p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+                <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-blue-200">
+                  <p className="text-2xl font-bold text-blue-700">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours + data.summary.totalIdleHours))}</p>
+                  <p className="text-xs text-blue-600 font-medium">Total Office Hours</p>
+                </div>
+                <span className="text-2xl font-bold text-gray-400">=</span>
+                <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{formatHoursMinutes(data.summary.totalWorkHours)}</p>
+                  <p className="text-xs text-green-600 font-medium">Active Work</p>
+                </div>
+                <span className="text-2xl font-bold text-gray-400">+</span>
+                <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-amber-200">
+                  <p className="text-2xl font-bold text-amber-600">{formatHoursMinutes(data.summary.totalBreakHours)}</p>
+                  <p className="text-xs text-amber-600 font-medium">Break Time</p>
+                </div>
+                <span className="text-2xl font-bold text-gray-400">+</span>
+                <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-pink-200">
+                  <p className="text-2xl font-bold text-pink-600">{formatHoursMinutes(data.summary.totalIdleHours)}</p>
+                  <p className="text-xs text-pink-600 font-medium">Idle Time</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-orange-600" />
+                  <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Timer className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours + data.summary.totalIdleHours))}</p>
+                    <p className="text-sm text-gray-600">Total Office Hours</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalWorkHours)}</p>
-                    <p className="text-sm text-gray-600">Total Work Hours</p>
+                    <p className="text-sm text-gray-600">Active Work Hours</p>
                   </div>
                 </div>
               </CardContent>
@@ -417,7 +464,7 @@ export default function TimeAnalyticsPage() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalBreakHours)}</p>
-                    <p className="text-sm text-gray-600">Total Break Hours</p>
+                    <p className="text-sm text-gray-600">Break Hours</p>
                   </div>
                 </div>
               </CardContent>
@@ -426,12 +473,12 @@ export default function TimeAnalyticsPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-yellow-100 flex items-center justify-center">
-                    <Pause className="h-6 w-6 text-yellow-600" />
+                  <div className="h-12 w-12 rounded-lg bg-pink-100 flex items-center justify-center">
+                    <Pause className="h-6 w-6 text-pink-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalIdleHours)}</p>
-                    <p className="text-sm text-gray-600">Total Idle Hours</p>
+                    <p className="text-sm text-gray-600">Idle Hours</p>
                   </div>
                 </div>
               </CardContent>
@@ -440,8 +487,8 @@ export default function TimeAnalyticsPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <TrendingUp className="h-6 w-6 text-purple-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.averageWorkHours)}</p>
@@ -592,11 +639,12 @@ export default function TimeAnalyticsPage() {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Employee</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Work Hours</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Break Hours</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Idle Hours</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Days Present</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Avg Daily</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-blue-600 uppercase">Office Hours</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-green-600 uppercase">Active</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-amber-600 uppercase">Break</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-pink-600 uppercase">Idle</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Days</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Avg/Day</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -612,13 +660,16 @@ export default function TimeAnalyticsPage() {
                           <td className="px-4 py-3">
                             <Badge variant="outline">{emp.department}</Badge>
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-orange-600">
+                          <td className="px-4 py-3 text-right font-bold text-blue-600">
+                            {formatHoursMinutes(emp.totalGrossHours || (emp.totalWorkHours + emp.totalBreakHours + emp.totalIdleHours))}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-green-600">
                             {formatHoursMinutes(emp.totalWorkHours)}
                           </td>
                           <td className="px-4 py-3 text-right text-amber-600">
                             {formatHoursMinutes(emp.totalBreakHours)}
                           </td>
-                          <td className="px-4 py-3 text-right text-yellow-600">
+                          <td className="px-4 py-3 text-right text-pink-600">
                             {formatHoursMinutes(emp.totalIdleHours)}
                           </td>
                           <td className="px-4 py-3 text-right">{emp.daysPresent}</td>
@@ -629,7 +680,7 @@ export default function TimeAnalyticsPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                           No employees found matching your criteria
                         </td>
                       </tr>

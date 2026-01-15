@@ -324,48 +324,69 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Calculate total hours and break duration
+      // Calculate time components
       const punchInTime = attendance.punchIn ? new Date(attendance.punchIn).getTime() : 0;
       const punchOutTime = now.getTime();
 
-      // Total elapsed time
-      let totalElapsedHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
+      // =====================================================
+      // TIME CALCULATION FORMULA:
+      // grossHours (Total Time in Office) = Punch Out - Punch In
+      // totalHours (Active Work) = grossHours - breakDuration - idleTime
+      //
+      // EQUATION MUST BALANCE:
+      // grossHours = totalHours + breakDuration + idleTime
+      // =====================================================
 
-      // Calculate break time if any
+      // 1. Gross Hours = Total time between punch in and punch out
+      const grossHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
+
+      // 2. Calculate total break duration from all breaks
       let breakDuration = 0;
-      if (attendance.breakStart && attendance.breakEnd) {
-        const breakStartTime = new Date(attendance.breakStart).getTime();
-        const breakEndTime = new Date(attendance.breakEnd).getTime();
-        breakDuration = (breakEndTime - breakStartTime) / (1000 * 60 * 60);
-      } else if (attendance.breakStart && !attendance.breakEnd) {
-        // Break started but not ended - calculate break duration until punch out
-        const breakStartTime = new Date(attendance.breakStart).getTime();
-        breakDuration = (punchOutTime - breakStartTime) / (1000 * 60 * 60);
+      const breaks = await prisma.break.findMany({
+        where: { attendanceId: attendance.id },
+      });
+
+      if (breaks.length > 0) {
+        // Use new breaks system
+        breakDuration = breaks.reduce((total, brk) => {
+          if (brk.endTime) {
+            return total + (brk.endTime.getTime() - brk.startTime.getTime()) / (1000 * 60 * 60);
+          } else {
+            // Break not ended - calculate until punch out
+            return total + (punchOutTime - brk.startTime.getTime()) / (1000 * 60 * 60);
+          }
+        }, 0);
+      } else if (attendance.breakStart) {
+        // Fallback to legacy single break
+        if (attendance.breakEnd) {
+          const breakStartTime = new Date(attendance.breakStart).getTime();
+          const breakEndTime = new Date(attendance.breakEnd).getTime();
+          breakDuration = (breakEndTime - breakStartTime) / (1000 * 60 * 60);
+        } else {
+          // Break started but not ended - calculate until punch out
+          const breakStartTime = new Date(attendance.breakStart).getTime();
+          breakDuration = (punchOutTime - breakStartTime) / (1000 * 60 * 60);
+        }
       }
 
-      // Calculate idle time based on activity logs
+      // 3. Calculate idle time based on activity logs
       const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
 
-      // Calculate actual work hours: Total time - Break time - Idle time
-      // Formula: Actual Work Hrs + Break Hrs + Idle Hrs = Total Hrs
-      let actualWorkHours = totalElapsedHours - breakDuration - idleTime;
+      // 4. Active Work Hours = Gross Hours - Break - Idle
+      // This ensures: grossHours = totalHours + breakDuration + idleTime (ALWAYS)
+      const totalHours = Math.max(0, grossHours - breakDuration - idleTime);
 
-      // Apply idle penalty: if idle > 1 hour, deduct excess from work hours
-      // First 1 hour of idle is allowed, excess is penalized
-      const idlePenalty = Math.max(0, idleTime - 1);
-      const totalHours = Math.max(0, actualWorkHours - idlePenalty);
-
-      // Determine attendance status based on effective work hours
+      // Determine attendance status based on active work hours
       // Logic: < 6 hours = HALF_DAY, >= 6 hours = PRESENT
       const attendanceStatus = totalHours >= 6 ? 'PRESENT' : 'HALF_DAY';
 
       console.log('Punch-out calculation:', {
-        totalElapsedHours: totalElapsedHours.toFixed(2),
+        grossHours: grossHours.toFixed(2),
         breakDuration: breakDuration.toFixed(2),
         idleTime: idleTime.toFixed(2),
-        actualWorkHours: actualWorkHours.toFixed(2),
-        idlePenalty: idlePenalty.toFixed(2),
         totalHours: totalHours.toFixed(2),
+        equation: `${grossHours.toFixed(2)} = ${totalHours.toFixed(2)} + ${breakDuration.toFixed(2)} + ${idleTime.toFixed(2)}`,
+        balances: Math.abs(grossHours - (totalHours + breakDuration + idleTime)) < 0.01,
         status: attendanceStatus,
       });
 
@@ -377,7 +398,8 @@ export async function POST(request: NextRequest) {
         data: {
           punchOut: now,
           punchOutIp: ipAddress,
-          totalHours: Math.round(totalHours * 100) / 100, // Total work time (excluding breaks)
+          grossHours: Math.round(grossHours * 100) / 100,    // Total time in office
+          totalHours: Math.round(totalHours * 100) / 100,    // Active work time
           breakDuration: Math.round(breakDuration * 100) / 100,
           idleTime: Math.round(idleTime * 100) / 100,
           status: attendanceStatus,
@@ -390,6 +412,9 @@ export async function POST(request: NextRequest) {
               name: true,
               email: true,
             },
+          },
+          breaks: {
+            orderBy: { startTime: 'asc' },
           },
         },
       });

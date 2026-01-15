@@ -81,9 +81,10 @@ model Attendance {
   punchOut      DateTime?
   breakStart    DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
   breakEnd      DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
-  totalHours    Float?
+  grossHours    Float?           // Total hours = Punch Out - Punch In (raw time in office)
+  totalHours    Float?           // Active work hours = grossHours - breakDuration - idleTime
   breakDuration Float?           // Total break duration (calculated from all breaks)
-  idleTime      Float?
+  idleTime      Float?           // Total idle time (from inactive heartbeats)
   status        AttendanceStatus @default(ABSENT)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
