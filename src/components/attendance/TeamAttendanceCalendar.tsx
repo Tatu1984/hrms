@@ -689,6 +689,11 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
             <div>
               <h3 className="text-lg font-semibold mb-3">
                 Activity Timeline {!detailsLoading && `(${activityLogs.length} heartbeats)`}
+                {!detailsLoading && selectedAttendanceRecord?.breaks && selectedAttendanceRecord.breaks.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs bg-purple-100 text-purple-700">
+                    ☕ {selectedAttendanceRecord.breaks.length} break{selectedAttendanceRecord.breaks.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
                 {!detailsLoading && activityLogs.some(log => log.suspicious) && (
                   <Badge variant="destructive" className="ml-2 text-xs">
                     ⚠️ Suspicious Activity Detected
@@ -704,59 +709,165 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                     </div>
                   ))}
                 </div>
-              ) : activityLogs.length > 0 ? (
+              ) : activityLogs.length > 0 || (selectedAttendanceRecord?.breaks && selectedAttendanceRecord.breaks.length > 0) ? (
                 <div className="space-y-2 max-h-[300px] overflow-y-auto bg-gray-50 p-4 rounded-lg">
-                  {activityLogs.map((log, index) => {
-                    const nextLog = activityLogs[index + 1];
-                    const gap = nextLog
-                      ? (new Date(nextLog.timestamp).getTime() - new Date(log.timestamp).getTime()) / (1000 * 60)
-                      : 0;
-                    const isLongGap = gap > 5;
-                    const isSuspicious = log.suspicious;
+                  {(() => {
+                    // Create a merged timeline of activity logs and breaks
+                    type TimelineItem =
+                      | { type: 'heartbeat'; data: ActivityLog; timestamp: Date }
+                      | { type: 'break-start'; data: Break; timestamp: Date; breakIndex: number }
+                      | { type: 'break-end'; data: Break; timestamp: Date; breakIndex: number };
 
-                    return (
-                      <div key={log.id}>
-                        <div className={`flex items-center justify-between text-sm ${isSuspicious ? 'bg-red-50 p-2 rounded border border-red-200' : ''}`}>
-                          <span className={`font-mono ${isSuspicious ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
-                            {format(new Date(log.timestamp), 'HH:mm:ss')}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {isSuspicious ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="destructive" className="text-xs font-bold">
-                                      ⚠️ Suspicious
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="font-semibold">{log.patternType?.replace(/_/g, ' ') || 'Unknown Pattern'}</p>
-                                    {log.patternDetails && <p className="text-xs">{log.patternDetails}</p>}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
-                                Active
+                    const timelineItems: TimelineItem[] = [];
+
+                    // Add activity logs
+                    activityLogs.forEach(log => {
+                      timelineItems.push({
+                        type: 'heartbeat',
+                        data: log,
+                        timestamp: new Date(log.timestamp),
+                      });
+                    });
+
+                    // Add break start/end events
+                    if (selectedAttendanceRecord?.breaks) {
+                      selectedAttendanceRecord.breaks.forEach((brk, idx) => {
+                        timelineItems.push({
+                          type: 'break-start',
+                          data: brk,
+                          timestamp: new Date(brk.startTime),
+                          breakIndex: idx + 1,
+                        });
+                        if (brk.endTime) {
+                          timelineItems.push({
+                            type: 'break-end',
+                            data: brk,
+                            timestamp: new Date(brk.endTime),
+                            breakIndex: idx + 1,
+                          });
+                        }
+                      });
+                    }
+
+                    // Sort by timestamp
+                    timelineItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+                    // Helper to check if a timestamp falls within any break
+                    const isWithinBreak = (timestamp: Date): boolean => {
+                      if (!selectedAttendanceRecord?.breaks) return false;
+                      return selectedAttendanceRecord.breaks.some(brk => {
+                        const start = new Date(brk.startTime).getTime();
+                        const end = brk.endTime ? new Date(brk.endTime).getTime() : Date.now();
+                        return timestamp.getTime() >= start && timestamp.getTime() <= end;
+                      });
+                    };
+
+                    return timelineItems.map((item, index) => {
+                      const nextItem = timelineItems[index + 1];
+                      const gap = nextItem
+                        ? (nextItem.timestamp.getTime() - item.timestamp.getTime()) / (1000 * 60)
+                        : 0;
+
+                      if (item.type === 'break-start') {
+                        const brk = item.data;
+                        const duration = brk.endTime
+                          ? (new Date(brk.endTime).getTime() - new Date(brk.startTime).getTime()) / (1000 * 60)
+                          : null;
+                        return (
+                          <div key={`break-start-${brk.id}`} className="bg-purple-100 border border-purple-300 rounded-lg p-3 my-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Coffee className="w-4 h-4 text-purple-600" />
+                                <span className="font-mono text-purple-700 font-semibold">
+                                  {format(item.timestamp, 'HH:mm:ss')}
+                                </span>
+                                <Badge className="bg-purple-600 text-white text-xs">
+                                  Break {item.breakIndex} Started
+                                </Badge>
+                              </div>
+                              {duration && (
+                                <span className="text-xs text-purple-600 font-medium">
+                                  Duration: {Math.round(duration)} min
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (item.type === 'break-end') {
+                        return (
+                          <div key={`break-end-${item.data.id}`} className="bg-purple-50 border border-purple-200 rounded-lg p-3 my-2">
+                            <div className="flex items-center gap-2">
+                              <Coffee className="w-4 h-4 text-purple-500" />
+                              <span className="font-mono text-purple-600">
+                                {format(item.timestamp, 'HH:mm:ss')}
+                              </span>
+                              <Badge variant="outline" className="border-purple-400 text-purple-600 text-xs">
+                                Break {item.breakIndex} Ended
                               </Badge>
-                            )}
+                            </div>
                           </div>
+                        );
+                      }
+
+                      // Heartbeat item
+                      const log = item.data as ActivityLog;
+                      const isSuspicious = log.suspicious;
+                      const isOnBreak = isWithinBreak(item.timestamp);
+
+                      // Don't show "possible idle time" gap if it's during a break
+                      const isLongGap = gap > 5 && !isWithinBreak(item.timestamp) &&
+                        !(nextItem?.type === 'break-start' || nextItem?.type === 'break-end');
+
+                      return (
+                        <div key={log.id}>
+                          <div className={`flex items-center justify-between text-sm ${isSuspicious ? 'bg-red-50 p-2 rounded border border-red-200' : isOnBreak ? 'opacity-50' : ''}`}>
+                            <span className={`font-mono ${isSuspicious ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
+                              {format(item.timestamp, 'HH:mm:ss')}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {isSuspicious ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Badge variant="destructive" className="text-xs font-bold">
+                                        ⚠️ Suspicious
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="font-semibold">{log.patternType?.replace(/_/g, ' ') || 'Unknown Pattern'}</p>
+                                      {log.patternDetails && <p className="text-xs">{log.patternDetails}</p>}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : isOnBreak ? (
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-500">
+                                  On Break
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {isSuspicious && log.patternType && (
+                            <div className="flex items-center gap-2 my-1 text-xs text-red-700 bg-red-100 p-2 rounded font-bold">
+                              <AlertTriangle className="w-3 h-3" />
+                              <span>{log.patternType.replace(/_/g, ' ')}: {log.patternDetails || 'Bot/automation pattern detected'}</span>
+                            </div>
+                          )}
+                          {isLongGap && (
+                            <div className="flex items-center gap-2 my-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>{gap.toFixed(0)} minute gap (possible idle time)</span>
+                            </div>
+                          )}
                         </div>
-                        {isSuspicious && log.patternType && (
-                          <div className="flex items-center gap-2 my-1 text-xs text-red-700 bg-red-100 p-2 rounded font-bold">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>{log.patternType.replace(/_/g, ' ')}: {log.patternDetails || 'Bot/automation pattern detected'}</span>
-                          </div>
-                        )}
-                        {isLongGap && (
-                          <div className="flex items-center gap-2 my-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                            <AlertCircle className="w-3 h-3" />
-                            <span>{gap.toFixed(0)} minute gap (possible idle time)</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
