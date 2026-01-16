@@ -126,25 +126,122 @@ export async function DELETE(
   context: RouteContext
 ) {
   const params = await context.params;
-  try{
+  try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Delete associated user first
-    await prisma.user.deleteMany({
-      where: { employeeId: params.id },
+    const employeeId = params.id;
+
+    // Check if employee exists
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, name: true, employeeId: true },
     });
 
-    // Delete employee
-    await prisma.employee.delete({
-      where: { id: params.id },
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    // Get all attendance IDs for this employee (needed to delete activity logs and breaks)
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: { employeeId },
+      select: { id: true },
+    });
+    const attendanceIds = attendanceRecords.map(a => a.id);
+
+    // Delete in correct order to respect foreign key constraints
+    // Use a transaction to ensure all-or-nothing deletion
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete activity logs (depends on attendance)
+      if (attendanceIds.length > 0) {
+        await tx.activityLog.deleteMany({
+          where: { attendanceId: { in: attendanceIds } },
+        });
+      }
+
+      // 2. Delete breaks (depends on attendance)
+      if (attendanceIds.length > 0) {
+        await tx.break.deleteMany({
+          where: { attendanceId: { in: attendanceIds } },
+        });
+      }
+
+      // 3. Delete attendance records
+      await tx.attendance.deleteMany({
+        where: { employeeId },
+      });
+
+      // 4. Delete daily work updates
+      await tx.dailyWorkUpdate.deleteMany({
+        where: { employeeId },
+      });
+
+      // 5. Delete employee documents
+      await tx.employeeDocument.deleteMany({
+        where: { employeeId },
+      });
+
+      // 6. Delete banking details
+      await tx.bankingDetails.deleteMany({
+        where: { employeeId },
+      });
+
+      // 7. Delete leaves
+      await tx.leave.deleteMany({
+        where: { employeeId },
+      });
+
+      // 8. Delete messages
+      await tx.message.deleteMany({
+        where: { employeeId },
+      });
+
+      // 9. Delete payroll records
+      await tx.payroll.deleteMany({
+        where: { employeeId },
+      });
+
+      // 10. Delete project memberships
+      await tx.projectMember.deleteMany({
+        where: { employeeId },
+      });
+
+      // 11. Delete tasks assigned to employee
+      await tx.task.deleteMany({
+        where: { assigneeId: employeeId },
+      });
+
+      // 12. Clear reporting head references from subordinates
+      await tx.employee.updateMany({
+        where: { reportingHeadId: employeeId },
+        data: { reportingHeadId: null },
+      });
+
+      // 13. Delete associated user account
+      await tx.user.deleteMany({
+        where: { employeeId },
+      });
+
+      // 14. Finally, delete the employee
+      await tx.employee.delete({
+        where: { id: employeeId },
+      });
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    return NextResponse.json({
+      success: true,
+      message: `Employee ${employee.name} (${employee.employeeId}) permanently deleted`,
+      deletedRecords: {
+        attendanceRecords: attendanceIds.length,
+      },
+    });
+  } catch (error: any) {
     console.error('Delete employee error:', error);
-    return NextResponse.json({ error: 'Failed to delete employee' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to delete employee',
+      details: error.message,
+    }, { status: 500 });
   }
 }
