@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
             breakDuration: Math.round(breakDuration * 100) / 100,
             idleTime: Math.round(idleHours * 100) / 100,
           },
-          inactiveHeartbeats: inactiveCount,
+          inactiveHeartbeats: idleHeartbeats.length,
           fixed: true,
         });
       } else {
