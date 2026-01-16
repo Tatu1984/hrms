@@ -404,7 +404,7 @@ export default function TimeAnalyticsPage() {
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 text-center">
                 <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-blue-200">
-                  <p className="text-2xl font-bold text-blue-700">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours + data.summary.totalIdleHours))}</p>
+                  <p className="text-2xl font-bold text-blue-700">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours))}</p>
                   <p className="text-xs text-blue-600 font-medium">Total Office Hours</p>
                 </div>
                 <span className="text-2xl font-bold text-gray-400">=</span>
@@ -417,10 +417,19 @@ export default function TimeAnalyticsPage() {
                   <p className="text-2xl font-bold text-amber-600">{formatHoursMinutes(data.summary.totalBreakHours)}</p>
                   <p className="text-xs text-amber-600 font-medium">Break Time</p>
                 </div>
-                <span className="text-2xl font-bold text-gray-400">+</span>
-                <div className="bg-white rounded-lg px-4 py-3 shadow-sm border border-pink-200">
-                  <p className="text-2xl font-bold text-pink-600">{formatHoursMinutes(data.summary.totalIdleHours)}</p>
-                  <p className="text-xs text-pink-600 font-medium">Idle Time</p>
+              </div>
+              {/* Idle time shown separately */}
+              <div className="mt-4 pt-4 border-t border-blue-200">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="bg-pink-50 rounded-lg px-4 py-2 border border-pink-200">
+                    <div className="flex items-center gap-2">
+                      <Pause className="w-4 h-4 text-pink-500" />
+                      <span className="text-sm text-pink-700">
+                        <span className="font-bold">{formatHoursMinutes(data.summary.totalIdleHours)}</span> Idle Time
+                        <span className="text-xs ml-1">(tracked separately)</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -435,7 +444,7 @@ export default function TimeAnalyticsPage() {
                     <Timer className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours + data.summary.totalIdleHours))}</p>
+                    <p className="text-2xl font-bold">{formatHoursMinutes(data.summary.totalGrossHours || (data.summary.totalWorkHours + data.summary.totalBreakHours))}</p>
                     <p className="text-sm text-gray-600">Total Office Hours</p>
                   </div>
                 </div>
@@ -661,7 +670,7 @@ export default function TimeAnalyticsPage() {
                             <Badge variant="outline">{emp.department}</Badge>
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-blue-600">
-                            {formatHoursMinutes(emp.totalGrossHours || (emp.totalWorkHours + emp.totalBreakHours + emp.totalIdleHours))}
+                            {formatHoursMinutes(emp.totalGrossHours || (emp.totalWorkHours + emp.totalBreakHours))}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-green-600">
                             {formatHoursMinutes(emp.totalWorkHours)}

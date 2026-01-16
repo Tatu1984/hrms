@@ -331,10 +331,14 @@ export async function POST(request: NextRequest) {
       // =====================================================
       // TIME CALCULATION FORMULA:
       // grossHours (Total Time in Office) = Punch Out - Punch In
-      // totalHours (Active Work) = grossHours - breakDuration - idleTime
+      // totalHours (Active Work) = grossHours - breakDuration
       //
-      // EQUATION MUST BALANCE:
-      // grossHours = totalHours + breakDuration + idleTime
+      // NOTE: Idle time is tracked SEPARATELY and NOT deducted from active hours.
+      // Admin will manually review idle time and make adjustments if needed.
+      //
+      // EQUATION:
+      // grossHours = totalHours + breakDuration
+      // idleTime = tracked separately (informational only)
       // =====================================================
 
       // 1. Gross Hours = Total time between punch in and punch out
@@ -369,24 +373,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. Calculate idle time based on activity logs
+      // 3. Calculate idle time based on activity logs (for informational purposes only)
       const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
 
-      // 4. Active Work Hours = Gross Hours - Break - Idle
-      // This ensures: grossHours = totalHours + breakDuration + idleTime (ALWAYS)
-      const totalHours = Math.max(0, grossHours - breakDuration - idleTime);
+      // 4. Active Work Hours = Gross Hours - Break (idle is NOT deducted)
+      // Idle time is tracked separately and displayed for admin review
+      const totalHours = Math.max(0, grossHours - breakDuration);
 
-      // Determine attendance status based on active work hours
+      // Determine attendance status based on active work hours (excluding breaks)
       // Logic: < 6 hours = HALF_DAY, >= 6 hours = PRESENT
       const attendanceStatus = totalHours >= 6 ? 'PRESENT' : 'HALF_DAY';
 
       console.log('Punch-out calculation:', {
         grossHours: grossHours.toFixed(2),
         breakDuration: breakDuration.toFixed(2),
-        idleTime: idleTime.toFixed(2),
         totalHours: totalHours.toFixed(2),
-        equation: `${grossHours.toFixed(2)} = ${totalHours.toFixed(2)} + ${breakDuration.toFixed(2)} + ${idleTime.toFixed(2)}`,
-        balances: Math.abs(grossHours - (totalHours + breakDuration + idleTime)) < 0.01,
+        idleTime: idleTime.toFixed(2) + ' (tracked separately, not deducted)',
+        equation: `Active (${totalHours.toFixed(2)}) = Gross (${grossHours.toFixed(2)}) - Break (${breakDuration.toFixed(2)})`,
         status: attendanceStatus,
       });
 

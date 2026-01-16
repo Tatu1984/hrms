@@ -502,7 +502,7 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
                     <div>
                       <p className="text-gray-500 text-xs">Active Work</p>
                       <p className="font-semibold text-green-600">
-                        {formatHoursMinutes((record.totalHours || 0) - (record.idleTime || 0))}
+                        {formatHoursMinutes(record.totalHours)}
                       </p>
                     </div>
                   </div>

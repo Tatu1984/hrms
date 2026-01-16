@@ -3,8 +3,10 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 /**
- * Recalculate idle time for attendance records
- * Uses the correct formula: count of inactive heartbeats × 3 minutes
+ * Recalculate attendance records with the correct formula:
+ * - grossHours = punchOut - punchIn
+ * - totalHours (active) = grossHours - breakDuration (idle NOT deducted)
+ * - idleTime = count of inactive heartbeats × 5 minutes (tracked separately)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get attendance records
+    // Get attendance records with breaks
     const attendanceRecords = await prisma.attendance.findMany({
       where,
       include: {
@@ -48,56 +50,84 @@ export async function POST(request: NextRequest) {
             name: true,
           },
         },
+        breaks: true,
       },
     });
 
-    console.log(`[Recalculate Idle] Processing ${attendanceRecords.length} attendance records`);
+    console.log(`[Recalculate] Processing ${attendanceRecords.length} attendance records`);
 
     const results = [];
-    const HEARTBEAT_INTERVAL_MINUTES = 3;
+    const HEARTBEAT_INTERVAL_MINUTES = 5; // Must match ActivityHeartbeat.tsx
 
     for (const attendance of attendanceRecords) {
-      // Count only CLIENT inactive heartbeats (not server/auto-heartbeats)
+      if (!attendance.punchIn || !attendance.punchOut) {
+        results.push({
+          attendanceId: attendance.id,
+          employeeId: attendance.employee.employeeId,
+          date: attendance.date,
+          fixed: false,
+          reason: 'no_punch_times',
+        });
+        continue;
+      }
+
+      const punchInTime = new Date(attendance.punchIn).getTime();
+      const punchOutTime = new Date(attendance.punchOut).getTime();
+
+      // 1. Gross Hours = Total time in office
+      const grossHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
+
+      // 2. Calculate break duration from breaks table or legacy fields
+      let breakDuration = 0;
+      if (attendance.breaks && attendance.breaks.length > 0) {
+        breakDuration = attendance.breaks.reduce((total, brk) => {
+          if (brk.endTime) {
+            return total + (brk.endTime.getTime() - brk.startTime.getTime()) / (1000 * 60 * 60);
+          }
+          return total;
+        }, 0);
+      } else if (attendance.breakStart && attendance.breakEnd) {
+        const breakStartTime = new Date(attendance.breakStart).getTime();
+        const breakEndTime = new Date(attendance.breakEnd).getTime();
+        breakDuration = (breakEndTime - breakStartTime) / (1000 * 60 * 60);
+      }
+
+      // 3. Calculate idle time from inactive heartbeats (for tracking only)
       const inactiveCount = await prisma.activityLog.count({
         where: {
           attendanceId: attendance.id,
           active: false,
-          source: 'client', // Only client-reported inactivity counts as idle
+          source: 'client',
         },
       });
+      const idleHours = (inactiveCount * HEARTBEAT_INTERVAL_MINUTES) / 60;
 
-      // Calculate correct idle time
-      const correctIdleMinutes = inactiveCount * HEARTBEAT_INTERVAL_MINUTES;
-      const correctIdleHours = correctIdleMinutes / 60;
-      const oldIdleHours = attendance.idleTime || 0;
+      // 4. Active hours = Gross - Break (idle NOT deducted)
+      const totalHours = Math.max(0, grossHours - breakDuration);
+
+      // Check what changed
+      const oldGrossHours = attendance.grossHours || 0;
       const oldTotalHours = attendance.totalHours || 0;
+      const oldBreakDuration = attendance.breakDuration || 0;
+      const oldIdleHours = attendance.idleTime || 0;
 
-      // Calculate work hours if we have punch times
-      let newTotalHours = oldTotalHours;
-      if (attendance.punchIn && attendance.punchOut) {
-        const punchInTime = new Date(attendance.punchIn).getTime();
-        const punchOutTime = new Date(attendance.punchOut).getTime();
-        const totalElapsedHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
-        const breakDuration = attendance.breakDuration || 0;
+      const grossChanged = Math.abs(grossHours - oldGrossHours) > 0.01;
+      const totalChanged = Math.abs(totalHours - oldTotalHours) > 0.01;
+      const breakChanged = Math.abs(breakDuration - oldBreakDuration) > 0.01;
+      const idleChanged = Math.abs(idleHours - oldIdleHours) > 0.01;
 
-        // Work hours = Total elapsed - Break - Idle
-        let actualWorkHours = totalElapsedHours - breakDuration - correctIdleHours;
+      if (grossChanged || totalChanged || breakChanged || idleChanged) {
+        // Determine status
+        const status = totalHours >= 6 ? 'PRESENT' : 'HALF_DAY';
 
-        // Apply idle penalty: if idle > 1 hour, deduct excess from work hours
-        const idlePenalty = Math.max(0, correctIdleHours - 1);
-        newTotalHours = Math.max(0, actualWorkHours - idlePenalty);
-      }
-
-      // Update if idle time or work hours changed
-      const idleChanged = Math.abs(correctIdleHours - oldIdleHours) > 0.01;
-      const hoursChanged = Math.abs(newTotalHours - oldTotalHours) > 0.01;
-
-      if (idleChanged || hoursChanged) {
         await prisma.attendance.update({
           where: { id: attendance.id },
           data: {
-            idleTime: Math.round(correctIdleHours * 100) / 100,
-            totalHours: Math.round(newTotalHours * 100) / 100,
+            grossHours: Math.round(grossHours * 100) / 100,
+            totalHours: Math.round(totalHours * 100) / 100,
+            breakDuration: Math.round(breakDuration * 100) / 100,
+            idleTime: Math.round(idleHours * 100) / 100,
+            status,
           },
         });
 
@@ -106,11 +136,19 @@ export async function POST(request: NextRequest) {
           employeeId: attendance.employee.employeeId,
           employeeName: attendance.employee.name,
           date: attendance.date,
+          old: {
+            grossHours: Math.round(oldGrossHours * 100) / 100,
+            totalHours: Math.round(oldTotalHours * 100) / 100,
+            breakDuration: Math.round(oldBreakDuration * 100) / 100,
+            idleTime: Math.round(oldIdleHours * 100) / 100,
+          },
+          new: {
+            grossHours: Math.round(grossHours * 100) / 100,
+            totalHours: Math.round(totalHours * 100) / 100,
+            breakDuration: Math.round(breakDuration * 100) / 100,
+            idleTime: Math.round(idleHours * 100) / 100,
+          },
           inactiveHeartbeats: inactiveCount,
-          oldIdleMinutes: Math.round(oldIdleHours * 60),
-          newIdleMinutes: correctIdleMinutes,
-          oldWorkHours: Math.round(oldTotalHours * 100) / 100,
-          newWorkHours: Math.round(newTotalHours * 100) / 100,
           fixed: true,
         });
       } else {
@@ -118,9 +156,6 @@ export async function POST(request: NextRequest) {
           attendanceId: attendance.id,
           employeeId: attendance.employee.employeeId,
           date: attendance.date,
-          inactiveHeartbeats: inactiveCount,
-          idleMinutes: correctIdleMinutes,
-          workHours: Math.round(newTotalHours * 100) / 100,
           fixed: false,
           reason: 'already_correct',
         });
@@ -131,13 +166,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Recalculated idle time for ${attendanceRecords.length} records, fixed ${fixedCount}`,
+      message: `Recalculated ${attendanceRecords.length} records, fixed ${fixedCount}`,
+      formula: 'Active Hours = Gross Hours - Break Duration (Idle tracked separately)',
       results,
     });
   } catch (error: any) {
-    console.error('[Recalculate Idle] Error:', error);
+    console.error('[Recalculate] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to recalculate idle times', details: error.message },
+      { error: 'Failed to recalculate attendance', details: error.message },
       { status: 500 }
     );
   }
