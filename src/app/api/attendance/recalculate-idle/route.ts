@@ -92,15 +92,46 @@ export async function POST(request: NextRequest) {
         breakDuration = (breakEndTime - breakStartTime) / (1000 * 60 * 60);
       }
 
-      // 3. Calculate idle time from inactive heartbeats (for tracking only)
-      const inactiveCount = await prisma.activityLog.count({
+      // 3. Calculate idle time from inactive heartbeats, EXCLUDING break periods
+      // Get all inactive heartbeats
+      const inactiveHeartbeats = await prisma.activityLog.findMany({
         where: {
           attendanceId: attendance.id,
           active: false,
           source: 'client',
         },
+        select: { timestamp: true },
       });
-      const idleHours = (inactiveCount * HEARTBEAT_INTERVAL_MINUTES) / 60;
+
+      // Filter out heartbeats that occurred during break periods
+      const idleHeartbeats = inactiveHeartbeats.filter(heartbeat => {
+        const heartbeatTime = new Date(heartbeat.timestamp).getTime();
+
+        // Check breaks from the breaks table
+        if (attendance.breaks && attendance.breaks.length > 0) {
+          for (const brk of attendance.breaks) {
+            const breakStart = new Date(brk.startTime).getTime();
+            const breakEnd = brk.endTime ? new Date(brk.endTime).getTime() : punchOutTime;
+
+            if (heartbeatTime >= breakStart && heartbeatTime <= breakEnd) {
+              return false; // Exclude - during break
+            }
+          }
+        }
+
+        // Also check legacy break fields
+        if (attendance.breakStart && attendance.breakEnd) {
+          const legacyBreakStart = new Date(attendance.breakStart).getTime();
+          const legacyBreakEnd = new Date(attendance.breakEnd).getTime();
+          if (heartbeatTime >= legacyBreakStart && heartbeatTime <= legacyBreakEnd) {
+            return false; // Exclude - during legacy break
+          }
+        }
+
+        return true; // Include - genuine idle time
+      });
+
+      const idleHours = (idleHeartbeats.length * HEARTBEAT_INTERVAL_MINUTES) / 60;
 
       // 4. Active hours = Gross - Break (idle NOT deducted)
       const totalHours = Math.max(0, grossHours - breakDuration);

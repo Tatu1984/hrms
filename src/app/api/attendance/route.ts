@@ -5,38 +5,54 @@ import { getClientIp } from '@/lib/ip';
 import { isFriday, isMonday, processWeekendCascade } from '@/lib/attendance-utils';
 
 /**
- * Calculate idle time based on activity logs
+ * Calculate idle time based on activity logs, EXCLUDING break periods
  * @param attendanceId - The attendance record ID
- * @param punchInTime - Punch in timestamp in milliseconds (unused, kept for interface compatibility)
- * @param punchOutTime - Punch out timestamp in milliseconds (unused, kept for interface compatibility)
  * @returns Idle time in hours
  */
-async function calculateIdleTime(
-  attendanceId: string,
-  punchInTime: number,
-  punchOutTime: number
-): Promise<number> {
+async function calculateIdleTime(attendanceId: string): Promise<number> {
   // Idle time calculation strategy:
   // - Count only CLIENT-reported inactive heartbeats (user AFK with browser open)
-  // - Server heartbeats (browser closed) are NOT counted as idle - user might be working elsewhere
-  // - Each inactive heartbeat = 5 minutes of idle time (matching the heartbeat interval in ActivityHeartbeat.tsx)
+  // - EXCLUDE heartbeats that occurred during break periods (to avoid double-counting)
+  // - Each inactive heartbeat = 5 minutes of idle time
   //
-  // IMPORTANT: The heartbeat interval in ActivityHeartbeat.tsx is 5 minutes.
-  // Each inactive heartbeat means the user was idle for the ENTIRE 5-minute period.
-  // This keeps the calculation consistent with the client-side tracking.
+  // IMPORTANT: Break time and idle time must NOT overlap.
+  // If an employee is on break, those inactive heartbeats should NOT count as idle.
 
-  const inactiveCount = await prisma.activityLog.count({
+  // Get all breaks for this attendance
+  const breaks = await prisma.break.findMany({
+    where: { attendanceId },
+    select: { startTime: true, endTime: true },
+  });
+
+  // Get all inactive heartbeats
+  const inactiveHeartbeats = await prisma.activityLog.findMany({
     where: {
       attendanceId,
       active: false,
       source: 'client', // Only count client-reported inactivity
     },
+    select: { timestamp: true },
+  });
+
+  // Filter out heartbeats that occurred during break periods
+  const idleHeartbeats = inactiveHeartbeats.filter(heartbeat => {
+    const heartbeatTime = new Date(heartbeat.timestamp).getTime();
+
+    // Check if this heartbeat falls within any break period
+    for (const brk of breaks) {
+      const breakStart = new Date(brk.startTime).getTime();
+      const breakEnd = brk.endTime ? new Date(brk.endTime).getTime() : Date.now();
+
+      if (heartbeatTime >= breakStart && heartbeatTime <= breakEnd) {
+        return false; // Exclude this heartbeat - it's during a break
+      }
+    }
+    return true; // Include this heartbeat - it's genuine idle time
   });
 
   // Each inactive heartbeat represents 5 minutes of inactivity
-  // This MUST match the interval in ActivityHeartbeat.tsx (line 367: 5 * 60 * 1000)
   const HEARTBEAT_INTERVAL_MINUTES = 5;
-  const totalIdleMinutes = inactiveCount * HEARTBEAT_INTERVAL_MINUTES;
+  const totalIdleMinutes = idleHeartbeats.length * HEARTBEAT_INTERVAL_MINUTES;
 
   // Convert to hours
   return totalIdleMinutes / 60;
@@ -374,7 +390,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 3. Calculate idle time based on activity logs (for informational purposes only)
-      const idleTime = await calculateIdleTime(attendance.id, punchInTime, punchOutTime);
+      const idleTime = await calculateIdleTime(attendance.id);
 
       // 4. Active Work Hours = Gross Hours - Break (idle is NOT deducted)
       // Idle time is tracked separately and displayed for admin review
