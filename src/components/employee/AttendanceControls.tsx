@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Clock, Coffee } from 'lucide-react';
+import { Clock, Coffee, Monitor } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { ActivityTracker } from '@/components/attendance/ActivityTracker';
 import { formatHoursMinutes } from '@/lib/utils';
@@ -26,11 +26,25 @@ export function AttendanceControls({ attendance: initialAttendance }: Attendance
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [attendance, setAttendance] = useState<AttendanceData | null>(initialAttendance);
+  const [vmMode, setVmMode] = useState(false);
 
   // Sync with prop changes
   useEffect(() => {
     setAttendance(initialAttendance);
   }, [initialAttendance]);
+
+  // Load VM mode state on mount
+  useEffect(() => {
+    const savedVmMode = localStorage.getItem('hrms_vm_mode') === 'true';
+    setVmMode(savedVmMode);
+  }, []);
+
+  // Toggle VM mode
+  const toggleVmMode = () => {
+    const newValue = !vmMode;
+    setVmMode(newValue);
+    localStorage.setItem('hrms_vm_mode', newValue.toString());
+  };
 
   const handleAction = async (action: 'punch-in' | 'punch-out' | 'break-start' | 'break-end') => {
     if (loading) return; // Prevent double-clicks
@@ -126,6 +140,21 @@ export function AttendanceControls({ attendance: initialAttendance }: Attendance
         </Button>
       ) : !attendance?.punchOut ? (
         <>
+          {/* VM/RDP Mode Toggle */}
+          <Button
+            onClick={toggleVmMode}
+            variant="outline"
+            size="sm"
+            className={`${vmMode
+              ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600'
+              : 'bg-white/10 text-white hover:bg-white/20 border-white/30'}`}
+            title={vmMode
+              ? 'VM Mode ON - Activity tracked as active while working in remote desktop'
+              : 'Enable VM Mode if you are working in a remote desktop/VM'}
+          >
+            <Monitor className="w-4 h-4 mr-1" />
+            {vmMode ? 'VM Mode ON' : 'VM Mode'}
+          </Button>
           {!onBreak ? (
             <Button
               onClick={() => handleAction('break-start')}

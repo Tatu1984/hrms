@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Monitor } from 'lucide-react';
 
 /**
  * Activity Heartbeat Component with Bot Detection
@@ -13,6 +14,11 @@ import { useEffect, useRef, useState } from 'react';
  * - Auto-clicker detection (clicks at exact intervals)
  * - Auto-typer detection (keystrokes at exact intervals)
  * - Static mouse detection (mouse not actually moving)
+ *
+ * VM/RDP Mode:
+ * - Employees can enable VM mode when working in remote desktop
+ * - When enabled, activity is marked as active automatically
+ * - This prevents false idle time when browser is minimized for RDP work
  */
 
 interface MouseEvent {
@@ -51,6 +57,7 @@ export function ActivityHeartbeat() {
   const lastActivityRef = useRef<number>(Date.now());
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [debugInfo, setDebugInfo] = useState('');
+  const [vmMode, setVmMode] = useState(false);
 
   // Bot detection state
   const mouseHistoryRef = useRef<MouseEvent[]>([]);
@@ -60,6 +67,20 @@ export function ActivityHeartbeat() {
   const lastDecayTimeRef = useRef<number>(Date.now());
   const isBotDetectedRef = useRef<boolean>(false);
   const lastPatternRef = useRef<string | null>(null);
+
+  // Load VM mode state on mount
+  useEffect(() => {
+    const savedVmMode = localStorage.getItem('hrms_vm_mode') === 'true';
+    setVmMode(savedVmMode);
+  }, []);
+
+  // Toggle VM mode
+  const toggleVmMode = () => {
+    const newValue = !vmMode;
+    setVmMode(newValue);
+    localStorage.setItem('hrms_vm_mode', newValue.toString());
+    console.log('[ActivityHeartbeat] VM Mode:', newValue ? 'ENABLED' : 'DISABLED');
+  };
 
   useEffect(() => {
     console.log('[ActivityHeartbeat] Component mounted with bot detection');
@@ -316,16 +337,21 @@ export function ActivityHeartbeat() {
       const timeSinceLastActivity = now - lastActivityRef.current;
       const hadRecentActivity = timeSinceLastActivity < 5 * 60 * 1000;
 
-      // Run bot detection
-      const { isBot, pattern } = runBotDetection();
+      // Check if VM mode is enabled (employee working in RDP/remote desktop)
+      const isVmModeEnabled = localStorage.getItem('hrms_vm_mode') === 'true';
 
+      // Run bot detection (skip if VM mode - they're working elsewhere)
+      const { isBot, pattern } = isVmModeEnabled ? { isBot: false, pattern: null } : runBotDetection();
+
+      // If VM mode enabled, always mark as active (employee is working in remote desktop)
       // If bot detected, mark as inactive even if there was "activity"
-      const wasActive = hadRecentActivity && !isBot;
+      const wasActive = isVmModeEnabled || (hadRecentActivity && !isBot);
 
       console.log('[Heartbeat] Sending...', {
         hadActivity: hadRecentActivity,
         isBot,
         pattern,
+        vmMode: isVmModeEnabled,
         suspiciousCount: suspiciousCountRef.current,
         active: wasActive
       });
