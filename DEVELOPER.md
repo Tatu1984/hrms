@@ -31,28 +31,28 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (Next.js)                        │
+│                        FRONTEND (Next.js)                       │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │  Admin   │  │ Manager  │  │ Employee │  │  Shared Components│ │
-│  │  Pages   │  │  Pages   │  │  Pages   │  │  (UI, Forms, etc) │ │
+│  │  Admin   │  │ Manager  │  │ Employee │  │ Shared Components│ │
+│  │  Pages   │  │  Pages   │  │  Pages   │  │ (UI, Forms, etc) │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      API ROUTES (Next.js)                        │
+│                      API ROUTES (Next.js)                       │
 │  /api/auth  /api/attendance  /api/employees  /api/payroll  ...  │
 └─────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PRISMA ORM + PostgreSQL                       │
+│                    PRISMA ORM + PostgreSQL                      │
 │  Users, Employees, Attendance, Leaves, Payroll, Projects, etc.  │
 └─────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      EXTERNAL INTEGRATIONS                       │
+│                      EXTERNAL INTEGRATIONS                      │
 │    Azure DevOps    │    Asana    │    Confluence    │   OpenAI  │
 └─────────────────────────────────────────────────────────────────┘
 ```
