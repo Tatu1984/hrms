@@ -389,12 +389,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. Calculate idle time based on activity logs (for informational purposes only)
+      // 3. Calculate idle time based on activity logs (excluding break periods)
       const idleTime = await calculateIdleTime(attendance.id);
 
-      // 4. Active Work Hours = Gross Hours - Break (idle is NOT deducted)
-      // Idle time is tracked separately and displayed for admin review
-      const totalHours = Math.max(0, grossHours - breakDuration);
+      // 4. Active Work Hours = Gross Hours - Break - Idle
+      // This ensures: Gross = Active + Break + Idle (mathematically correct)
+      const totalHours = Math.max(0, grossHours - breakDuration - idleTime);
 
       // Determine attendance status based on active work hours (excluding breaks)
       // Logic: < 6 hours = HALF_DAY, >= 6 hours = PRESENT

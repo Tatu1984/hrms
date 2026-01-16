@@ -133,8 +133,9 @@ export async function POST(request: NextRequest) {
 
       const idleHours = (idleHeartbeats.length * HEARTBEAT_INTERVAL_MINUTES) / 60;
 
-      // 4. Active hours = Gross - Break (idle NOT deducted)
-      const totalHours = Math.max(0, grossHours - breakDuration);
+      // 4. Active hours = Gross - Break - Idle
+      // This ensures: Gross = Active + Break + Idle (mathematically correct)
+      const totalHours = Math.max(0, grossHours - breakDuration - idleHours);
 
       // Check what changed
       const oldGrossHours = attendance.grossHours || 0;

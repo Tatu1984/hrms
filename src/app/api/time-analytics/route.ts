@@ -5,14 +5,13 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
 
 interface TimeAnalyticsSummary {
   totalGrossHours: number;  // Total time in office (punchOut - punchIn)
-  totalWorkHours: number;   // Active work hours = gross - break (idle NOT deducted)
+  totalWorkHours: number;   // Active work hours = gross - break - idle
   totalBreakHours: number;
-  totalIdleHours: number;   // Tracked separately (informational only)
+  totalIdleHours: number;
   averageWorkHours: number;
   employeeCount: number;
   daysAnalyzed: number;
-  // Equation: totalGrossHours = totalWorkHours + totalBreakHours
-  // idleHours tracked separately for admin review, NOT deducted from work hours
+  // Equation: totalGrossHours = totalWorkHours + totalBreakHours + totalIdleHours
 }
 
 interface ChartDataPoint {
@@ -43,9 +42,9 @@ interface EmployeeDetail {
   department: string;
   designation: string;
   totalGrossHours: number;   // Total time in office (punchOut - punchIn)
-  totalWorkHours: number;    // Active work hours = gross - break (idle NOT deducted)
+  totalWorkHours: number;    // Active work hours = gross - break - idle
   totalBreakHours: number;
-  totalIdleHours: number;    // Tracked separately (informational only)
+  totalIdleHours: number;
   daysPresent: number;
   avgDailyHours: number;
 }
