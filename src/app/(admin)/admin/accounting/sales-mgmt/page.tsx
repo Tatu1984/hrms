@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CreditCard, Clock } from "lucide-react";
+import { ArrowLeft, CreditCard, TrendingUp, FileText, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SalesManagementPage() {
   return (
@@ -12,45 +12,88 @@ export default function SalesManagementPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Sales Management</h1>
           <p className="text-gray-500">
-            Invoices, quotations, and sales orders
+            Track sales and customer payments
           </p>
         </div>
         <Button variant="outline" asChild>
           <Link href="/admin/accounting">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Accounting
+            Back
           </Link>
         </Button>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <CreditCard className="h-8 w-8 text-emerald-600" />
-          </div>
-          <CardTitle className="text-xl">Coming Soon</CardTitle>
-          <CardDescription className="text-base">
-            The Sales Management module is currently under development.
-          </CardDescription>
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Record Sale
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              Record sales and customer payments as income entries.
+            </p>
+            <Button asChild className="w-full bg-green-600 hover:bg-green-700">
+              <Link href="/admin/accounts">Add Sales Entry</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-500" />
+              Manage Customers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              View and manage your customer list.
+            </p>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/admin/accounting/parties">View Parties</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-500" />
+              Receipt Vouchers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              Create receipt vouchers for customer payments.
+            </p>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/admin/accounting/vouchers">View Vouchers</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Quick Sales Entry
+          </CardTitle>
         </CardHeader>
-        <CardContent className="text-center">
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-6">
-            <Clock className="h-4 w-4" />
-            <span>Expected features:</span>
-          </div>
-          <ul className="text-sm text-gray-600 space-y-2 max-w-md mx-auto text-left">
-            <li>- Sales invoice creation</li>
-            <li>- Quotation and estimates</li>
-            <li>- Sales order management</li>
-            <li>- Payment receipt tracking</li>
-            <li>- Sales returns and credit notes</li>
-            <li>- Customer statement generation</li>
-          </ul>
-          <div className="mt-6">
+        <CardContent>
+          <p className="text-gray-600 mb-4">
+            Use the Accounts page to quickly record sales income.
+            Select "Income" type and choose an appropriate category for your sale.
+          </p>
+          <div className="flex gap-3">
             <Button asChild>
-              <Link href="/admin/accounting">
-                Return to Accounting Dashboard
-              </Link>
+              <Link href="/admin/accounts">Go to Accounts</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/invoices">Manage Invoices</Link>
             </Button>
           </div>
         </CardContent>

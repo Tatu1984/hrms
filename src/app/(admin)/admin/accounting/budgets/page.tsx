@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Wallet, Clock } from "lucide-react";
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function BudgetsPage() {
   return (
@@ -12,45 +12,88 @@ export default function BudgetsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
           <p className="text-gray-500">
-            Budget planning, allocation, and tracking
+            Budget planning and expense tracking
           </p>
         </div>
         <Button variant="outline" asChild>
           <Link href="/admin/accounting">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Accounting
+            Back
           </Link>
         </Button>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-teal-100">
-            <Wallet className="h-8 w-8 text-teal-600" />
-          </div>
-          <CardTitle className="text-xl">Coming Soon</CardTitle>
-          <CardDescription className="text-base">
-            The Budgets module is currently under development.
-          </CardDescription>
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Track Income
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              Record all income sources to track your budget inflows.
+            </p>
+            <Button asChild className="w-full bg-green-600 hover:bg-green-700">
+              <Link href="/admin/accounts">Add Income Entry</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-500" />
+              Track Expenses
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              Record all expenses to monitor budget spending.
+            </p>
+            <Button asChild className="w-full bg-red-600 hover:bg-red-700">
+              <Link href="/admin/accounts">Add Expense Entry</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-500" />
+              View Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              View your complete financial summary and balances.
+            </p>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/admin/accounts">View All Transactions</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Quick Access
+          </CardTitle>
         </CardHeader>
-        <CardContent className="text-center">
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-6">
-            <Clock className="h-4 w-4" />
-            <span>Expected features:</span>
-          </div>
-          <ul className="text-sm text-gray-600 space-y-2 max-w-md mx-auto text-left">
-            <li>- Annual budget planning</li>
-            <li>- Department-wise budget allocation</li>
-            <li>- Budget vs actual tracking</li>
-            <li>- Budget variance analysis</li>
-            <li>- Budget approval workflow</li>
-            <li>- Budget forecasting</li>
-          </ul>
-          <div className="mt-6">
+        <CardContent>
+          <p className="text-gray-600 mb-4">
+            Use the Accounts page to quickly add income and expense entries.
+            All entries are automatically tracked in the accounting system with proper double-entry bookkeeping.
+          </p>
+          <div className="flex gap-3">
             <Button asChild>
-              <Link href="/admin/accounting">
-                Return to Accounting Dashboard
-              </Link>
+              <Link href="/admin/accounts">Go to Accounts</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/accounting/fin-reports">View Reports</Link>
             </Button>
           </div>
         </CardContent>

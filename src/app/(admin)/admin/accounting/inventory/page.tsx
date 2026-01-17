@@ -1,60 +1,136 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Package, Clock } from "lucide-react";
+import { ArrowLeft, Package, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+interface Item {
+  id: string;
+  name: string;
+  sku?: string;
+  type: string;
+  purchasePrice?: number;
+  sellingPrice?: number;
+  category?: { id: string; name: string };
+  primaryUnit?: { id: string; name: string; symbol: string };
+  stocks?: { warehouseId: string; quantity: number }[];
+}
 
 export default function InventoryPage() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      const res = await fetch("/api/accounting/items");
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch items:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+    }).format(amount);
+  };
+
+  const getTotalStock = (item: Item) => {
+    return item.stocks?.reduce((sum, s) => sum + s.quantity, 0) || 0;
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Inventory Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Inventory</h1>
           <p className="text-gray-500">
-            Items, stock levels, and warehouse management
+            Manage products, goods, and services
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link href="/admin/accounting">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Accounting
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/accounting">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-            <Package className="h-8 w-8 text-amber-600" />
-          </div>
-          <CardTitle className="text-xl">Coming Soon</CardTitle>
-          <CardDescription className="text-base">
-            The Inventory Management module is currently under development.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-6">
-            <Clock className="h-4 w-4" />
-            <span>Expected features:</span>
-          </div>
-          <ul className="text-sm text-gray-600 space-y-2 max-w-md mx-auto text-left">
-            <li>- Item master management</li>
-            <li>- Stock tracking and valuation</li>
-            <li>- Multiple warehouse support</li>
-            <li>- Stock transfer between locations</li>
-            <li>- Reorder level alerts</li>
-            <li>- Inventory reports and analytics</li>
-          </ul>
-          <div className="mt-6">
-            <Button asChild>
-              <Link href="/admin/accounting">
-                Return to Accounting Dashboard
-              </Link>
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : items.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No items yet</h3>
+            <p className="text-gray-500 mt-1">Items will appear here once added through vouchers or the seed process.</p>
+            <Button className="mt-4" variant="outline" asChild>
+              <Link href="/admin/accounting">Go to Accounting</Link>
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Item Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Type</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Purchase Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Selling Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Stock</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {items.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{item.name}</div>
+                      {item.category && (
+                        <div className="text-xs text-gray-500">{item.category.name}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-mono">{item.sku || "-"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={item.type === "GOODS" ? "default" : "secondary"}>
+                        {item.type}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right">
+                      {item.purchasePrice ? formatCurrency(item.purchasePrice) : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-medium">
+                      {item.sellingPrice ? formatCurrency(item.sellingPrice) : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right">
+                      {getTotalStock(item)} {item.primaryUnit?.symbol || "units"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
