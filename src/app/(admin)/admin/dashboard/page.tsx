@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
+import { QuickEntrySection } from '@/components/dashboard/quick-entry-section';
 
 export default async function AdminDashboard() {
   const session = await getSession();
@@ -22,7 +23,11 @@ export default async function AdminDashboard() {
     monthlyPayrollSum,
     leadsStats,
     salesStats,
-    recentEmployees
+    recentEmployees,
+    accountCategories,
+    incomeTotal,
+    expenseTotal,
+    recentEntries
   ] = await Promise.all([
     prisma.employee.count(),
     prisma.project.count({ where: { status: 'ACTIVE' } }),
@@ -54,6 +59,33 @@ export default async function AdminDashboard() {
       },
       take: 10,
       orderBy: { createdAt: 'desc' }
+    }),
+    // Account categories for quick entry
+    prisma.accountCategory.findMany({
+      select: { id: true, name: true, type: true }
+    }),
+    // Total income
+    prisma.account.aggregate({
+      where: { type: 'INCOME' },
+      _sum: { amount: true }
+    }),
+    // Total expenses
+    prisma.account.aggregate({
+      where: { type: 'EXPENSE' },
+      _sum: { amount: true }
+    }),
+    // Recent entries
+    prisma.account.findMany({
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        description: true,
+        date: true,
+        category: { select: { name: true } }
+      },
+      orderBy: { date: 'desc' },
+      take: 5
     })
   ]);
 
@@ -156,6 +188,18 @@ export default async function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Quick Entry Section - Income/Expense */}
+      <QuickEntrySection
+        categories={accountCategories}
+        totalIncome={incomeTotal._sum.amount || 0}
+        totalExpenses={expenseTotal._sum.amount || 0}
+        recentEntries={recentEntries.map(e => ({
+          ...e,
+          amount: e.amount,
+          date: e.date.toISOString()
+        }))}
+      />
 
       {/* Sales Pipeline Widget */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
