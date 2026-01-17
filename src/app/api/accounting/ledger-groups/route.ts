@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/auth-options";
-import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +13,11 @@ const createLedgerGroupSchema = z.object({
   sequence: z.number().optional().default(0),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await verifyAuth(request);
 
-    if (!session?.user) {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -58,9 +57,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await verifyAuth(request);
 
-    if (!session?.user) {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
