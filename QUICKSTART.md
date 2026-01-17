@@ -183,12 +183,15 @@ After successful deployment:
 
 1. ✅ Test all features thoroughly
 2. ✅ Change default passwords
-3. ✅ Add your team members
-4. ✅ Configure company profile
-5. ✅ Setup bank accounts
-6. ✅ Import employee data
-7. ✅ Configure payroll settings
-8. ✅ Test payslip generation
+3. ✅ **Initialize IAM Roles** - Go to `/admin/security/iam` and click "Initialize Roles"
+4. ✅ Create custom roles (HR Manager, Finance Lead, etc.)
+5. ✅ Assign roles to users
+6. ✅ Add your team members
+7. ✅ Configure company profile
+8. ✅ Setup bank accounts
+9. ✅ Import employee data
+10. ✅ Configure payroll settings
+11. ✅ Test payslip generation
 
 ---
 
