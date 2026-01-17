@@ -2,8 +2,8 @@
 
 > Complete technical documentation for the Human Resource Management System
 
-**Last Updated:** January 2026
-**Version:** 2.0
+**Last Updated:** January 17, 2026
+**Version:** 2.1
 **Tech Stack:** Next.js 16, TypeScript, Prisma, PostgreSQL, TailwindCSS
 
 ---
@@ -17,11 +17,12 @@
 5. [API Reference](#5-api-reference)
 6. [Components](#6-components)
 7. [Authentication & Authorization](#7-authentication--authorization)
-8. [Time & Attendance System](#8-time--attendance-system)
-9. [Integrations](#9-integrations)
-10. [AI/ML Features](#10-aiml-features)
-11. [Environment Variables](#11-environment-variables)
-12. [Deployment](#12-deployment)
+8. [IAM & RBAC System](#8-iam--rbac-system)
+9. [Time & Attendance System](#9-time--attendance-system)
+10. [Integrations](#10-integrations)
+11. [AI/ML Features](#11-aiml-features)
+12. [Environment Variables](#12-environment-variables)
+13. [Deployment](#13-deployment)
 
 ---
 
@@ -64,6 +65,7 @@
 - **Payroll Processing** - Salary calculations, deductions, payslips
 - **Project Management** - Projects, tasks, work items from external tools
 - **Employee Management** - Profiles, documents, banking details
+- **IAM & RBAC** - Custom roles, granular permissions, role assignment
 - **AI/ML Engine** - Predictions, chatbot, document processing, recruitment
 - **Integrations** - Azure DevOps, Asana, Confluence
 - **Multi-role Access** - Admin, Manager, Employee dashboards
@@ -144,6 +146,7 @@ hrms1/
 │   │   │   ├── auth/
 │   │   │   ├── attendance/
 │   │   │   ├── employees/
+│   │   │   ├── iam/          # IAM & RBAC routes
 │   │   │   ├── payroll/
 │   │   │   └── ...
 │   │   ├── login/
@@ -154,6 +157,7 @@ hrms1/
 │   │   ├── admin/           # Admin-specific components
 │   │   ├── employee/        # Employee-specific components
 │   │   ├── attendance/      # Attendance components
+│   │   ├── iam/             # IAM & RBAC components
 │   │   ├── forms/           # Form dialogs
 │   │   ├── integrations/    # Integration components
 │   │   ├── ai/              # AI components
@@ -161,6 +165,7 @@ hrms1/
 │   └── lib/                  # Utility libraries
 │       ├── db.ts            # Prisma client
 │       ├── auth.ts          # Authentication utilities
+│       ├── permissions.ts   # RBAC permissions & helpers
 │       ├── utils.ts         # General utilities
 │       ├── ai/              # AI/ML modules
 │       └── integrations/    # Integration clients
@@ -179,14 +184,57 @@ hrms1/
 #### User
 ```prisma
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  username    String   @unique
+  id          String     @id @default(cuid())
+  email       String     @unique
+  username    String     @unique
   password    String                    // bcrypt hashed
-  role        Role     @default(EMPLOYEE)  // ADMIN, MANAGER, EMPLOYEE
-  employeeId  String?  @unique
+  role        Role       @default(EMPLOYEE)  // ADMIN, MANAGER, EMPLOYEE
+  employeeId  String?    @unique
   permissions Json?
-  employee    Employee? @relation(fields: [employeeId], references: [id])
+  employee    Employee?  @relation(fields: [employeeId], references: [id])
+  userRoles   UserRole[]               // Custom role assignments
+}
+```
+
+#### IAMRole (Custom Roles)
+```prisma
+model IAMRole {
+  id          String     @id @default(cuid())
+  name        String     @unique        // "HR_MANAGER", "FINANCE_LEAD"
+  displayName String                    // "HR Manager", "Finance Lead"
+  description String?
+  isSystem    Boolean    @default(false) // true for ADMIN, MANAGER, EMPLOYEE
+  permissions Json                      // Array of permission codes
+  color       String?                   // Badge color for UI
+  users       UserRole[]
+}
+```
+
+#### UserRole (Role Assignments)
+```prisma
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  assignedBy String?                    // Who assigned this role
+  user       User     @relation(...)
+  role       IAMRole  @relation(...)
+
+  @@unique([userId, roleId])
+}
+```
+
+#### Permission
+```prisma
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique           // "employees.view", "payroll.manage"
+  name        String                    // "View Employees"
+  description String?
+  module      String                    // "employees", "payroll"
+  action      String                    // "view", "manage", "edit"
+  isSystem    Boolean @default(true)
 }
 ```
 
@@ -312,7 +360,10 @@ ActivityLog   Break
 
 | Model | Description | Key Relations |
 |-------|-------------|---------------|
-| `User` | Login credentials & roles | → Employee |
+| `User` | Login credentials & roles | → Employee, UserRole |
+| `IAMRole` | Custom roles with permissions | → UserRole |
+| `UserRole` | User-role assignments | → User, IAMRole |
+| `Permission` | Permission definitions | - |
 | `Employee` | Employee profile & info | → User, Attendance, Leave, Payroll |
 | `Attendance` | Daily attendance records | → Employee, ActivityLog, Break |
 | `Break` | Break periods within attendance | → Attendance |
@@ -703,6 +754,11 @@ ActivityLog   Break
 | `/api/employee-status` | GET | Employee status | Admin/Manager |
 | `/api/integrations/connections` | GET, POST | Integrations | Admin |
 | `/api/integrations/sync` | POST | Sync external data | Admin |
+| `/api/iam/roles` | GET, POST | List/create roles | Admin |
+| `/api/iam/roles/[id]` | GET, PUT, DELETE | Manage single role | Admin |
+| `/api/iam/permissions` | GET | List all permissions | Admin |
+| `/api/iam/users/[id]/roles` | GET, POST, DELETE | Manage user roles | Admin |
+| `/api/iam/seed` | POST | Seed system roles | Admin |
 | `/api/ai/chat` | POST | AI chatbot | Auth |
 | `/api/ai/predictions` | GET | AI predictions | Auth |
 
@@ -865,7 +921,152 @@ export default async function AdminPage() {
 
 ---
 
-## 8. Time & Attendance System
+## 8. IAM & RBAC System
+
+The Identity and Access Management (IAM) system provides flexible role-based access control with custom roles and granular permissions.
+
+### Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         IAM Architecture                         │
+├─────────────────────────────────────────────────────────────────┤
+│  User ──┬── System Role (ADMIN/MANAGER/EMPLOYEE)                │
+│         │                                                        │
+│         └── Custom Roles ──┬── HR_MANAGER                       │
+│                            ├── FINANCE_LEAD                     │
+│                            ├── TEAM_LEAD                        │
+│                            └── (custom...)                      │
+│                                    │                             │
+│                                    ▼                             │
+│                            Permissions Array                     │
+│                    ["employees.view", "leaves.approve", ...]    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Permission Codes
+
+Permissions follow the format: `module.action`
+
+| Module | Actions | Example |
+|--------|---------|---------|
+| `dashboard` | view | `dashboard.view` |
+| `employees` | view, manage, delete | `employees.manage` |
+| `attendance` | view, manage, edit | `attendance.edit` |
+| `leaves` | view, manage, approve | `leaves.approve` |
+| `payroll` | view, process | `payroll.process` |
+| `projects` | view, manage | `projects.manage` |
+| `tasks` | view, manage | `tasks.manage` |
+| `accounts` | view, manage | `accounts.manage` |
+| `invoices` | view, manage | `invoices.manage` |
+| `reports` | view, export | `reports.export` |
+| `iam` | view, manage | `iam.manage` |
+| `settings` | view, manage | `settings.manage` |
+
+### Default System Roles
+
+| Role | Permissions |
+|------|-------------|
+| **ADMIN** | All permissions (full access) |
+| **MANAGER** | employees.view, attendance.*, leaves.approve, projects.*, tasks.*, reports.view |
+| **EMPLOYEE** | dashboard.view, attendance.view (own), leaves.view (own), tasks.view (assigned) |
+
+### Permission Helpers
+
+```typescript
+// src/lib/permissions.ts
+
+import {
+  hasPermission,
+  hasAnyPermission,
+  getModuleAccess,
+  PERMISSIONS,
+  SYSTEM_ROLE_PERMISSIONS
+} from '@/lib/permissions';
+
+// Check single permission
+if (hasPermission(userPermissions, 'employees.manage')) {
+  // Can manage employees
+}
+
+// Check any of multiple permissions
+if (hasAnyPermission(userPermissions, ['leaves.approve', 'leaves.manage'])) {
+  // Can handle leaves
+}
+
+// Get access map for all modules
+const access = getModuleAccess(userPermissions);
+// { dashboard: true, employees: true, payroll: false, ... }
+```
+
+### IAM Admin Page
+
+Located at `/admin/security/iam`, provides three tabs:
+
+**Users Tab**
+- View all users with their roles
+- Assign/remove custom roles
+- Filter by department, role
+
+**Roles Tab**
+- View system and custom roles
+- Create new custom roles
+- Edit role permissions
+- Delete custom roles (not system roles)
+
+**Permissions Tab**
+- Permission matrix view
+- See which roles have which permissions
+- Filter by module
+
+### Creating Custom Roles
+
+```typescript
+// POST /api/iam/roles
+{
+  "name": "HR Manager",           // Auto-converts to HR_MANAGER
+  "displayName": "HR Manager",
+  "description": "Manages HR operations",
+  "permissions": [
+    "employees.view",
+    "employees.manage",
+    "leaves.view",
+    "leaves.manage",
+    "leaves.approve",
+    "hr_documents.view",
+    "hr_documents.manage"
+  ],
+  "color": "purple"
+}
+```
+
+### Assigning Roles to Users
+
+```typescript
+// POST /api/iam/users/{userId}/roles
+{
+  "roleId": "clxxx..."
+}
+
+// DELETE /api/iam/users/{userId}/roles?roleId=clxxx...
+```
+
+### Initializing System Roles
+
+On first setup, call the seed endpoint to create system roles:
+
+```bash
+POST /api/iam/seed
+```
+
+This creates:
+- ADMIN role with all permissions
+- MANAGER role with standard manager permissions
+- EMPLOYEE role with basic employee permissions
+
+---
+
+## 9. Time & Attendance System
 
 ### Activity Tracking Flow
 
@@ -981,7 +1182,7 @@ const DETECTION_CONFIG = {
 
 ---
 
-## 9. Integrations
+## 10. Integrations
 
 ### Azure DevOps
 
@@ -1036,7 +1237,7 @@ class ConfluenceClient {
 
 ---
 
-## 10. AI/ML Features
+## 11. AI/ML Features
 
 ### Configuration
 
@@ -1107,7 +1308,7 @@ OPENAI_API_KEY=sk-...
 
 ---
 
-## 11. Environment Variables
+## 12. Environment Variables
 
 ### Required Variables
 
@@ -1142,7 +1343,7 @@ AI_ADVANCED_ANALYTICS=true
 
 ---
 
-## 12. Deployment
+## 13. Deployment
 
 ### Build for Production
 
