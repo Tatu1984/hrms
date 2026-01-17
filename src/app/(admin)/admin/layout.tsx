@@ -24,14 +24,12 @@ const sidebarItems = [
   { icon: 'ShoppingCart', label: 'Sales', href: '/admin/sales', children: [
     { icon: 'TrendingUp', label: 'Leads', href: '/admin/leads' },
   ]},
-  { icon: 'Wallet', label: 'Accounts', href: '/admin/accounts', children: [
+  { icon: 'Wallet', label: 'Accounts', href: '/admin/accounting', children: [
     { icon: 'DollarSign', label: 'Payroll', href: '/admin/payroll' },
     { icon: 'Receipt', label: 'Invoices', href: '/admin/invoices' },
     { icon: 'ArrowRightLeft', label: 'Currency Converter', href: '/admin/currency' },
-  ]},
-  { icon: 'Calculator', label: 'Accounting', href: '/admin/accounting', children: [
     { icon: 'BookOpen', label: 'Chart of Accounts', href: '/admin/accounting/chart-of-accounts' },
-    { icon: 'Receipt', label: 'Ledgers', href: '/admin/accounting/ledgers' },
+    { icon: 'FileText', label: 'Ledgers', href: '/admin/accounting/ledgers' },
     { icon: 'FileText', label: 'Vouchers', href: '/admin/accounting/vouchers' },
     { icon: 'PieChart', label: 'Cost Centers', href: '/admin/accounting/cost-centers' },
     { icon: 'Building2', label: 'Banking', href: '/admin/accounting/banking' },
@@ -41,6 +39,7 @@ const sidebarItems = [
     { icon: 'CreditCard', label: 'Sales Mgmt', href: '/admin/accounting/sales-mgmt' },
     { icon: 'Calculator', label: 'Taxation', href: '/admin/accounting/taxation' },
     { icon: 'BarChart3', label: 'Fin Reports', href: '/admin/accounting/fin-reports' },
+    { icon: 'Wallet', label: 'Budgets', href: '/admin/accounting/budgets' },
   ]},
   { icon: 'FileText', label: 'HR Department', href: '/admin/hr-documents' },
   { icon: 'Network', label: 'Hierarchy', href: '/admin/hierarchy' },
