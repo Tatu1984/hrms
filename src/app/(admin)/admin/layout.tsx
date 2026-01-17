@@ -45,9 +45,12 @@ const sidebarItems = [
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
   { icon: 'BookOpen', label: 'Documentation', href: '/admin/documentation' },
+  { icon: 'Shield', label: 'Security', href: '/admin/security/iam', children: [
+    { icon: 'Key', label: 'IAM & Roles', href: '/admin/security/iam' },
+    { icon: 'Users', label: 'User Permissions', href: '/admin/settings' },
+  ]},
   { icon: 'Settings', label: 'Settings', href: '/admin/settings', children: [
     { icon: 'Settings2', label: 'Payroll Settings', href: '/admin/payroll-settings' },
-    { icon: 'Users', label: 'User Management', href: '/admin/settings' },
   ]},
 ];
 

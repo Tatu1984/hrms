@@ -8,20 +8,66 @@ datasource db {
 }
 
 model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  username    String    @unique
+  id          String     @id @default(cuid())
+  email       String     @unique
+  username    String     @unique
   password    String
-  role        Role      @default(EMPLOYEE)
-  employeeId  String?   @unique
+  role        Role       @default(EMPLOYEE)
+  employeeId  String?    @unique
   permissions Json?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  employee    Employee? @relation(fields: [employeeId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  employee    Employee?  @relation(fields: [employeeId], references: [id])
+  userRoles   UserRole[]
 
   @@index([email])
   @@index([username])
   @@index([role])
+}
+
+// ==========================================
+// RBAC (Role-Based Access Control) Models
+// ==========================================
+
+model IAMRole {
+  id          String     @id @default(cuid())
+  name        String     @unique // "HR_MANAGER", "FINANCE_LEAD", etc.
+  displayName String              // "HR Manager", "Finance Lead"
+  description String?
+  isSystem    Boolean    @default(false) // true for ADMIN, MANAGER, EMPLOYEE
+  permissions Json       // Array of permission codes ["employees.view", "payroll.manage"]
+  color       String?    // Badge color for UI
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@index([isSystem])
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  assignedBy String?  // Who assigned this role
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       IAMRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique // "employees.view", "payroll.manage"
+  name        String           // "View Employees"
+  description String?
+  module      String           // "employees", "payroll", "attendance"
+  action      String           // "view", "manage", "edit", "approve"
+  isSystem    Boolean @default(true)
+
+  @@index([module])
 }
 
 model Employee {

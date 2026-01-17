@@ -13,9 +13,11 @@ const pathToPermissionMap: Record<string, string> = {
   '/employees': 'employees',
   '/attendance': 'attendance',
   '/leaves': 'leaves',
+  '/leave-management': 'leaves',
   '/projects': 'projects',
   '/tasks': 'tasks',
   '/payroll': 'payroll',
+  '/payroll-settings': 'payroll_settings',
   '/accounts': 'accounts',
   '/invoices': 'invoices',
   '/reports': 'reports',
@@ -23,6 +25,11 @@ const pathToPermissionMap: Record<string, string> = {
   '/sales': 'sales',
   '/messages': 'messages',
   '/settings': 'settings',
+  '/security': 'iam',
+  '/iam': 'iam',
+  '/integrations': 'integrations',
+  '/ai': 'ai',
+  '/hr-documents': 'hr_documents',
 };
 
 function checkSectionPermission(pathname: string, permissions: any): boolean {
