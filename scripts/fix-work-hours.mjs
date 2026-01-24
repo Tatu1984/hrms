@@ -1,9 +1,10 @@
 /**
  * Script to fix work hours calculation for all historical attendance records
  *
- * New formula:
- * - Work Hours = Total Elapsed - Break - Idle
- * - If Idle > 1 hour: Work Hours = Work Hours - (Idle - 1) [penalty for excessive idle]
+ * Formula:
+ * - grossHours = punchOut - punchIn
+ * - totalHours (Active Work) = grossHours - breakDuration
+ * - idleTime is tracked SEPARATELY and NOT deducted (for admin review)
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -56,15 +57,12 @@ async function main() {
     const totalElapsedHours = (punchOutTime - punchInTime) / (1000 * 60 * 60);
     const breakDuration = record.breakDuration || 0;
 
-    // Recalculate idle time from activity logs
+    // Recalculate idle time from activity logs (tracked separately, NOT deducted)
     const idleTime = await calculateIdleTime(record.id);
 
-    // New formula: Work = Total - Break - Idle
-    let actualWorkHours = totalElapsedHours - breakDuration - idleTime;
-
-    // Apply idle penalty: if idle > 1 hour, deduct excess
-    const idlePenalty = Math.max(0, idleTime - 1);
-    const newWorkHours = Math.max(0, actualWorkHours - idlePenalty);
+    // Formula: Active Work = Total Elapsed - Break
+    // Idle is tracked separately for admin review, NOT deducted from totalHours
+    const newWorkHours = Math.max(0, totalElapsedHours - breakDuration);
 
     const oldWorkHours = record.totalHours || 0;
     const oldIdleTime = record.idleTime || 0;
@@ -88,8 +86,7 @@ async function main() {
         date: record.date.toISOString().split('T')[0],
         totalElapsed: totalElapsedHours.toFixed(2),
         break: breakDuration.toFixed(2),
-        idle: `${oldIdleTime.toFixed(2)} -> ${idleTime.toFixed(2)}`,
-        idlePenalty: idlePenalty.toFixed(2),
+        idle: `${oldIdleTime.toFixed(2)} -> ${idleTime.toFixed(2)} (tracked, not deducted)`,
         workHours: `${oldWorkHours.toFixed(2)} -> ${newWorkHours.toFixed(2)}`,
       });
     }
