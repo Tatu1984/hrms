@@ -108,9 +108,17 @@ export default function TeamAttendanceCalendar({ employees }: { employees: Emplo
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  // Memoize so the references stay stable across renders. Without this,
+  // startOfMonth/endOfMonth return fresh Date objects every render, the
+  // fetch useEffect's deps look "new" each time, the effect re-fires,
+  // setLoading(true) re-renders, and the loop runs forever — surfacing as
+  // a constant "Loading attendance data..." flicker.
+  const monthStart = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
+  const monthEnd = useMemo(() => endOfMonth(currentMonth), [currentMonth]);
+  const daysInMonth = useMemo(
+    () => eachDayOfInterval({ start: monthStart, end: monthEnd }),
+    [monthStart, monthEnd],
+  );
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const firstDayOfWeek = monthStart.getDay();
