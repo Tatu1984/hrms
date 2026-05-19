@@ -193,9 +193,9 @@ export async function DELETE(
         where: { employeeId },
       });
 
-      // 8. Delete messages
+      // 8. Delete messages (Message has senderId, not employeeId)
       await tx.message.deleteMany({
-        where: { employeeId },
+        where: { senderId: employeeId },
       });
 
       // 9. Delete payroll records
@@ -208,9 +208,9 @@ export async function DELETE(
         where: { employeeId },
       });
 
-      // 11. Delete tasks assigned to employee
+      // 11. Delete tasks assigned to employee (Task uses assignedTo, not assigneeId)
       await tx.task.deleteMany({
-        where: { assigneeId: employeeId },
+        where: { assignedTo: employeeId },
       });
 
       // 12. Clear reporting head references from subordinates
