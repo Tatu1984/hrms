@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import * as bcrypt from 'bcryptjs';
 import { cache } from 'react';
+import { isSessionActive } from '@/lib/session-store';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-key');
 
@@ -12,6 +13,8 @@ export interface JWTPayload {
   employeeId?: string;
   name: string;
   permissions?: any;
+  /** Opaque id of the server-side Session row this token belongs to. */
+  sessionId?: string;
 }
 
 export async function encrypt(payload: JWTPayload): Promise<string> {
@@ -40,6 +43,7 @@ export async function decrypt(token: string): Promise<JWTPayload | null> {
         employeeId: typeof payload.employeeId === 'string' ? payload.employeeId : undefined,
         name: payload.name,
         permissions: payload.permissions || null,
+        sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       };
     }
 
@@ -53,7 +57,22 @@ export const getSession = cache(async (): Promise<JWTPayload | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get('session')?.value;
   if (!token) return null;
-  return decrypt(token);
+  const payload = await decrypt(token);
+  if (!payload) return null;
+
+  // Enforce server-side revocation: if this token is bound to a Session row,
+  // it is only valid while that session is active. Legacy tokens issued before
+  // session tracking (no sessionId) remain valid until they expire on their own.
+  if (payload.sessionId) {
+    try {
+      if (!(await isSessionActive(payload.sessionId))) return null;
+    } catch (err) {
+      // Fail open on a DB hiccup so a transient outage can't lock everyone out.
+      console.error('Session activity check failed:', err);
+    }
+  }
+
+  return payload;
 });
 
 export async function setSession(payload: JWTPayload): Promise<void> {

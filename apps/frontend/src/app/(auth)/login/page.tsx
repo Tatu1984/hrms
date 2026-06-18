@@ -45,9 +45,18 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Client-side signals the backend uses for login audit / anomaly checks
+      // (e.g. browser timezone vs IP timezone mismatch, device fingerprinting).
+      const clientMeta = {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen: `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        platform: (navigator as any).userAgentData?.platform || navigator.platform,
+      };
+
       const res = await apiFetch('/api/auth/login', {
         method: 'POST',
-        json: { email, password },
+        json: { email, password, clientMeta },
       });
 
       const data = await res.json();
