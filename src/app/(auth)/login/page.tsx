@@ -47,10 +47,19 @@ export default function LoginPage() {
     try {
       console.log('Attempting login with:', { email, password: '***' });
 
+      // Client-side signals used by the login audit / anomaly detection
+      // (browser timezone vs IP timezone, device fingerprinting).
+      const clientMeta = {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen: `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        platform: (navigator as any).userAgentData?.platform || navigator.platform,
+      };
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, clientMeta }),
       });
 
       console.log('Response status:', res.status);

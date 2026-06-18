@@ -898,6 +898,99 @@ enum BrowserEventType {
   WINDOW_RESTORED
 }
 
+// Server-side session record. The opaque sessionId is embedded in the JWT so
+// every session can be paired login<->logout, tracked, and revoked.
+model Session {
+  id            String    @id @default(cuid())
+  sessionId     String    @unique
+  userId        String
+  employeeId    String?
+  userName      String
+  userRole      String
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  lastSeenAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?
+  // Snapshot of the login context (so an active-session list is self-contained)
+  ipAddress         String?
+  city              String?
+  district          String? // locality / neighbourhood, e.g. "Salt Lake, Bidhannagar"
+  region            String?
+  postal            String? // PIN / ZIP code
+  country           String?
+  latitude          Float?
+  longitude         Float?
+  isp               String?
+  asn               String?
+  isVpnOrProxy      Boolean?
+  deviceFingerprint String?
+  userAgent         String?
+
+  @@index([userId])
+  @@index([employeeId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  SESSION_EXPIRED
+  SESSION_REVOKED
+}
+
+// Geo-aware authentication audit log. One row per login/logout/failure with the
+// network location, device fingerprint, and any anomalies detected at that time.
+model AuthEvent {
+  id            String        @id @default(cuid())
+  eventType     AuthEventType
+  userId        String?
+  employeeId    String?
+  userName      String?
+  userRole      String?
+  sessionId     String?
+  emailTried    String? // captured even when the user does not exist (failed logins)
+  failureReason String?
+
+  // Network + geolocation
+  ipAddress    String?
+  city         String?
+  district     String? // locality / neighbourhood, e.g. "Salt Lake, Bidhannagar"
+  region       String?
+  postal       String? // PIN / ZIP code
+  country      String?
+  latitude     Float?
+  longitude    Float?
+  geoSource    String? // "vercel-ip" | "ipinfo" | "unknown"
+  isp          String?
+  asn          String?
+  org          String?
+  isVpnOrProxy Boolean?
+
+  // Device
+  userAgent         String?
+  browserName       String?
+  osName            String?
+  deviceType        String?
+  deviceFingerprint String?
+  clientTimezone    String? // browser-reported tz; mismatch vs IP tz is a signal
+
+  // Anomaly detection
+  riskScore Int? // 0-100, higher = more suspicious
+  anomalies Json? // array of { code, severity, detail }
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([employeeId])
+  @@index([eventType])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([riskScore])
+}
+
 model Holiday {
   id          String   @id @default(cuid())
   name        String

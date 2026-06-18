@@ -9,6 +9,7 @@ const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/admin/dashboard' },
   { icon: 'Users', label: 'Employees', href: '/admin/employees' },
   { icon: 'Wifi', label: 'Employee Status', href: '/admin/employee-status' },
+  { icon: 'MapPin', label: 'Login Audit', href: '/admin/login-audit' },
   { icon: 'Clock', label: 'Attendance', href: '/admin/attendance', children: [
     { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
     { icon: 'Shield', label: 'Suspicious Activity', href: '/admin/suspicious-activity' },
