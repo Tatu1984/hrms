@@ -4,6 +4,7 @@ import Sidebar from '@/components/shared/sidebar';
 import Navbar from '@/components/shared/navbar';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
+import SuspiciousLoginBanner from '@/components/admin/SuspiciousLoginBanner';
 
 const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/admin/dashboard' },
@@ -80,6 +81,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <Sidebar items={sidebarItems} baseUrl="/admin" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar userName={session.name} userRole="Admin" />
+        <SuspiciousLoginBanner />
         <main className="flex-1 overflow-auto">
           {children}
         </main>

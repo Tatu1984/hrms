@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     const minRisk = searchParams.get('minRisk');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
+    const format = searchParams.get('format'); // "csv" to download a spreadsheet
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), format === 'csv' ? 5000 : 500);
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const where: Prisma.AuthEventWhereInput = {};
@@ -57,9 +58,74 @@ export async function GET(request: NextRequest) {
       prisma.authEvent.count({ where: { ...where, riskScore: { gt: 0 } } }),
     ]);
 
+    if (format === 'csv') {
+      return new NextResponse(toCsv(events), {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="login-audit-${new Date().toISOString().slice(0, 10)}.csv"`,
+        },
+      });
+    }
+
     return NextResponse.json({ events, total, flaggedCount });
   } catch (error) {
     console.error('Error fetching auth audit:', error);
     return NextResponse.json({ error: 'Failed to fetch auth audit' }, { status: 500 });
   }
+}
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  // Quote if it contains comma, quote, or newline; escape embedded quotes.
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+type AuditRow = {
+  createdAt: Date;
+  eventType: string;
+  userName: string | null;
+  emailTried: string | null;
+  failureReason: string | null;
+  riskScore: number | null;
+  anomalies: unknown;
+  district: string | null;
+  city: string | null;
+  region: string | null;
+  postal: string | null;
+  country: string | null;
+  ipAddress: string | null;
+  isp: string | null;
+  asn: string | null;
+  isVpnOrProxy: boolean | null;
+  browserName: string | null;
+  osName: string | null;
+  deviceType: string | null;
+  clientTimezone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+function toCsv(events: AuditRow[]): string {
+  const headers = [
+    'Time', 'Event', 'User', 'Email Tried', 'Failure Reason', 'Risk', 'Anomalies',
+    'District', 'City', 'Region', 'Postal', 'Country', 'IP', 'ISP', 'ASN', 'VPN/Proxy',
+    'Browser', 'OS', 'Device', 'Browser TZ', 'Latitude', 'Longitude',
+  ];
+  const lines = [headers.join(',')];
+
+  for (const e of events) {
+    const anomalyCodes = Array.isArray(e.anomalies)
+      ? (e.anomalies as { code?: string }[]).map((a) => a.code).filter(Boolean).join('; ')
+      : '';
+    lines.push(
+      [
+        e.createdAt.toISOString(), e.eventType, e.userName, e.emailTried, e.failureReason,
+        e.riskScore, anomalyCodes, e.district, e.city, e.region, e.postal, e.country,
+        e.ipAddress, e.isp, e.asn, e.isVpnOrProxy, e.browserName, e.osName, e.deviceType,
+        e.clientTimezone, e.latitude, e.longitude,
+      ].map(csvCell).join(','),
+    );
+  }
+  return lines.join('\n');
 }

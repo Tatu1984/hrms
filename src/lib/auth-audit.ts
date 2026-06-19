@@ -214,6 +214,29 @@ export async function detectLoginAnomalies(args: {
     }
   }
 
+  // --- 7. Unusual locality: an established user appearing from a new city ----
+  // Only fires once the user has a login history, so brand-new users aren't
+  // flagged on every early login. This is the core "logged in from somewhere
+  // they don't normally" signal.
+  if (geo.city) {
+    const priorLogins = await prisma.authEvent.count({
+      where: { userId, eventType: 'LOGIN_SUCCESS' },
+    });
+    if (priorLogins >= 3) {
+      const seenCity = await prisma.authEvent.findFirst({
+        where: { userId, city: geo.city, eventType: 'LOGIN_SUCCESS' },
+        select: { id: true },
+      });
+      if (!seenCity) {
+        anomalies.push({
+          code: 'UNUSUAL_LOCALITY',
+          severity: 'medium',
+          detail: `Login from ${[geo.district, geo.city].filter(Boolean).join(', ')} — not a place this user normally logs in from.`,
+        });
+      }
+    }
+  }
+
   const riskScore = Math.min(
     100,
     anomalies.reduce((sum, a) => sum + SEVERITY_WEIGHT[a.severity], 0),

@@ -201,11 +201,16 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Login Audit</h1>
-        <p className="text-sm text-gray-500">
-          Geo-aware login/logout history with behavioral anomaly detection.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Login Audit</h1>
+          <p className="text-sm text-gray-500">
+            Geo-aware login/logout history with behavioral anomaly detection.
+          </p>
+        </div>
+        <a href="/api/auth/audit?format=csv&limit=5000" download>
+          <Button variant="outline" size="sm">Export CSV</Button>
+        </a>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
