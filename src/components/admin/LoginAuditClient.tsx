@@ -237,7 +237,7 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
       {loading ? (
         <p className="text-sm text-gray-500">Loading login activity…</p>
       ) : (
-        <Tabs defaultValue="anomalies">
+        <Tabs defaultValue="activity">
           <TabsList>
             <TabsTrigger value="anomalies">Anomalies ({flagged.length})</TabsTrigger>
             <TabsTrigger value="activity">All Activity</TabsTrigger>
