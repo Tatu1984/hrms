@@ -977,6 +977,12 @@ model AuthEvent {
   deviceFingerprint String?
   clientTimezone    String? // browser-reported tz; mismatch vs IP tz is a signal
 
+  // Precise browser GPS — only populated when the user has explicitly consented
+  // to location sharing (navigator.geolocation). Far more accurate than IP geo.
+  gpsLatitude  Float?
+  gpsLongitude Float?
+  gpsAccuracyM Float? // accuracy radius in metres reported by the browser
+
   // Anomaly detection
   riskScore Int? // 0-100, higher = more suspicious
   anomalies Json? // array of { code, severity, detail }
@@ -1017,6 +1023,37 @@ model TrustedLoginLocation {
 
   @@unique([userId, ipAddress])
   @@index([userId])
+}
+
+enum LocationConsentStatus {
+  PENDING // asked, no response yet (rarely stored; absence of a row = not yet asked)
+  GRANTED // user allowed precise location sharing
+  DENIED // user declined (we keep re-prompting on each login until GRANTED)
+}
+
+// Per-user record of whether they consented to share precise browser GPS.
+// One row per user; upserted whenever they respond to the consent prompt.
+// The latest precise fix is cached here for the admin dashboard.
+model LocationConsent {
+  id         String                @id @default(cuid())
+  userId     String                @unique
+  employeeId String?
+  userName   String?
+  userRole   String?
+  status     LocationConsentStatus @default(PENDING)
+  respondedAt DateTime? // when the user last granted/denied
+
+  // Latest precise fix captured while consent was GRANTED
+  latitude   Float?
+  longitude  Float?
+  accuracyM  Float?
+  capturedAt DateTime?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 model Holiday {

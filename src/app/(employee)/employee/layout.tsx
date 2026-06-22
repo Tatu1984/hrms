@@ -5,6 +5,7 @@ import Navbar from '@/components/shared/navbar';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 import { ActivityHeartbeat } from '@/components/employee/ActivityHeartbeat';
 import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
+import LocationConsentGate from '@/components/shared/LocationConsentGate';
 
 const sidebarItems = [
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/employee/dashboard' },
@@ -32,6 +33,7 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
     <div className="flex h-screen bg-gray-100">
       <ActivityHeartbeat />
       <BrowserActivityTracker />
+      <LocationConsentGate />
       <Sidebar items={sidebarItems} baseUrl="/employee" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar userName={session.name} userRole="Employee" />

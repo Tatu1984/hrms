@@ -4,6 +4,7 @@ import Sidebar from '@/components/shared/sidebar';
 import Navbar from '@/components/shared/navbar';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
+import LocationConsentGate from '@/components/shared/LocationConsentGate';
 import SuspiciousLoginBanner from '@/components/admin/SuspiciousLoginBanner';
 
 const sidebarItems = [
@@ -11,6 +12,7 @@ const sidebarItems = [
   { icon: 'Users', label: 'Employees', href: '/admin/employees' },
   { icon: 'Wifi', label: 'Employee Status', href: '/admin/employee-status' },
   { icon: 'MapPin', label: 'Login Audit', href: '/admin/login-audit' },
+  { icon: 'LocateFixed', label: 'Location Consent', href: '/admin/location-consent' },
   { icon: 'Clock', label: 'Attendance', href: '/admin/attendance', children: [
     { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
     { icon: 'Shield', label: 'Suspicious Activity', href: '/admin/suspicious-activity' },
@@ -78,6 +80,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex h-screen bg-gray-100">
       <BrowserActivityTracker />
+      <LocationConsentGate />
       <Sidebar items={sidebarItems} baseUrl="/admin" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar userName={session.name} userRole="Admin" />
