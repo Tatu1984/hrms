@@ -21,7 +21,7 @@ export async function encrypt(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d') // 7 days instead of 24h to prevent auto-logout
+    .setExpirationTime('1d') // sessions expire after 1 day, forcing a fresh (audited) login daily
     .sign(secret);
 }
 
@@ -82,7 +82,7 @@ export async function setSession(payload: JWTPayload): Promise<void> {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax', // Important for cross-site navigation
-    maxAge: 60 * 60 * 24 * 7, // 7 days to match JWT expiration
+    maxAge: 60 * 60 * 24, // 1 day, to match JWT expiration
     path: '/',
   });
 }
