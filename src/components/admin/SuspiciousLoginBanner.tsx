@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/db';
+import { trustedKeysFor } from '@/lib/auth-audit';
 
 /** Risk threshold (medium severity and up) for surfacing a login as suspicious. */
 const RISK_THRESHOLD = 35;
@@ -24,10 +25,18 @@ export default async function SuspiciousLoginBanner() {
         riskScore: { gte: RISK_THRESHOLD },
       },
       orderBy: { createdAt: 'desc' },
-      select: { userName: true },
+      select: { userId: true, userName: true, ipAddress: true },
     });
-    count = flagged.length;
-    latestName = flagged[0]?.userName ?? null;
+
+    // Drop logins the admin has already approved (their IP is allowlisted).
+    const trustedKeys = await trustedKeysFor(
+      flagged.map((e) => e.userId).filter((id): id is string => Boolean(id)),
+    );
+    const unresolved = flagged.filter(
+      (e) => !(e.userId && e.ipAddress && trustedKeys.has(`${e.userId}|${e.ipAddress}`)),
+    );
+    count = unresolved.length;
+    latestName = unresolved[0]?.userName ?? null;
   } catch {
     return null; // Never let the banner break the admin shell.
   }

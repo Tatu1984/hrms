@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { trustedKeysFor } from '@/lib/auth-audit';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       where.createdAt = createdAt;
     }
 
-    const [events, total, flaggedCount] = await Promise.all([
+    const [events, total] = await Promise.all([
       prisma.authEvent.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -55,8 +56,18 @@ export async function GET(request: NextRequest) {
         skip: offset,
       }),
       prisma.authEvent.count({ where }),
-      prisma.authEvent.count({ where: { ...where, riskScore: { gt: 0 } } }),
     ]);
+
+    // Annotate events the admin has already approved (their IP is allowlisted),
+    // so the UI can drop them from the "needs review" view and the banner.
+    const trustedKeys = await trustedKeysFor(
+      events.map((e) => e.userId).filter((id): id is string => Boolean(id)),
+    );
+    const annotated = events.map((e) => ({
+      ...e,
+      trusted: Boolean(e.userId && e.ipAddress && trustedKeys.has(`${e.userId}|${e.ipAddress}`)),
+    }));
+    const flaggedCount = annotated.filter((e) => (e.riskScore ?? 0) > 0 && !e.trusted).length;
 
     if (format === 'csv') {
       return new NextResponse(toCsv(events), {
@@ -67,7 +78,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ events, total, flaggedCount });
+    return NextResponse.json({ events: annotated, total, flaggedCount });
   } catch (error) {
     console.error('Error fetching auth audit:', error);
     return NextResponse.json({ error: 'Failed to fetch auth audit' }, { status: 500 });

@@ -96,6 +96,95 @@ export interface AnomalyResult {
 }
 
 /**
+ * Is this (user, IP) pair on the admin-approved allowlist?
+ * Approving a flagged login adds its IP here so the same IP never re-flags.
+ * Bumps lastSeenAt as a side effect so admins can see when a trusted IP was last used.
+ */
+export async function isTrustedLogin(userId: string, ipAddress?: string | null): Promise<boolean> {
+  if (!ipAddress) return false;
+  try {
+    const trusted = await prisma.trustedLoginLocation.findUnique({
+      where: { userId_ipAddress: { userId, ipAddress } },
+      select: { id: true },
+    });
+    if (!trusted) return false;
+    await prisma.trustedLoginLocation
+      .update({ where: { id: trusted.id }, data: { lastSeenAt: new Date() } })
+      .catch(() => {});
+    return true;
+  } catch {
+    // Table may not exist yet (migration not applied) — treat as "not trusted".
+    return false;
+  }
+}
+
+/**
+ * Return the set of "userId|ipAddress" keys that are on the trust allowlist,
+ * for the given users. Used to filter already-trusted events out of the
+ * suspicious-login feeds without an N+1 query per row.
+ */
+export async function trustedKeysFor(userIds: string[]): Promise<Set<string>> {
+  const keys = new Set<string>();
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (ids.length === 0) return keys;
+  try {
+    const rows = await prisma.trustedLoginLocation.findMany({
+      where: { userId: { in: ids } },
+      select: { userId: true, ipAddress: true },
+    });
+    for (const r of rows) {
+      if (r.ipAddress) keys.add(`${r.userId}|${r.ipAddress}`);
+    }
+  } catch {
+    // Table missing — nothing is trusted yet.
+  }
+  return keys;
+}
+
+/**
+ * Approve a flagged login: allowlist its (user, IP) so it never re-flags.
+ * Snapshots the location from the event for later display. Returns the trusted
+ * row's id, or null if the event has no IP to key on.
+ */
+export async function approveLoginEvent(args: {
+  event: {
+    userId: string | null;
+    userName: string | null;
+    ipAddress: string | null;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    asn: string | null;
+    isp: string | null;
+  };
+  approvedBy?: string | null;
+  approvedByName?: string | null;
+  label?: string | null;
+}): Promise<string | null> {
+  const { event } = args;
+  if (!event.userId || !event.ipAddress) return null;
+
+  const snapshot = {
+    userName: event.userName,
+    city: event.city,
+    region: event.region,
+    country: event.country,
+    asn: event.asn,
+    isp: event.isp,
+    label: args.label ?? null,
+    approvedBy: args.approvedBy ?? null,
+    approvedByName: args.approvedByName ?? null,
+  };
+
+  const row = await prisma.trustedLoginLocation.upsert({
+    where: { userId_ipAddress: { userId: event.userId, ipAddress: event.ipAddress } },
+    create: { userId: event.userId, ipAddress: event.ipAddress, ...snapshot },
+    update: { ...snapshot, lastSeenAt: new Date() },
+  });
+  return row.id;
+}
+
+/**
  * Inspect a user's recent auth history + live sessions to flag behavioral signals
  * that suggest concurrent/dual usage (e.g. moonlighting from another office):
  *  - concurrent active sessions from a different city/network
@@ -106,14 +195,22 @@ export interface AnomalyResult {
  */
 export async function detectLoginAnomalies(args: {
   userId: string;
+  ipAddress?: string | null;
   geo: GeoInfo;
   device: DeviceInfo;
   clientTimezone?: string;
   now?: Date;
 }): Promise<AnomalyResult> {
-  const { userId, geo, device, clientTimezone } = args;
+  const { userId, ipAddress, geo, device, clientTimezone } = args;
   const now = args.now ?? new Date();
   const anomalies: Anomaly[] = [];
+
+  // --- 0. Admin-approved IP: trust it and skip scoring entirely -------------
+  // Once an admin approves a flagged login, that (user, IP) is allowlisted, so
+  // subsequent logins from the same IP are never re-flagged.
+  if (await isTrustedLogin(userId, ipAddress)) {
+    return { anomalies: [], riskScore: 0 };
+  }
 
   // --- 1. Concurrent active sessions from a different place / network --------
   const liveSessions = await prisma.session.findMany({

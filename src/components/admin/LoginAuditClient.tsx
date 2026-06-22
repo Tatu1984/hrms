@@ -29,6 +29,8 @@ interface AuthEvent {
   clientTimezone: string | null;
   riskScore: number | null;
   anomalies: { code: string; severity: 'low' | 'medium' | 'high'; detail: string }[] | null;
+  trusted?: boolean;
+  userId: string | null;
   createdAt: string;
 }
 
@@ -95,6 +97,7 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
   const [flaggedCount, setFlaggedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -120,7 +123,37 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
     load();
   }, []);
 
-  const flagged = useMemo(() => events.filter((e) => (e.riskScore ?? 0) > 0), [events]);
+  const flagged = useMemo(
+    () => events.filter((e) => (e.riskScore ?? 0) > 0 && !e.trusted),
+    [events],
+  );
+
+  // Approve a flagged login: allowlist its (user, IP). Every event from the same
+  // user+IP is then marked trusted locally, so it leaves the Anomalies tab and
+  // the flagged count drops — without a full refetch.
+  const approve = async (e: AuthEvent) => {
+    setApproving(e.id);
+    try {
+      const res = await fetch('/api/auth/audit/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: e.id }),
+      });
+      if (res.ok) {
+        setEvents((prev) =>
+          prev.map((ev) =>
+            ev.userId === e.userId && ev.ipAddress === e.ipAddress ? { ...ev, trusted: true } : ev,
+          ),
+        );
+        setFlaggedCount((c) => Math.max(0, c - 1));
+      } else {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error || 'Could not approve this login.');
+      }
+    } finally {
+      setApproving(null);
+    }
+  };
 
   const revoke = async (sessionId: string) => {
     setRevoking(sessionId);
@@ -168,8 +201,27 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
             {e.isVpnOrProxy && <Badge className="bg-red-100 text-red-800 mt-1">VPN / Proxy</Badge>}
           </div>
 
-          <div className="min-w-[110px]">
+          <div className="min-w-[110px] space-y-2">
             <RiskBadge score={e.riskScore} />
+            {(e.riskScore ?? 0) > 0 && (
+              e.trusted ? (
+                <Badge className="bg-green-100 text-green-800 block w-fit">✓ Approved</Badge>
+              ) : canRevoke ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={approving === e.id || !e.ipAddress}
+                  title={
+                    e.ipAddress
+                      ? 'Mark this IP as trusted — future logins from it won’t be flagged'
+                      : 'No IP address to approve'
+                  }
+                  onClick={() => approve(e)}
+                >
+                  {approving === e.id ? 'Approving…' : 'Approve'}
+                </Button>
+              ) : null
+            )}
           </div>
         </div>
 

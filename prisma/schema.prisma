@@ -991,6 +991,34 @@ model AuthEvent {
   @@index([riskScore])
 }
 
+// Admin-approved "this login is fine" allowlist. When an admin reviews a flagged
+// login and approves it, we record the (user, IP) pair plus a location snapshot.
+// Future logins from that IP are no longer flagged, and the existing flagged
+// events for that IP drop out of the suspicious-login banner. A genuinely new IP
+// / location is absent from this list, so it surfaces again for review.
+model TrustedLoginLocation {
+  id        String @id @default(cuid())
+  userId    String
+  userName  String?
+  ipAddress String?
+
+  // Location snapshot at approval time (for display in the audit UI)
+  city    String?
+  region  String?
+  country String?
+  asn     String?
+  isp     String?
+
+  label         String? // optional admin note, e.g. "home office"
+  approvedBy     String? // userId of the admin who approved
+  approvedByName String?
+  approvedAt    DateTime @default(now())
+  lastSeenAt    DateTime @default(now()) // bumped each time a trusted login arrives
+
+  @@unique([userId, ipAddress])
+  @@index([userId])
+}
+
 model Holiday {
   id          String   @id @default(cuid())
   name        String

@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
     try {
       const detection = await detectLoginAnomalies({
         userId: user.id,
+        ipAddress: ip,
         geo,
         device,
         clientTimezone: clientMeta.timezone,
