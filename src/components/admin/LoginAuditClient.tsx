@@ -31,6 +31,9 @@ interface AuthEvent {
   anomalies: { code: string; severity: 'low' | 'medium' | 'high'; detail: string }[] | null;
   trusted?: boolean;
   userId: string | null;
+  gpsLatitude: number | null;
+  gpsLongitude: number | null;
+  gpsAccuracyM: number | null;
   createdAt: string;
 }
 
@@ -170,7 +173,12 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
   };
 
   const EventRow = ({ e }: { e: AuthEvent }) => {
-    const link = mapsLink(e.latitude, e.longitude);
+    // Prefer precise GPS (captured with the user's consent) over IP geolocation,
+    // which only resolves to a city centroid.
+    const hasGps = e.gpsLatitude != null && e.gpsLongitude != null;
+    const link = hasGps
+      ? mapsLink(e.gpsLatitude, e.gpsLongitude)
+      : mapsLink(e.latitude, e.longitude);
     return (
       <div className="border-b last:border-0 py-3 px-2 hover:bg-gray-50">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -189,7 +197,7 @@ export default function LoginAuditClient({ canRevoke }: { canRevoke: boolean }) 
             <div className="text-xs text-gray-500">{e.isp || e.asn || '—'}</div>
             {link && (
               <a className="text-xs text-blue-600 underline" href={link} target="_blank" rel="noreferrer">
-                View on map
+                {hasGps ? `View precise GPS (±${Math.round(e.gpsAccuracyM ?? 0)}m)` : 'View on map (approx. city)'}
               </a>
             )}
           </div>
