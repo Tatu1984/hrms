@@ -14,18 +14,45 @@ import { MapPin, ShieldCheck } from 'lucide-react';
 
 type Status = 'GRANTED' | 'DENIED' | 'PENDING' | 'NONE';
 
-async function getPosition(): Promise<GeolocationPosition> {
+function getOnce(opts: PositionOptions): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new Error('Geolocation not supported'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
+    navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+  });
+}
+
+function isPermissionDenied(e: unknown): boolean {
+  const err = e as GeolocationPositionError | undefined;
+  // 1 === GeolocationPositionError.PERMISSION_DENIED
+  return !!err && typeof err.code === 'number' && err.code === 1;
+}
+
+/**
+ * Get a position, preferring a precise GPS fix. Desktops without a GPS chip
+ * frequently time out on high-accuracy reads, so on a non-permission failure we
+ * retry with a coarse network fix (and allow a recent cached one) rather than
+ * failing outright — otherwise consent could never be recorded on those devices.
+ * `allowCache` lets the silent background refresh reuse a recent fix instead of
+ * actively polling GPS on every page load.
+ */
+async function getPosition(allowCache = false): Promise<GeolocationPosition> {
+  try {
+    return await getOnce({
       enableHighAccuracy: true,
       timeout: 12000,
-      maximumAge: 0,
+      maximumAge: allowCache ? 6 * 60 * 60 * 1000 : 0,
     });
-  });
+  } catch (e) {
+    if (isPermissionDenied(e)) throw e; // user blocked — don't retry
+    return await getOnce({
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: allowCache ? 6 * 60 * 60 * 1000 : 5 * 60 * 1000,
+    });
+  }
 }
 
 async function post(body: Record<string, unknown>) {
@@ -58,8 +85,10 @@ export default function LocationConsentGate() {
 
         if (status === 'GRANTED') {
           // Already consented — refresh the location quietly (no UI, no popup).
+          // Never downgrade the stored status here: a transient failure must not
+          // turn a granted consent into a re-prompt on the next login.
           try {
-            const pos = await getPosition();
+            const pos = await getPosition(true);
             await post({
               status: 'GRANTED',
               latitude: pos.coords.latitude,
@@ -94,13 +123,21 @@ export default function LocationConsentGate() {
         accuracy: pos.coords.accuracy,
       });
       setOpen(false);
-    } catch {
-      // The browser blocked or the user dismissed the native prompt. Record a
-      // denial (so it's visible to admins) and tell them how to enable it.
-      await post({ status: 'DENIED' }).catch(() => {});
-      setError(
-        'Location was blocked by your browser. Please allow location access for this site (check the address-bar icon), then try again.',
-      );
+    } catch (e) {
+      if (isPermissionDenied(e)) {
+        // User actually blocked location in the browser. Record the denial and
+        // tell them how to enable it.
+        await post({ status: 'DENIED' }).catch(() => {});
+        setError(
+          'Location was blocked by your browser. Please allow location access for this site (check the address-bar icon), then try again.',
+        );
+      } else {
+        // Permission was granted but we couldn't get a fix right now (e.g. GPS
+        // timeout on a desktop). Record consent as GRANTED so we don't nag on
+        // every login — coordinates will be captured on a later successful read.
+        await post({ status: 'GRANTED' }).catch(() => {});
+        setOpen(false);
+      }
     } finally {
       setBusy(false);
     }
