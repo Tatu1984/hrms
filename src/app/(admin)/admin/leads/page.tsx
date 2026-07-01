@@ -32,7 +32,7 @@ export default async function LeadsPage() {
   const totalLeads = leads.length;
   const convertedLeads = leads.filter(l => l.status === 'CONVERTED').length;
   const activeLeads = leads.filter(l => !['CONVERTED', 'LOST'].includes(l.status)).length;
-  const totalValue = leads.reduce((sum, l) => sum + (l.value || 0), 0);
+  const totalValue = leads.reduce((sum, l) => sum + (l.estimatedValue || 0), 0);
   const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0';
 
   const stats = [

@@ -148,7 +148,7 @@ export async function PUT(
       where: { employeeId },
       data: {
         isVerified: true,
-        verifiedBy: session.employeeId || session.id,
+        verifiedBy: session.employeeId || session.userId,
         verifiedAt: new Date(),
       },
     });

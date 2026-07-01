@@ -9,6 +9,7 @@ import type {
   EmotionType
 } from '../types';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 export class SentimentAnalyzer {
 
@@ -183,8 +184,8 @@ Return JSON:
           sentiment: sentiment.sentiment,
           score: sentiment.score,
           confidence: sentiment.confidence,
-          aspects: sentiment.aspects as unknown as Record<string, unknown>,
-          emotions: sentiment.emotions as unknown as Record<string, unknown>,
+          aspects: sentiment.aspects as unknown as Prisma.InputJsonValue,
+          emotions: sentiment.emotions as unknown as Prisma.InputJsonValue,
         },
       });
     }

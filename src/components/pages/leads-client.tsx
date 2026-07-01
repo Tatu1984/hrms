@@ -31,7 +31,7 @@ interface Lead {
   phone: string;
   source: string | null;
   status: string;
-  value: number | null;
+  estimatedValue: number | null;
   sale: {
     id: string;
     saleNumber: string;
@@ -148,7 +148,7 @@ export function LeadsClient({ leads, userRole }: LeadsClientProps) {
                   )}
                 </td>
                 <td className="px-4 py-3 text-sm font-semibold">
-                  {lead.value ? formatCurrency(lead.value) : '-'}
+                  {lead.estimatedValue ? formatCurrency(lead.estimatedValue) : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {lead.status === 'CONVERTED' ? (

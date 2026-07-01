@@ -205,7 +205,7 @@ export default function AIAnalyticsPage() {
       const leaves = data.leaves as Array<Record<string, unknown>>;
       return (
         <div className="space-y-3">
-          <Badge variant="outline">{data.count} pending</Badge>
+          <Badge variant="outline">{data.count as number} pending</Badge>
           {leaves.length === 0 ? (
             <p className="text-muted-foreground text-sm">No pending leaves</p>
           ) : (
@@ -219,7 +219,7 @@ export default function AIAnalyticsPage() {
                   <Badge>{leave.type as string}</Badge>
                 </div>
                 <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                  <span>{leave.days} days</span>
+                  <span>{leave.days as number} days</span>
                   <span>From: {new Date(leave.startDate as string).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -233,7 +233,7 @@ export default function AIAnalyticsPage() {
       const projects = data.projects as Array<Record<string, unknown>>;
       return (
         <div className="space-y-3">
-          <Badge variant="outline">{data.count} active projects</Badge>
+          <Badge variant="outline">{data.count as number} active projects</Badge>
           {projects.length === 0 ? (
             <p className="text-muted-foreground text-sm">No active projects</p>
           ) : (
@@ -241,15 +241,15 @@ export default function AIAnalyticsPage() {
               <div key={idx} className="p-3 bg-muted/50 rounded-lg">
                 <div className="flex justify-between items-start">
                   <p className="font-medium">{project.name as string}</p>
-                  <Badge variant="secondary">{project.memberCount} members</Badge>
+                  <Badge variant="secondary">{project.memberCount as number} members</Badge>
                 </div>
                 <div className="flex gap-4 mt-2 text-sm">
                   <span className="text-muted-foreground">
-                    Tasks: {project.completedTasks}/{project.totalTasks}
+                    Tasks: {project.completedTasks as number}/{project.totalTasks as number}
                   </span>
-                  {project.budget && (
+                  {Boolean(project.budget) && (
                     <span className="text-green-600">
-                      {project.currency} {(project.budget as number).toLocaleString()}
+                      {project.currency as string} {(project.budget as number).toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -264,7 +264,7 @@ export default function AIAnalyticsPage() {
       const tasks = data.tasks as Array<Record<string, unknown>>;
       return (
         <div className="space-y-3">
-          <Badge variant={tasks.length > 0 ? "destructive" : "outline"}>{data.count} overdue</Badge>
+          <Badge variant={tasks.length > 0 ? "destructive" : "outline"}>{data.count as number} overdue</Badge>
           {tasks.length === 0 ? (
             <p className="text-green-600 text-sm flex items-center gap-2">
               <CheckCircle className="h-4 w-4" /> No overdue tasks

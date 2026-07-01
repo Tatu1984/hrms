@@ -341,7 +341,7 @@ export default function AttendanceEditPage() {
               {holidayName}
             </div>
           )}
-          {attendance && attendance.totalHours !== null && attendance.totalHours > 0 && (
+          {attendance && attendance.totalHours != null && attendance.totalHours > 0 && (
             <div className="text-xs text-gray-600 mt-1">
               {formatHoursMinutes(attendance.totalHours)}
             </div>

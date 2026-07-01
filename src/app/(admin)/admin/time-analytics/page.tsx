@@ -73,6 +73,7 @@ interface DistributionData {
   category: string;
   hours: number;
   percentage: number;
+  [key: string]: string | number;
 }
 
 interface EmployeeDetail {

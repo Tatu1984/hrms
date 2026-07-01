@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+// Message has a `sender` relation but no `recipient` relation in the schema
+// (only a recipientId column), so we resolve recipient Employee records manually
+// to keep the { ...message, recipient } response shape without a schema change.
+const RECIPIENT_SELECT = { id: true, employeeId: true, name: true, designation: true } as const;
+async function attachRecipients<T extends { recipientId: string }>(messages: T[]) {
+  const ids = [...new Set(messages.map((m) => m.recipientId))];
+  const recipients = await prisma.employee.findMany({
+    where: { id: { in: ids } },
+    select: RECIPIENT_SELECT,
+  });
+  const byId = new Map(recipients.map((r) => [r.id, r]));
+  return messages.map((m) => ({ ...m, recipient: byId.get(m.recipientId) ?? null }));
+}
+
 // GET /api/messages - Get messages
 export async function GET(request: NextRequest) {
   try {
@@ -47,21 +61,13 @@ export async function GET(request: NextRequest) {
             designation: true,
           },
         },
-        recipient: {
-          select: {
-            id: true,
-            employeeId: true,
-            name: true,
-            designation: true,
-          },
-        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json(messages);
+    return NextResponse.json(await attachRecipients(messages));
   } catch (error) {
     console.error('Error fetching messages:', error);
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     // Get current user's employee record
     const currentUser = await prisma.user.findUnique({
-      where: { id: session.id },
+      where: { id: session.userId },
       include: { employee: true },
     });
 
@@ -132,20 +138,13 @@ export async function POST(request: NextRequest) {
             name: true,
           },
         },
-        recipient: {
-          select: {
-            id: true,
-            employeeId: true,
-            name: true,
-          },
-        },
       },
     });
 
     // Return with user ID as senderId for popup messenger
     return NextResponse.json({
       id: message.id,
-      senderId: session.id,
+      senderId: session.userId,
       content: message.content,
       createdAt: message.createdAt,
       read: message.read,
@@ -204,17 +203,11 @@ export async function PUT(request: NextRequest) {
             name: true,
           },
         },
-        recipient: {
-          select: {
-            id: true,
-            employeeId: true,
-            name: true,
-          },
-        },
       },
     });
 
-    return NextResponse.json({ success: true, message });
+    const [messageWithRecipient] = await attachRecipients([message]);
+    return NextResponse.json({ success: true, message: messageWithRecipient });
   } catch (error) {
     console.error('Update message error:', error);
     return NextResponse.json({ error: 'Failed to update message' }, { status: 500 });

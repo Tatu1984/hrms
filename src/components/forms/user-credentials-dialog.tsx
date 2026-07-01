@@ -63,7 +63,7 @@ export function UserCredentialsDialog({ employee, existingUser }: UserCredential
   }, [existingUser]);
 
   const togglePermission = (key: string) => {
-    setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
+    setPermissions(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
   };
 
   const permissionSections = [

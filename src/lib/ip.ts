@@ -27,12 +27,6 @@ export function getClientIp(request: NextRequest): string {
     }
   }
 
-  // Fallback to connection IP (Next.js/Vercel)
-  const ip = request.ip;
-  if (ip) {
-    return ip;
-  }
-
-  // Last resort
+  // Last resort — Next.js 16 removed request.ip; rely on the proxy headers above
   return 'unknown';
 }

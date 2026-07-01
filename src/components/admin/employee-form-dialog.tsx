@@ -30,6 +30,28 @@ interface Employee {
   dateOfJoining: string;
 }
 
+// Shape of an employee coming from the server (Prisma) — nullable optionals,
+// Date for dateOfJoining, and extra relation fields are allowed.
+interface EmployeeInput {
+  id?: string;
+  name: string;
+  email: string;
+  phone: string;
+  altPhone?: string | null;
+  altEmail?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactRelation?: string | null;
+  address: string;
+  designation: string;
+  salaryType: 'FIXED' | 'VARIABLE';
+  salary: number;
+  variablePay?: number | null;
+  department: string;
+  reportingHeadId?: string | null;
+  dateOfJoining: string | Date;
+}
+
 interface DesignationOption {
   id: string;
   name: string;
@@ -66,8 +88,8 @@ interface DocumentUpload {
 }
 
 interface EmployeeFormDialogProps {
-  employee?: Employee;
-  employees?: Employee[];
+  employee?: EmployeeInput;
+  employees?: EmployeeInput[];
   mode?: 'create' | 'edit';
 }
 

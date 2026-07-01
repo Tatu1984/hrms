@@ -67,7 +67,7 @@ export default function DailyWorkUpdate() {
         const response = await fetch(`/api/daily-work-updates?month=${month}`);
         if (response.ok) {
           const data = await response.json();
-          const dates = new Set(
+          const dates = new Set<string>(
             data.updates.map((u: DailyUpdate) => format(new Date(u.date), 'yyyy-MM-dd'))
           );
           setDatesWithUpdates(dates);

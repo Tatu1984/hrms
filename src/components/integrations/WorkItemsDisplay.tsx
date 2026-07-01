@@ -110,7 +110,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true, showP
   }, {} as Record<string, WorkItem[]>);
 
   // Azure DevOps styling
-  const getAzureDevOpsStyles = (workItem: WorkItem) => {
+  const getAzureDevOpsStyles = (workItem: WorkItem): { type?: string; status: string; section?: string } => {
     const type = workItem.workItemType.toLowerCase();
 
     // Type colors (Azure DevOps style)
@@ -137,7 +137,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true, showP
   };
 
   // Asana styling
-  const getAsanaStyles = (workItem: WorkItem) => {
+  const getAsanaStyles = (workItem: WorkItem): { type?: string; status: string; section?: string } => {
     // Status/section based colors (Asana style)
     const statusStyles: Record<string, string> = {
       'to do': 'bg-gray-100 text-gray-700',
@@ -158,7 +158,7 @@ export default function WorkItemsDisplay({ employeeId, showFilters = true, showP
   };
 
   // Confluence styling
-  const getConfluenceStyles = (workItem: WorkItem) => {
+  const getConfluenceStyles = (workItem: WorkItem): { type?: string; status: string; section?: string } => {
     const typeStyles: Record<string, string> = {
       'page': 'bg-blue-100 text-blue-700 border-blue-300',
       'blog': 'bg-indigo-100 text-indigo-700 border-indigo-300',

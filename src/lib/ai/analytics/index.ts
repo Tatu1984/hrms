@@ -10,6 +10,18 @@ import type {
   InsightType
 } from '../types';
 import { prisma } from '@/lib/db';
+import { Prisma, $Enums } from '@prisma/client';
+
+// Map local (lowercase) InsightType values to the Prisma InsightType enum.
+const INSIGHT_TYPE_TO_PRISMA: Record<InsightType, $Enums.InsightType> = {
+  anomaly: 'ANOMALY',
+  trend: 'TREND',
+  pattern: 'PATTERN',
+  correlation: 'CORRELATION',
+  threshold_breach: 'THRESHOLD',
+  comparison: 'COMPARISON',
+  forecast: 'FORECAST',
+};
 
 // Schema description for query generation
 const SCHEMA_DESCRIPTION = `
@@ -47,7 +59,7 @@ export class AdvancedAnalyticsEngine {
           originalQuery: query,
           parsedIntent: parsedQuery.intent,
           generatedSQL: result.sql,
-          result: result.data as unknown as Record<string, unknown>,
+          result: result.data as unknown as Prisma.InputJsonValue,
           executionTime: Date.now() - startTime,
           success: true,
         },
@@ -479,7 +491,7 @@ ${SCHEMA_DESCRIPTION}`,
     if (pendingLeaves > 5) {
       insights.push({
         id: crypto.randomUUID(),
-        type: 'threshold',
+        type: 'threshold_breach',
         title: 'Pending Leave Requests',
         description: `${pendingLeaves} leave requests awaiting approval`,
         data: { count: pendingLeaves },
@@ -514,11 +526,11 @@ ${SCHEMA_DESCRIPTION}`,
     for (const insight of insights) {
       await prisma.aIInsight.create({
         data: {
-          type: insight.type as InsightType,
+          type: INSIGHT_TYPE_TO_PRISMA[insight.type],
           category: insight.category,
           title: insight.title,
           description: insight.description,
-          data: insight.data as Record<string, unknown>,
+          data: insight.data as Prisma.InputJsonValue,
           importance: insight.importance,
           actionable: insight.actionable,
           actions: insight.suggestedActions,

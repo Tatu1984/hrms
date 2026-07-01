@@ -11,7 +11,7 @@ export async function GET() {
 
     // Get current user's employee record
     const currentUser = await prisma.user.findUnique({
-      where: { id: session.id },
+      where: { id: session.userId },
       include: {
         employee: {
           include: {
@@ -27,7 +27,7 @@ export async function GET() {
 
     // Get messaging permissions for current user
     const permissions = await prisma.messagingPermission.findUnique({
-      where: { userId: session.id },
+      where: { userId: session.userId },
     });
 
     const canMessagePeers = permissions?.canMessagePeers ?? true;

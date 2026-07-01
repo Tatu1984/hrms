@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       joinDate.setHours(0, 0, 0, 0);
 
       // Note: Employee model doesn't have leaveDate yet, so we'll use null for now
-      const leaveDate = null; // emp.leaveDate ? new Date(emp.leaveDate) : null;
+      const leaveDate = null as Date | null; // emp.leaveDate ? new Date(emp.leaveDate) : null;
 
       console.log(`Join date: ${joinDate.toISOString().split('T')[0]}`);
       console.log(`Leave date: ${leaveDate ? leaveDate.toISOString().split('T')[0] : 'N/A'}`);

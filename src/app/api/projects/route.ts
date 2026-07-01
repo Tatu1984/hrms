@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
         projectType: projectType || 'MILESTONE',
         totalBudget: totalBudget || 0,
         upfrontPayment: upfrontPayment || 0,
-        milestones: milestonesData,
+        milestones: milestonesData ? (milestonesData as Prisma.InputJsonValue) : Prisma.JsonNull,
         successCriteria: successCriteria || '',
         leadId: leadId || null,
         saleId: saleId || null,

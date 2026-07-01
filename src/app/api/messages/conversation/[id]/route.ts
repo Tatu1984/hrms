@@ -19,7 +19,7 @@ export async function GET(
     const recipientUserId = params.id;
     // Get current user's employee record
     const currentUser = await prisma.user.findUnique({
-      where: { id: session.id },
+      where: { id: session.userId },
       include: {
         employee: true,
       },
@@ -66,7 +66,7 @@ export async function GET(
     // Transform messages to include user IDs instead of employee IDs
     const transformedMessages = messages.map((msg) => ({
       id: msg.id,
-      senderId: msg.senderId === currentUser.employee!.id ? session.id : recipientUserId,
+      senderId: msg.senderId === currentUser.employee!.id ? session.userId : recipientUserId,
       content: msg.content,
       createdAt: msg.createdAt,
       read: msg.read,

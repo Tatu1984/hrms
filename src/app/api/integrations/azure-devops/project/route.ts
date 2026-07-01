@@ -34,6 +34,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!connection.organizationUrl) {
+      return NextResponse.json(
+        { error: 'Azure DevOps connection is missing an organization URL' },
+        { status: 400 }
+      );
+    }
+
     // Create Azure DevOps client
     const client = createAzureDevOpsClient(
       connection.organizationUrl,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma, HRDocType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
@@ -13,7 +14,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
 
-    const where = type ? { type, isActive: true } : { isActive: true };
+    const where: Prisma.HRDocumentWhereInput = type
+      ? { type: type as HRDocType, isActive: true }
+      : { isActive: true };
 
     const documents = await prisma.hRDocument.findMany({
       where,

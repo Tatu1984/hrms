@@ -100,7 +100,7 @@ export default async function EmployeeTasksPage() {
                       </div>
                       <p className="text-sm text-gray-600 mb-3">{task.description}</p>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Project: <span className="font-medium">{task.project.name}</span></span>
+                        <span>Project: <span className="font-medium">{task.project?.name ?? 'N/A'}</span></span>
                         {task.dueDate && (
                           <span>Due: <span className="font-medium">{formatDate(task.dueDate.toString())}</span></span>
                         )}

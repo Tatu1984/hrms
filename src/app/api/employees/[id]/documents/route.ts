@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { DocumentType } from '@prisma/client';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -76,6 +77,13 @@ export async function POST(
     const issuingAuthority = formData.get('issuingAuthority') as string | null;
     const notes = formData.get('notes') as string | null;
 
+    if (documentType && !Object.values(DocumentType).includes(documentType as DocumentType)) {
+      return NextResponse.json(
+        { error: 'Invalid document type' },
+        { status: 400 }
+      );
+    }
+
     if (!file || !documentType || !documentName) {
       return NextResponse.json(
         { error: 'File, document type, and document name are required' },
@@ -100,7 +108,7 @@ export async function POST(
     const document = await prisma.employeeDocument.create({
       data: {
         employeeId,
-        documentType,
+        documentType: documentType as DocumentType,
         documentName,
         fileName: file.name,
         fileUrl: `/uploads/documents/${employeeId}/${fileName}`,
@@ -111,7 +119,7 @@ export async function POST(
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         issuingAuthority,
         notes,
-        uploadedBy: session.employeeId || session.id,
+        uploadedBy: session.employeeId || session.userId,
       },
     });
 

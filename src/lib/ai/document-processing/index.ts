@@ -81,9 +81,10 @@ export class DocumentProcessor {
   // Extract text from PDF using OCR if needed
   async extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
-      // Dynamic import for pdf-parse
-      const pdfParse = (await import('pdf-parse')).default;
-      const data = await pdfParse(buffer);
+      // Dynamic import for pdf-parse (v2 exposes a PDFParse class)
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const data = await parser.getText();
       return data.text;
     } catch (error) {
       console.error('PDF extraction error:', error);

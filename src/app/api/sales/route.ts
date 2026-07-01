@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
             startDate: now,
             status: 'ACTIVE',
             currency: 'INR',
-            milestones: milestonesData,
+            milestones: milestonesData ? (milestonesData as Prisma.InputJsonValue) : Prisma.JsonNull,
             leadId: leadId || null,
             saleId: sale.id,
           },
@@ -421,7 +422,7 @@ export async function DELETE(request: NextRequest) {
       await prisma.lead.update({
         where: { id: sale.leadId },
         data: {
-          status: 'NEGOTIATION',
+          status: 'PROSPECT',
           convertedAt: null,
           saleId: null,
         },

@@ -23,7 +23,7 @@ async function getEmployeeData(employeeId: string | null) {
           },
           orderBy: { createdAt: 'desc' },
         },
-        attendances: {
+        attendance: {
           where: {
             date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
           },
@@ -61,9 +61,9 @@ function calculateLeaveBalance(employee: Awaited<ReturnType<typeof getEmployeeDa
 
 // Get attendance summary
 function getAttendanceSummary(employee: Awaited<ReturnType<typeof getEmployeeData>>) {
-  if (!employee || !employee.attendances) return null;
+  if (!employee || !employee.attendance) return null;
 
-  const thisMonth = employee.attendances.filter((a) => {
+  const thisMonth = employee.attendance.filter((a) => {
     const date = new Date(a.date);
     const now = new Date();
     return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
@@ -71,10 +71,9 @@ function getAttendanceSummary(employee: Awaited<ReturnType<typeof getEmployeeDat
 
   const present = thisMonth.filter((a) => a.status === 'PRESENT').length;
   const absent = thisMonth.filter((a) => a.status === 'ABSENT').length;
-  const late = thisMonth.filter((a) => a.status === 'LATE').length;
   const halfDay = thisMonth.filter((a) => a.status === 'HALF_DAY').length;
 
-  return { present, absent, late, halfDay, total: thisMonth.length };
+  return { present, absent, halfDay, total: thisMonth.length };
 }
 
 // Intelligent fallback responses with real data
@@ -128,7 +127,6 @@ async function getSmartFallbackResponse(
         response: `Here's your attendance summary for this month:\n\n` +
           `**Present:** ${summary.present} days\n` +
           `**Absent:** ${summary.absent} days\n` +
-          `**Late:** ${summary.late} days\n` +
           `**Half Day:** ${summary.halfDay} days\n` +
           `**Attendance Rate:** ${attendanceRate}%\n\n` +
           `For detailed attendance records, visit the Attendance section.`,

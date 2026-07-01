@@ -72,6 +72,7 @@ interface DistributionData {
   category: string;
   hours: number;
   percentage: number;
+  [key: string]: string | number;
 }
 
 interface EmployeeDetail {
@@ -647,7 +648,7 @@ export default function ManagerTimeAnalyticsPage() {
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
-            {data?.message || 'Failed to load data. Please try again.'}
+            {'Failed to load data. Please try again.'}
           </CardContent>
         </Card>
       )}

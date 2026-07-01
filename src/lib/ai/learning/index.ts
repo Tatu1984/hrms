@@ -9,6 +9,7 @@ import type {
   Milestone
 } from '../types';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 // Skill level mapping
 const SKILL_LEVELS = {
@@ -126,15 +127,15 @@ export class LearningDevelopmentEngine {
         employeeId,
         currentRole,
         targetRole: target,
-        gaps: gaps as unknown as Record<string, unknown>,
+        gaps: gaps as unknown as Prisma.InputJsonValue,
         overallScore: overallGapScore,
-        learningPath: learningPath as unknown as Record<string, unknown>,
+        learningPath: learningPath as unknown as Prisma.InputJsonValue,
         priority: overallGapScore > 50 ? 'high' : overallGapScore > 25 ? 'medium' : 'low',
       },
       update: {
-        gaps: gaps as unknown as Record<string, unknown>,
+        gaps: gaps as unknown as Prisma.InputJsonValue,
         overallScore: overallGapScore,
-        learningPath: learningPath as unknown as Record<string, unknown>,
+        learningPath: learningPath as unknown as Prisma.InputJsonValue,
         priority: overallGapScore > 50 ? 'high' : overallGapScore > 25 ? 'medium' : 'low',
         updatedAt: new Date(),
       },
