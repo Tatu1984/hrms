@@ -20,10 +20,12 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Simple authentication check (you can use a cron secret)
+    // Cron authentication. No fallback secret: refuse if CRON_SECRET is unset.
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json({ error: 'Cron not configured' }, { status: 503 });
+    }
     const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET || 'your-secret-key';
-
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -207,7 +209,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { date, secret } = body;
 
-    const cronSecret = process.env.CRON_SECRET || 'your-secret-key';
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json({ error: 'Cron not configured' }, { status: 503 });
+    }
     if (secret !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

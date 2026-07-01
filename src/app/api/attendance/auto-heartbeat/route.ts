@@ -12,10 +12,13 @@ import { prisma } from '@/lib/db';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify this is called from a trusted source (optional: add API key auth)
+    // Verify this is called from a trusted scheduler. No fallback secret: if
+    // CRON_SECRET isn't configured, refuse rather than accept a guessable default.
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json({ error: 'Cron not configured' }, { status: 503 });
+    }
     const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET || 'default-secret';
-
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

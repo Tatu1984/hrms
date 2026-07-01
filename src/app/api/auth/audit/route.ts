@@ -87,7 +87,12 @@ export async function GET(request: NextRequest) {
 
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const s = String(value);
+  let s = String(value);
+  // Neutralize spreadsheet formula injection: a cell starting with = + - @ (or
+  // tab/CR) can execute as a formula in Excel/Sheets. Prefix with a single quote.
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   // Quote if it contains comma, quote, or newline; escape embedded quotes.
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

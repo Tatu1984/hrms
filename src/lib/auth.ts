@@ -2,7 +2,11 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import * as bcrypt from 'bcryptjs';
 import { cache } from 'react';
-import { isSessionActive } from '@/lib/session-store';
+// NOTE: session-store pulls in node:crypto, which is not available in the Edge
+// runtime. middleware.ts imports decrypt() from this module, so we must NOT
+// import session-store at the top level or crypto leaks into the Edge bundle.
+// It is imported lazily inside withRevocationCheck() (only ever called in the
+// Node runtime by getSession/verifyAuth).
 
 /**
  * Resolve the JWT signing secret. No fallback — a missing or weak secret is a
@@ -80,6 +84,7 @@ async function withRevocationCheck(payload: JWTPayload | null): Promise<JWTPaylo
   if (!payload) return null;
   if (payload.sessionId) {
     try {
+      const { isSessionActive } = await import('@/lib/session-store');
       if (!(await isSessionActive(payload.sessionId))) return null;
     } catch (err) {
       console.error('Session activity check failed — denying request:', err);

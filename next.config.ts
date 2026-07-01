@@ -50,15 +50,11 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Environment variables validation
-  env: {
-    DATABASE_URL: process.env.DATABASE_URL,
-    JWT_SECRET: process.env.JWT_SECRET,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // NOTE: JWT_SECRET / DATABASE_URL are read from process.env directly in
+  // server code — they must NOT be listed here (next.config `env` inlines
+  // values into the client bundle, which would leak the secret).
   typescript: {
+    // TODO: remove once the remaining type errors are fixed, so the build gates on types.
     ignoreBuildErrors: true,
   }
 };
