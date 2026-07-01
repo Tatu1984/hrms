@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireRole } from '@/lib/api-auth';
 
 // GET - Fetch all bank accounts for a company
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
 
@@ -29,6 +33,9 @@ export async function GET(request: NextRequest) {
 // POST - Create new bank account
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const data = await request.json();
     const { companyId, ...accountData } = data;
 
@@ -61,6 +68,9 @@ export async function POST(request: NextRequest) {
 // PUT - Update bank account
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const data = await request.json();
     const { id, companyId, ...accountData } = data;
 
@@ -91,6 +101,9 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete bank account
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

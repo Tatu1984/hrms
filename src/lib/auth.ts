@@ -4,7 +4,22 @@ import * as bcrypt from 'bcryptjs';
 import { cache } from 'react';
 import { isSessionActive } from '@/lib/session-store';
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-key');
+/**
+ * Resolve the JWT signing secret. No fallback — a missing or weak secret is a
+ * fatal misconfiguration (with a fallback, an unset env var would let anyone
+ * forge an ADMIN token). Resolved lazily so importing this module during
+ * `next build` (env not yet loaded) doesn't crash; it only throws when a token
+ * is actually signed/verified.
+ */
+function getSecret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (!s || s.length < 16) {
+    throw new Error(
+      'JWT_SECRET is missing or too short (min 16 chars). Set a strong JWT_SECRET in the environment.'
+    );
+  }
+  return new TextEncoder().encode(s);
+}
 
 export interface JWTPayload {
   userId: string;
@@ -22,12 +37,12 @@ export async function encrypt(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('1d') // sessions expire after 1 day, forcing a fresh (audited) login daily
-    .sign(secret);
+    .sign(getSecret());
 }
 
 export async function decrypt(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecret());
 
     // Validate payload structure
     if (
@@ -53,26 +68,32 @@ export async function decrypt(token: string): Promise<JWTPayload | null> {
   }
 }
 
-export const getSession = cache(async (): Promise<JWTPayload | null> => {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('session')?.value;
-  if (!token) return null;
-  const payload = await decrypt(token);
+/**
+ * Enforce server-side revocation: if a token is bound to a Session row, it is
+ * only valid while that session is active. Legacy tokens issued before session
+ * tracking (no sessionId) remain valid until they expire on their own.
+ *
+ * Fails CLOSED: if the active-session check can't be completed (DB error), the
+ * request is denied rather than trusting a possibly-revoked session.
+ */
+async function withRevocationCheck(payload: JWTPayload | null): Promise<JWTPayload | null> {
   if (!payload) return null;
-
-  // Enforce server-side revocation: if this token is bound to a Session row,
-  // it is only valid while that session is active. Legacy tokens issued before
-  // session tracking (no sessionId) remain valid until they expire on their own.
   if (payload.sessionId) {
     try {
       if (!(await isSessionActive(payload.sessionId))) return null;
     } catch (err) {
-      // Fail open on a DB hiccup so a transient outage can't lock everyone out.
-      console.error('Session activity check failed:', err);
+      console.error('Session activity check failed — denying request:', err);
+      return null;
     }
   }
-
   return payload;
+}
+
+export const getSession = cache(async (): Promise<JWTPayload | null> => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('session')?.value;
+  if (!token) return null;
+  return withRevocationCheck(await decrypt(token));
 });
 
 export async function setSession(payload: JWTPayload): Promise<void> {
@@ -113,7 +134,7 @@ export async function verifyAuth(request: Request): Promise<JWTPayload | null> {
 
     const token = cookies['session'];
     if (token) {
-      return decrypt(token);
+      return withRevocationCheck(await decrypt(token));
     }
   }
 
@@ -121,7 +142,7 @@ export async function verifyAuth(request: Request): Promise<JWTPayload | null> {
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
-    return decrypt(token);
+    return withRevocationCheck(await decrypt(token));
   }
 
   return null;

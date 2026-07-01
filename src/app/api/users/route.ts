@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { requireRole } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const body = await req.json();
     const { username, password, email, role, employeeId, permissions } = body;
 
@@ -82,8 +86,20 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const users = await prisma.user.findMany({
-      include: {
+      // Explicit select: never leak the password hash.
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        permissions: true,
+        employeeId: true,
+        createdAt: true,
+        updatedAt: true,
         employee: {
           select: {
             employeeId: true,

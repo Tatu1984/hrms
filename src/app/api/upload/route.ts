@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { join, extname } from 'path';
 import { existsSync } from 'fs';
+import { randomUUID } from 'crypto';
+import { requireAuth } from '@/lib/api-auth';
+
+// Only allow a safe, fixed set of upload categories — never trust the raw value.
+const ALLOWED_TYPES = new Set(['aadhaar', 'pan', 'passport', 'kyc', 'photo', 'document']);
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth instanceof NextResponse) return auth;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const type = formData.get('type') as string;
+    const rawType = formData.get('type') as string;
+    const type = ALLOWED_TYPES.has(rawType) ? rawType : 'document';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -30,9 +39,16 @@ export async function POST(request: NextRequest) {
       await mkdir(uploadsDir, { recursive: true });
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileName = `${type}_${timestamp}_${file.name}`;
+    // Generate a safe, unique filename. Never use the client-supplied name in
+    // the path (path-traversal / overwrite risk); keep only a whitelisted ext.
+    const extByMime: Record<string, string> = {
+      'application/pdf': '.pdf',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+    };
+    const ext = extByMime[file.type] ?? (extname(file.name).match(/^\.[a-z0-9]{1,5}$/i)?.[0] ?? '');
+    const fileName = `${type}_${randomUUID()}${ext}`;
     const filePath = join(uploadsDir, fileName);
 
     // Convert file to buffer and save

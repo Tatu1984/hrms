@@ -1,9 +1,12 @@
+import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
-  Filter, Download, DollarSign, ShoppingCart, CheckCircle, TrendingUp
+  Filter, Download, DollarSign, ShoppingCart, CheckCircle, TrendingUp,
+  Eye, Edit, Trash2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { SaleDialog } from '@/components/forms/sale-dialog';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { requireRole } from '@/lib/api-auth';
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
@@ -8,6 +9,8 @@ export async function PUT(
   req: NextRequest,
   context: RouteContext
 ) {
+  const auth = await requireRole('ADMIN');
+  if (auth instanceof NextResponse) return auth;
   const params = await context.params;
   try {
     const body = await req.json();
@@ -70,8 +73,17 @@ export async function DELETE(
   req: NextRequest,
   context: RouteContext
 ) {
+  const auth = await requireRole('ADMIN');
+  if (auth instanceof NextResponse) return auth;
   const params = await context.params;
   try {
+    // Prevent an admin from deleting their own account.
+    if (auth.userId === params.id) {
+      return NextResponse.json(
+        { error: 'You cannot delete your own account' },
+        { status: 400 }
+      );
+    }
     await prisma.user.delete({
       where: { id: params.id },
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth, requireRole } from '@/lib/api-auth';
 
 // GET single department
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     const department = await prisma.department.findUnique({
@@ -35,6 +39,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
     const body = await request.json();
     const { name, code, description, headId, parentId, isActive } = body;
@@ -103,6 +110,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     // Check if department exists

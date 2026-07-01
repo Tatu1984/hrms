@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth, requireRole } from '@/lib/api-auth';
 
 // GET all departments
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
@@ -34,6 +38,9 @@ export async function GET(request: NextRequest) {
 // POST create new department
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireRole('ADMIN');
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const { name, code, description, headId, parentId } = body;
 

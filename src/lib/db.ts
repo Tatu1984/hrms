@@ -1,45 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 
+// Reuse a single PrismaClient across module evaluations. In development this
+// survives HMR; in serverless (Vercel) it survives warm invocations. Without
+// this, a new client — and a new connection pool — is created repeatedly and
+// the database's connection limit is quickly exhausted.
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Lazy initialization to prevent build failures when DATABASE_URL is not set
-function getPrismaClient(): PrismaClient {
-  if (globalForPrisma.prisma) {
-    return globalForPrisma.prisma;
-  }
-
-  // Check if DATABASE_URL is available
-  if (!process.env.DATABASE_URL) {
-    throw new Error(
-      'DATABASE_URL environment variable is not set. ' +
-      'Please configure it in your environment or Vercel project settings.'
-    );
-  }
-
-  const client = new PrismaClient({
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = client;
-  }
-
-  return client;
-}
-
-// Export a proxy that lazily initializes the Prisma client
-// This prevents the client from being created during module import (build time)
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop: keyof PrismaClient) {
-    const client = getPrismaClient();
-    const value = client[prop];
-    if (typeof value === 'function') {
-      return value.bind(client);
-    }
-    return value;
-  },
-});
+globalForPrisma.prisma = prisma;
 
 export default prisma;
