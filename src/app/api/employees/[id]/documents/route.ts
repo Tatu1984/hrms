@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extname } from 'path';
+import { randomUUID } from 'crypto';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { saveUpload } from '@/lib/storage';
 import { DocumentType } from '@prisma/client';
 
 type RouteContext = {
@@ -91,18 +91,12 @@ export async function POST(
       );
     }
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'documents', employeeId);
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
-    // Save file
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const fileName = `${Date.now()}-${file.name}`;
-    const filePath = join(uploadDir, fileName);
-    await writeFile(filePath, buffer);
+    // Persist to Blob (prod) / disk (dev). Never use the client filename in the
+    // path — generate a safe unique name, keeping only a whitelisted extension.
+    const ext = extname(file.name).match(/^\.[a-z0-9]{1,5}$/i)?.[0] ?? '';
+    const storedName = `${randomUUID()}${ext}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { url } = await saveUpload(buffer, `documents/${employeeId}`, storedName, file.type);
 
     // Create database record
     const document = await prisma.employeeDocument.create({
@@ -111,7 +105,7 @@ export async function POST(
         documentType: documentType as DocumentType,
         documentName,
         fileName: file.name,
-        fileUrl: `/uploads/documents/${employeeId}/${fileName}`,
+        fileUrl: url,
         fileSize: file.size,
         mimeType: file.type,
         documentNumber,

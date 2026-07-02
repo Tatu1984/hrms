@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { saveUpload } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Invoice upload started...');
     const session = await getSession();
     if (!session || (session.role !== 'ADMIN' && session.role !== 'MANAGER')) {
-      console.log('Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('Session validated, parsing form data...');
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const invoiceNumber = formData.get('invoiceNumber') as string;
@@ -22,8 +17,6 @@ export async function POST(request: NextRequest) {
     const amount = formData.get('amount') as string;
     const currency = formData.get('currency') as string || 'USD';
     const dueDate = formData.get('dueDate') as string | null;
-
-    console.log('Form data:', { invoiceNumber, clientName, amount, currency, dueDate, fileType: file?.type, fileSize: file?.size });
 
     if (!file || !invoiceNumber || !clientName || !amount) {
       return NextResponse.json(
@@ -38,7 +31,6 @@ export async function POST(request: NextRequest) {
     const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
 
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExt || '')) {
-      console.log('Invalid file type:', file.type, 'Extension:', fileExt);
       return NextResponse.json(
         { error: `Invalid file type. Only PDF, PNG, and JPG files are allowed. Received: ${file.type}` },
         { status: 400 }
@@ -54,30 +46,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'invoices');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileName = `${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.${fileExt}`;
-    const filePath = join(uploadsDir, fileName);
-
-    // Write file to disk
-    console.log('Writing file to:', filePath);
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-    console.log('File written successfully');
-
-    // Store file path relative to public directory
-    const relativeFilePath = `/uploads/invoices/${fileName}`;
-    console.log('Relative file path:', relativeFilePath);
+    // Generate unique filename and persist to Blob (prod) / disk (dev).
+    const safeExt = (fileExt || 'pdf').replace(/[^a-z0-9]/gi, '');
+    const fileName = `${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${safeExt}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { url: relativeFilePath } = await saveUpload(buffer, 'invoices', fileName, file.type);
 
     // Create invoice record in database
-    console.log('Creating invoice record in database...');
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
@@ -92,7 +67,6 @@ export async function POST(request: NextRequest) {
         fileUrl: relativeFilePath,
       },
     });
-    console.log('Invoice created successfully:', invoice.id);
 
     return NextResponse.json({
       success: true,

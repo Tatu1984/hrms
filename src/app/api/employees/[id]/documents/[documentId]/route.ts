@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
+import { deleteUpload } from '@/lib/storage';
 
 type RouteContext = {
   params: Promise<{ id: string; documentId: string }>;
@@ -37,12 +38,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Delete file from filesystem
+    // Delete the stored file (Blob when it's a URL; local disk otherwise). Best
+    // effort — never block the record deletion on file cleanup.
     try {
-      const filePath = join(process.cwd(), 'public', document.fileUrl);
-      await unlink(filePath);
-    } catch (error) {
-      console.error('Error deleting file:', error);
+      if (/^https?:\/\//.test(document.fileUrl)) {
+        await deleteUpload(document.fileUrl);
+      } else {
+        await unlink(join(process.cwd(), 'public', document.fileUrl));
+      }
+    } catch {
       // Continue even if file deletion fails
     }
 
