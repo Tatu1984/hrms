@@ -5,6 +5,10 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Direct (non-pooled) connection for migrations/introspection. Neon's pooled
+  // endpoint can't hold the advisory locks `migrate deploy` needs. Falls back to
+  // DATABASE_URL at runtime (the app only ever uses `url`).
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -32,11 +36,11 @@ model User {
 model IAMRole {
   id          String     @id @default(cuid())
   name        String     @unique // "HR_MANAGER", "FINANCE_LEAD", etc.
-  displayName String              // "HR Manager", "Finance Lead"
+  displayName String // "HR Manager", "Finance Lead"
   description String?
   isSystem    Boolean    @default(false) // true for ADMIN, MANAGER, EMPLOYEE
-  permissions Json       // Array of permission codes ["employees.view", "payroll.manage"]
-  color       String?    // Badge color for UI
+  permissions Json // Array of permission codes ["employees.view", "payroll.manage"]
+  color       String? // Badge color for UI
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   users       UserRole[]
@@ -49,7 +53,7 @@ model UserRole {
   userId     String
   roleId     String
   assignedAt DateTime @default(now())
-  assignedBy String?  // Who assigned this role
+  assignedBy String? // Who assigned this role
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role       IAMRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -61,10 +65,10 @@ model UserRole {
 model Permission {
   id          String  @id @default(cuid())
   code        String  @unique // "employees.view", "payroll.manage"
-  name        String           // "View Employees"
+  name        String // "View Employees"
   description String?
-  module      String           // "employees", "payroll", "attendance"
-  action      String           // "view", "manage", "edit", "approve"
+  module      String // "employees", "payroll", "attendance"
+  action      String // "view", "manage", "edit", "approve"
   isSystem    Boolean @default(true)
 
   @@index([module])
@@ -110,6 +114,7 @@ model Employee {
   subordinates             Employee[]         @relation("ReportingStructure")
   employeeDocuments        EmployeeDocument[]
   leaves                   Leave[]
+  leaveBalances            LeaveBalance[]
   messages                 Message[]
   payroll                  Payroll[]
   projects                 ProjectMember[]
@@ -125,19 +130,19 @@ model Attendance {
   date          DateTime
   punchIn       DateTime?
   punchOut      DateTime?
-  breakStart    DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
-  breakEnd      DateTime?        // Deprecated: Use breaks relation instead. Kept for backward compatibility.
-  grossHours    Float?           // Total hours = Punch Out - Punch In (raw time in office)
-  totalHours    Float?           // Active work hours = grossHours - breakDuration - idleTime
-  breakDuration Float?           // Total break duration (calculated from all breaks)
-  idleTime      Float?           // Total idle time (from inactive heartbeats)
+  breakStart    DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
+  breakEnd      DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
+  grossHours    Float? // Total hours = Punch Out - Punch In (raw time in office)
+  totalHours    Float? // Active work hours = grossHours - breakDuration - idleTime
+  breakDuration Float? // Total break duration (calculated from all breaks)
+  idleTime      Float? // Total idle time (from inactive heartbeats)
   status        AttendanceStatus @default(ABSENT)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   punchInIp     String?
   punchOutIp    String?
   activityLogs  ActivityLog[]
-  breaks        Break[]          // Multiple breaks per attendance
+  breaks        Break[] // Multiple breaks per attendance
   employee      Employee         @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date], name: "employeeId_date")
@@ -151,8 +156,8 @@ model Break {
   attendanceId String
   startTime    DateTime
   endTime      DateTime?
-  duration     Float?     // Duration in hours (calculated when break ends)
-  reason       String?    // Optional reason for break (lunch, personal, etc.)
+  duration     Float? // Duration in hours (calculated when break ends)
+  reason       String? // Optional reason for break (lunch, personal, etc.)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
@@ -170,7 +175,7 @@ model ActivityLog {
   suspicious       Boolean    @default(false)
   patternDetails   String?
   patternType      String?
-  source           String?    // 'client' or 'server' - to distinguish heartbeat origin
+  source           String? // 'client' or 'server' - to distinguish heartbeat origin
   browserName      String?
   browserVersion   String?
   confidence       String?
@@ -305,6 +310,8 @@ model Payroll {
   basicPayable    Float
   variablePayable Float         @default(0)
   grossSalary     Float
+  pf              Float         @default(0)
+  esi             Float         @default(0)
   professionalTax Float         @default(200)
   tds             Float         @default(0)
   penalties       Float         @default(0)
@@ -324,12 +331,48 @@ model Payroll {
 }
 
 model SalaryConfig {
-  id            String   @id @default(cuid())
-  pfPercentage  Float    @default(12)
-  esiPercentage Float    @default(0.75)
-  taxSlabs      Json?
-  bonusRules    Json?
-  updatedAt     DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  pfPercentage         Float    @default(12)
+  esiPercentage        Float    @default(0.75)
+  // ESI applies only when monthly gross is at/below this ceiling.
+  esiWageCeiling       Float    @default(21000)
+  professionalTax      Float    @default(200)
+  // Income-tax TDS slabs: [{ upTo: number|null, rate: number }] applied on annualized taxable pay.
+  tdsSlabs             Json?
+  // Global default toggles — which deductions payroll applies. Per-run overrides allowed.
+  applyPf              Boolean  @default(false)
+  applyEsi             Boolean  @default(false)
+  applyTds             Boolean  @default(false)
+  applyProfessionalTax Boolean  @default(true)
+  taxSlabs             Json?
+  bonusRules           Json?
+  updatedAt            DateTime @updatedAt
+}
+
+// Admin-configurable annual paid-leave entitlement per leave type (one row per
+// type). UNPAID has no quota. Used as the default when allocating LeaveBalance.
+model LeavePolicy {
+  id          String    @id @default(cuid())
+  leaveType   LeaveType @unique
+  annualQuota Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+}
+
+// Per-employee, per-year balance for a leave type. `allocated` is admin-editable
+// (defaults from LeavePolicy); `used` is incremented as leaves are approved.
+model LeaveBalance {
+  id         String    @id @default(cuid())
+  employeeId String
+  year       Int
+  leaveType  LeaveType
+  allocated  Int       @default(0)
+  used       Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, year, leaveType])
+  @@index([employeeId])
 }
 
 model CompanyProfile {
@@ -852,7 +895,7 @@ model AuditLog {
 }
 
 model BrowserActivityLog {
-  id               String              @id @default(cuid())
+  id               String           @id @default(cuid())
   userId           String
   userName         String
   userRole         String
@@ -872,9 +915,9 @@ model BrowserActivityLog {
   userAgent        String?
   pageUrl          String?
   pagePath         String?
-  duration         Int?                // Duration in seconds (for session end events)
+  duration         Int? // Duration in seconds (for session end events)
   metadata         Json?
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime         @default(now())
 
   @@index([userId])
   @@index([employeeId])
@@ -901,17 +944,17 @@ enum BrowserEventType {
 // Server-side session record. The opaque sessionId is embedded in the JWT so
 // every session can be paired login<->logout, tracked, and revoked.
 model Session {
-  id            String    @id @default(cuid())
-  sessionId     String    @unique
-  userId        String
-  employeeId    String?
-  userName      String
-  userRole      String
-  createdAt     DateTime  @default(now())
-  expiresAt     DateTime
-  lastSeenAt    DateTime  @default(now())
-  revokedAt     DateTime?
-  revokedReason String?
+  id                String    @id @default(cuid())
+  sessionId         String    @unique
+  userId            String
+  employeeId        String?
+  userName          String
+  userRole          String
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+  lastSeenAt        DateTime  @default(now())
+  revokedAt         DateTime?
+  revokedReason     String?
   // Snapshot of the login context (so an active-session list is self-contained)
   ipAddress         String?
   city              String?
@@ -1003,7 +1046,7 @@ model AuthEvent {
 // events for that IP drop out of the suspicious-login banner. A genuinely new IP
 // / location is absent from this list, so it surfaces again for review.
 model TrustedLoginLocation {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   userName  String?
   ipAddress String?
@@ -1015,11 +1058,11 @@ model TrustedLoginLocation {
   asn     String?
   isp     String?
 
-  label         String? // optional admin note, e.g. "home office"
+  label          String? // optional admin note, e.g. "home office"
   approvedBy     String? // userId of the admin who approved
   approvedByName String?
-  approvedAt    DateTime @default(now())
-  lastSeenAt    DateTime @default(now()) // bumped each time a trusted login arrives
+  approvedAt     DateTime @default(now())
+  lastSeenAt     DateTime @default(now()) // bumped each time a trusted login arrives
 
   @@unique([userId, ipAddress])
   @@index([userId])
@@ -1035,12 +1078,12 @@ enum LocationConsentStatus {
 // One row per user; upserted whenever they respond to the consent prompt.
 // The latest precise fix is cached here for the admin dashboard.
 model LocationConsent {
-  id         String                @id @default(cuid())
-  userId     String                @unique
-  employeeId String?
-  userName   String?
-  userRole   String?
-  status     LocationConsentStatus @default(PENDING)
+  id          String                @id @default(cuid())
+  userId      String                @unique
+  employeeId  String?
+  userName    String?
+  userRole    String?
+  status      LocationConsentStatus @default(PENDING)
   respondedAt DateTime? // when the user last granted/denied
 
   // Latest precise fix captured while consent was GRANTED
@@ -1081,6 +1124,7 @@ enum AttendanceStatus {
   ABSENT
   HALF_DAY
   LEAVE
+  LEAVE_UNPAID
   HOLIDAY
   WEEKEND
 }
@@ -1222,19 +1266,19 @@ enum SalaryType {
 
 // AI Document Processing
 model AIDocumentExtraction {
-  id            String   @id @default(cuid())
-  documentId    String?
-  documentType  String
-  fileName      String
-  filePath      String?
-  extractedData Json
-  entities      Json?
-  confidence    Float
+  id             String             @id @default(cuid())
+  documentId     String?
+  documentType   String
+  fileName       String
+  filePath       String?
+  extractedData  Json
+  entities       Json?
+  confidence     Float
   processingTime Int?
-  status        AIProcessingStatus @default(PENDING)
-  error         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status         AIProcessingStatus @default(PENDING)
+  error          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([documentType])
   @@index([status])
@@ -1243,18 +1287,18 @@ model AIDocumentExtraction {
 
 // AI Predictions (Attrition, Performance, etc.)
 model AIPrediction {
-  id            String   @id @default(cuid())
-  employeeId    String
-  predictionType PredictionType
-  riskScore     Float
-  riskLevel     String
-  factors       Json
+  id              String         @id @default(cuid())
+  employeeId      String
+  predictionType  PredictionType
+  riskScore       Float
+  riskLevel       String
+  factors         Json
   recommendations Json?
-  confidence    Float
-  validFrom     DateTime @default(now())
-  validUntil    DateTime
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  confidence      Float
+  validFrom       DateTime       @default(now())
+  validUntil      DateTime
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
 
   @@index([employeeId])
   @@index([predictionType])
@@ -1264,16 +1308,16 @@ model AIPrediction {
 
 // AI Chat Sessions
 model AIChatSession {
-  id          String   @id @default(cuid())
-  userId      String
-  employeeId  String?
-  context     Json?
-  status      ChatSessionStatus @default(ACTIVE)
-  messageCount Int     @default(0)
+  id            String            @id @default(cuid())
+  userId        String
+  employeeId    String?
+  context       Json?
+  status        ChatSessionStatus @default(ACTIVE)
+  messageCount  Int               @default(0)
   lastMessageAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  messages    AIChatMessage[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  messages      AIChatMessage[]
 
   @@index([userId])
   @@index([employeeId])
@@ -1282,16 +1326,16 @@ model AIChatSession {
 
 // AI Chat Messages
 model AIChatMessage {
-  id          String   @id @default(cuid())
-  sessionId   String
-  role        ChatRole
-  content     String
-  metadata    Json?
-  intent      String?
-  action      Json?
-  tokens      Int?
-  createdAt   DateTime @default(now())
-  session     AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid())
+  sessionId String
+  role      ChatRole
+  content   String
+  metadata  Json?
+  intent    String?
+  action    Json?
+  tokens    Int?
+  createdAt DateTime      @default(now())
+  session   AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([role])
@@ -1300,16 +1344,16 @@ model AIChatMessage {
 
 // Sentiment Analysis Results
 model AISentimentAnalysis {
-  id          String   @id @default(cuid())
-  sourceType  SentimentSourceType
-  sourceId    String
-  text        String
-  sentiment   String
-  score       Float
-  confidence  Float
-  aspects     Json?
-  emotions    Json?
-  createdAt   DateTime @default(now())
+  id         String              @id @default(cuid())
+  sourceType SentimentSourceType
+  sourceId   String
+  text       String
+  sentiment  String
+  score      Float
+  confidence Float
+  aspects    Json?
+  emotions   Json?
+  createdAt  DateTime            @default(now())
 
   @@index([sourceType])
   @@index([sourceId])
@@ -1319,20 +1363,20 @@ model AISentimentAnalysis {
 
 // Resume Parsing Results
 model AIResumeAnalysis {
-  id            String   @id @default(cuid())
-  candidateId   String?
-  fileName      String
-  filePath      String?
-  parsedData    Json
-  skills        Json
-  experience    Json
-  education     Json
-  overallScore  Float?
-  matchScores   Json?
-  biasFlags     Json?
-  status        AIProcessingStatus @default(PENDING)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String             @id @default(cuid())
+  candidateId  String?
+  fileName     String
+  filePath     String?
+  parsedData   Json
+  skills       Json
+  experience   Json
+  education    Json
+  overallScore Float?
+  matchScores  Json?
+  biasFlags    Json?
+  status       AIProcessingStatus @default(PENDING)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@index([candidateId])
   @@index([status])
@@ -1340,17 +1384,17 @@ model AIResumeAnalysis {
 
 // Skill Gap Analysis
 model AISkillGap {
-  id            String   @id @default(cuid())
-  employeeId    String
-  currentRole   String
-  targetRole    String?
-  gaps          Json
-  overallScore  Float
-  learningPath  Json?
-  priority      String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  employeeId   String
+  currentRole  String
+  targetRole   String?
+  gaps         Json
+  overallScore Float
+  learningPath Json?
+  priority     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([employeeId])
   @@index([isActive])
@@ -1358,19 +1402,19 @@ model AISkillGap {
 
 // AI Automation Rules
 model AIAutomationRule {
-  id          String   @id @default(cuid())
-  name        String
-  type        AutomationType
-  conditions  Json
-  actions     Json
-  priority    Int      @default(0)
-  isActive    Boolean  @default(true)
-  triggerCount Int     @default(0)
+  id            String            @id @default(cuid())
+  name          String
+  type          AutomationType
+  conditions    Json
+  actions       Json
+  priority      Int               @default(0)
+  isActive      Boolean           @default(true)
+  triggerCount  Int               @default(0)
   lastTriggered DateTime?
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  logs        AIAutomationLog[]
+  createdBy     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  logs          AIAutomationLog[]
 
   @@index([type])
   @@index([isActive])
@@ -1378,15 +1422,15 @@ model AIAutomationRule {
 
 // AI Automation Logs
 model AIAutomationLog {
-  id          String   @id @default(cuid())
-  ruleId      String
-  entityType  String
-  entityId    String
-  action      String
-  result      String
-  details     Json?
-  createdAt   DateTime @default(now())
-  rule        AIAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  id         String           @id @default(cuid())
+  ruleId     String
+  entityType String
+  entityId   String
+  action     String
+  result     String
+  details    Json?
+  createdAt  DateTime         @default(now())
+  rule       AIAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@index([ruleId])
   @@index([entityType])
@@ -1395,7 +1439,7 @@ model AIAutomationLog {
 
 // Anomaly Detection
 model AIAnomaly {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   type        String
   severity    String
   entityType  String
@@ -1406,7 +1450,7 @@ model AIAnomaly {
   reviewedBy  String?
   reviewedAt  DateTime?
   resolution  String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime      @default(now())
 
   @@index([type])
   @@index([severity])
@@ -1417,18 +1461,18 @@ model AIAnomaly {
 
 // AI Generated Insights
 model AIInsight {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   type        InsightType
   category    String
   title       String
   description String
   data        Json
   importance  Float
-  actionable  Boolean  @default(false)
+  actionable  Boolean     @default(false)
   actions     Json?
-  dismissed   Boolean  @default(false)
+  dismissed   Boolean     @default(false)
   dismissedBy String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
 
   @@index([type])
   @@index([category])
@@ -1457,20 +1501,20 @@ model AINLQuery {
 
 // Learning Recommendations
 model AILearningRecommendation {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   employeeId    String
   courseId      String?
   courseName    String
   provider      String?
   skillsCovered Json
   reason        String
-  priority      Int      @default(0)
+  priority      Int            @default(0)
   status        LearningStatus @default(RECOMMENDED)
   completedAt   DateTime?
   feedback      String?
   rating        Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([employeeId])
   @@index([status])
@@ -1479,18 +1523,18 @@ model AILearningRecommendation {
 
 // Mentor Matching
 model AIMentorMatch {
-  id            String   @id @default(cuid())
-  mentorId      String
-  menteeId      String
-  matchScore    Float
-  matchReasons  Json
-  topics        Json?
-  status        MentorMatchStatus @default(SUGGESTED)
-  acceptedAt    DateTime?
-  completedAt   DateTime?
-  feedback      Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String            @id @default(cuid())
+  mentorId     String
+  menteeId     String
+  matchScore   Float
+  matchReasons Json
+  topics       Json?
+  status       MentorMatchStatus @default(SUGGESTED)
+  acceptedAt   DateTime?
+  completedAt  DateTime?
+  feedback     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@unique([mentorId, menteeId])
   @@index([mentorId])
@@ -1642,16 +1686,16 @@ model FiscalYear {
 }
 
 model FiscalPeriod {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   fiscalYearId String
-  name         String   // "April 2024", "Q1 2024-25"
-  periodType   String   // MONTH, QUARTER
+  name         String // "April 2024", "Q1 2024-25"
+  periodType   String // MONTH, QUARTER
   startDate    DateTime
   endDate      DateTime
-  isClosed     Boolean  @default(false)
+  isClosed     Boolean   @default(false)
   closedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
 
@@ -1666,7 +1710,7 @@ model LedgerGroup {
   id                 String   @id @default(cuid())
   parentId           String?
   name               String   @unique
-  nature             String   // ASSETS, LIABILITIES, INCOME, EXPENSES, EQUITY
+  nature             String // ASSETS, LIABILITIES, INCOME, EXPENSES, EQUITY
   affectsGrossProfit Boolean  @default(false)
   isSystem           Boolean  @default(false)
   sequence           Int      @default(0)
@@ -1688,7 +1732,7 @@ model Ledger {
   name                String   @unique
   code                String?
   openingBalance      Decimal  @default(0) @db.Decimal(18, 4)
-  openingBalanceType  String?  // DR or CR
+  openingBalanceType  String? // DR or CR
   currentBalance      Decimal  @default(0) @db.Decimal(18, 4)
   creditLimit         Decimal? @db.Decimal(18, 4)
   creditDays          Int?
@@ -1717,17 +1761,17 @@ model Ledger {
 // ============================================
 
 model VoucherType {
-  id                 String   @id @default(cuid())
-  name               String
-  code               String   @unique
-  nature             String   // PAYMENT, RECEIPT, CONTRA, JOURNAL, SALES, PURCHASE, DEBIT_NOTE, CREDIT_NOTE
-  numberingPrefix    String?
-  numberingFormat    String?
-  autoNumbering      Boolean  @default(true)
-  requiresApproval   Boolean  @default(false)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  code             String   @unique
+  nature           String // PAYMENT, RECEIPT, CONTRA, JOURNAL, SALES, PURCHASE, DEBIT_NOTE, CREDIT_NOTE
+  numberingPrefix  String?
+  numberingFormat  String?
+  autoNumbering    Boolean  @default(true)
+  requiresApproval Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   vouchers Voucher[]
 
@@ -1735,27 +1779,27 @@ model VoucherType {
 }
 
 model Voucher {
-  id             String    @id @default(cuid())
-  fiscalYearId   String
-  currencyId     String?
-  voucherTypeId  String
-  voucherNumber  String
-  date           DateTime
-  referenceNo    String?
-  narration      String?
-  exchangeRate   Decimal   @default(1) @db.Decimal(18, 8)
-  totalDebit     Decimal   @db.Decimal(18, 4)
-  totalCredit    Decimal   @db.Decimal(18, 4)
-  status         String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED
-  isPosted       Boolean   @default(false)
-  postedAt       DateTime?
-  createdById    String?
-  approvedById   String?
-  approvedAt     DateTime?
-  attachments    Json?
-  metadata       Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  fiscalYearId  String
+  currencyId    String?
+  voucherTypeId String
+  voucherNumber String
+  date          DateTime
+  referenceNo   String?
+  narration     String?
+  exchangeRate  Decimal   @default(1) @db.Decimal(18, 8)
+  totalDebit    Decimal   @db.Decimal(18, 4)
+  totalCredit   Decimal   @db.Decimal(18, 4)
+  status        String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED
+  isPosted      Boolean   @default(false)
+  postedAt      DateTime?
+  createdById   String?
+  approvedById  String?
+  approvedAt    DateTime?
+  attachments   Json?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   fiscalYear      FiscalYear       @relation(fields: [fiscalYearId], references: [id])
   currency        Currency?        @relation(fields: [currencyId], references: [id])
@@ -1770,18 +1814,18 @@ model Voucher {
 }
 
 model VoucherEntry {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   voucherId    String
   ledgerId     String
   costCenterId String?
-  debitAmount  Decimal  @default(0) @db.Decimal(18, 4)
-  creditAmount Decimal  @default(0) @db.Decimal(18, 4)
+  debitAmount  Decimal   @default(0) @db.Decimal(18, 4)
+  creditAmount Decimal   @default(0) @db.Decimal(18, 4)
   narration    String?
   billRef      String?
   dueDate      DateTime?
-  sequence     Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  sequence     Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   voucher    Voucher         @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   ledger     Ledger          @relation(fields: [ledgerId], references: [id])
@@ -1818,7 +1862,7 @@ model AcctCostCenter {
 
 model Party {
   id                  String   @id @default(cuid())
-  type                String   // CUSTOMER, VENDOR, BOTH
+  type                String // CUSTOMER, VENDOR, BOTH
   name                String   @unique
   code                String?
   contactPerson       String?
@@ -1847,7 +1891,7 @@ model Party {
   bankAccountNo       String?
   bankIfsc            String?
   openingBalance      Decimal  @default(0) @db.Decimal(18, 4)
-  openingBalanceType  String?  // DR or CR
+  openingBalanceType  String? // DR or CR
   currentBalance      Decimal  @default(0) @db.Decimal(18, 4)
   notes               String?
   tags                String[]
@@ -1971,20 +2015,20 @@ model ItemUnit {
 }
 
 model Warehouse {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  code           String?
-  address        String?
-  city           String?
-  state          String?
-  country        String?
-  postalCode     String?
-  contactPerson  String?
-  phone          String?
-  isDefault      Boolean  @default(false)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String   @unique
+  code          String?
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  postalCode    String?
+  contactPerson String?
+  phone         String?
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   stocks             Stock[]
   batches            Batch[]
@@ -2042,21 +2086,21 @@ model StockMovement {
   toWarehouseId   String?
   batchId         String?
   unitId          String
-  movementType    String   // PURCHASE, SALE, TRANSFER, ADJUSTMENT, RETURN, GRN, ISSUE
+  movementType    String // PURCHASE, SALE, TRANSFER, ADJUSTMENT, RETURN, GRN, ISSUE
   quantity        Decimal  @db.Decimal(18, 4)
   rate            Decimal  @db.Decimal(18, 4)
   totalValue      Decimal  @db.Decimal(18, 4)
-  referenceType   String?  // INVOICE, BILL, TRANSFER, ADJUSTMENT
+  referenceType   String? // INVOICE, BILL, TRANSFER, ADJUSTMENT
   referenceId     String?
   narration       String?
   date            DateTime
   createdAt       DateTime @default(now())
 
-  item          Item           @relation(fields: [itemId], references: [id])
-  fromWarehouse Warehouse?     @relation("MovementFromWarehouse", fields: [fromWarehouseId], references: [id])
-  toWarehouse   Warehouse?     @relation("MovementToWarehouse", fields: [toWarehouseId], references: [id])
-  batch         Batch?         @relation(fields: [batchId], references: [id])
-  unit          UnitOfMeasure  @relation(fields: [unitId], references: [id])
+  item          Item          @relation(fields: [itemId], references: [id])
+  fromWarehouse Warehouse?    @relation("MovementFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse?    @relation("MovementToWarehouse", fields: [toWarehouseId], references: [id])
+  batch         Batch?        @relation(fields: [batchId], references: [id])
+  unit          UnitOfMeasure @relation(fields: [unitId], references: [id])
 
   @@index([itemId, date])
   @@index([referenceType, referenceId])
@@ -2119,24 +2163,24 @@ model SalesOrderItem {
 }
 
 model Quotation {
-  id              String   @id @default(cuid())
-  partyId         String
-  quotationNumber String   @unique
-  date            DateTime
-  validUntil      DateTime
-  referenceNo     String?
-  status          String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, CONVERTED
-  billingAddress  String?
-  shippingAddress String?
-  subtotal        Decimal  @db.Decimal(18, 4)
-  discountAmount  Decimal  @default(0) @db.Decimal(18, 4)
-  taxAmount       Decimal  @default(0) @db.Decimal(18, 4)
-  totalAmount     Decimal  @db.Decimal(18, 4)
-  notes           String?
-  terms           String?
+  id               String   @id @default(cuid())
+  partyId          String
+  quotationNumber  String   @unique
+  date             DateTime
+  validUntil       DateTime
+  referenceNo      String?
+  status           String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, CONVERTED
+  billingAddress   String?
+  shippingAddress  String?
+  subtotal         Decimal  @db.Decimal(18, 4)
+  discountAmount   Decimal  @default(0) @db.Decimal(18, 4)
+  taxAmount        Decimal  @default(0) @db.Decimal(18, 4)
+  totalAmount      Decimal  @db.Decimal(18, 4)
+  notes            String?
+  terms            String?
   convertedToOrder String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   party Party           @relation(fields: [partyId], references: [id])
   items QuotationItem[]
@@ -2228,32 +2272,32 @@ model PurchaseOrderItem {
 // ============================================
 
 model AcctInvoice {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   partyId         String
   salesOrderId    String?
   currencyId      String?
-  invoiceNumber   String    @unique
+  invoiceNumber   String   @unique
   date            DateTime
   dueDate         DateTime
-  type            String    @default("INVOICE") // INVOICE, CREDIT_NOTE, DEBIT_NOTE, PROFORMA
-  status          String    @default("DRAFT") // DRAFT, SENT, PARTIAL, PAID, OVERDUE, CANCELLED
+  type            String   @default("INVOICE") // INVOICE, CREDIT_NOTE, DEBIT_NOTE, PROFORMA
+  status          String   @default("DRAFT") // DRAFT, SENT, PARTIAL, PAID, OVERDUE, CANCELLED
   billingAddress  String?
   shippingAddress String?
-  subtotal        Decimal   @db.Decimal(18, 4)
-  discountAmount  Decimal   @default(0) @db.Decimal(18, 4)
-  taxAmount       Decimal   @default(0) @db.Decimal(18, 4)
-  roundOff        Decimal   @default(0) @db.Decimal(18, 4)
-  totalAmount     Decimal   @db.Decimal(18, 4)
-  amountPaid      Decimal   @default(0) @db.Decimal(18, 4)
-  amountDue       Decimal   @db.Decimal(18, 4)
-  exchangeRate    Decimal   @default(1) @db.Decimal(18, 8)
+  subtotal        Decimal  @db.Decimal(18, 4)
+  discountAmount  Decimal  @default(0) @db.Decimal(18, 4)
+  taxAmount       Decimal  @default(0) @db.Decimal(18, 4)
+  roundOff        Decimal  @default(0) @db.Decimal(18, 4)
+  totalAmount     Decimal  @db.Decimal(18, 4)
+  amountPaid      Decimal  @default(0) @db.Decimal(18, 4)
+  amountDue       Decimal  @db.Decimal(18, 4)
+  exchangeRate    Decimal  @default(1) @db.Decimal(18, 8)
   notes           String?
   terms           String?
   irnNumber       String?
   qrCode          String?
   eInvoiceStatus  String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   party        Party             @relation(fields: [partyId], references: [id])
   salesOrder   SalesOrder?       @relation(fields: [salesOrderId], references: [id])
@@ -2397,7 +2441,7 @@ model AcctReceipt {
   receiptNumber  String    @unique
   date           DateTime
   amount         Decimal   @db.Decimal(18, 4)
-  paymentMode    String    // CASH, BANK_TRANSFER, CHEQUE, UPI, CARD
+  paymentMode    String // CASH, BANK_TRANSFER, CHEQUE, UPI, CARD
   bankAccountId  String?
   chequeNo       String?
   chequeDate     DateTime?
@@ -2421,7 +2465,7 @@ model AcctPayment {
   paymentNumber  String    @unique
   date           DateTime
   amount         Decimal   @db.Decimal(18, 4)
-  paymentMode    String    // CASH, BANK_TRANSFER, CHEQUE, NEFT, RTGS, UPI
+  paymentMode    String // CASH, BANK_TRANSFER, CHEQUE, NEFT, RTGS, UPI
   bankAccountId  String?
   chequeNo       String?
   chequeDate     DateTime?
@@ -2465,7 +2509,7 @@ model AcctBankAccount {
   accountNumber  String   @unique
   ifscCode       String?
   swiftCode      String?
-  accountType    String   // CURRENT, SAVINGS, CC, OD
+  accountType    String // CURRENT, SAVINGS, CC, OD
   openingBalance Decimal  @default(0) @db.Decimal(18, 4)
   currentBalance Decimal  @default(0) @db.Decimal(18, 4)
   isActive       Boolean  @default(true)
@@ -2494,7 +2538,7 @@ model BankTransaction {
   isReconciled     Boolean   @default(false)
   reconciledAt     DateTime?
   matchedVoucherId String?
-  importSource     String?   // MANUAL, BANK_FEED, CSV
+  importSource     String? // MANUAL, BANK_FEED, CSV
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -2532,7 +2576,7 @@ model TaxConfig {
   id          String   @id @default(cuid())
   name        String
   code        String   @unique // GST5, GST12, GST18, VAT, TDS194C
-  taxType     String   // GST, IGST, CGST, SGST, VAT, TDS, TCS, CESS
+  taxType     String // GST, IGST, CGST, SGST, VAT, TDS, TCS, CESS
   rate        Decimal  @db.Decimal(5, 2)
   description String?
   isActive    Boolean  @default(true)
@@ -2546,16 +2590,16 @@ model TaxConfig {
   acctInvoiceTaxes   AcctInvoiceTax[]
   billItems          BillItem[]
   billTaxes          BillTax[]
-  itemsPurchaseTax   Item[]             @relation("ItemPurchaseTax")
-  itemsSalesTax      Item[]             @relation("ItemSalesTax")
+  itemsPurchaseTax   Item[]              @relation("ItemPurchaseTax")
+  itemsSalesTax      Item[]              @relation("ItemSalesTax")
 
   @@map("tax_configs")
 }
 
 model GSTReturn {
   id                String    @id @default(cuid())
-  returnType        String    // GSTR1, GSTR3B, GSTR9
-  period            String    // "Apr-2024", "Q1-2024"
+  returnType        String // GSTR1, GSTR3B, GSTR9
+  period            String // "Apr-2024", "Q1-2024"
   filingDate        DateTime?
   dueDate           DateTime
   status            String    @default("PENDING") // PENDING, FILED, REVISED
@@ -2623,7 +2667,7 @@ model BudgetLine {
 model ReportTemplate {
   id        String   @id @default(cuid())
   name      String   @unique
-  type      String   // BALANCE_SHEET, PROFIT_LOSS, CASH_FLOW, TRIAL_BALANCE, CUSTOM
+  type      String // BALANCE_SHEET, PROFIT_LOSS, CASH_FLOW, TRIAL_BALANCE, CUSTOM
   config    Json
   schedule  Json?
   isSystem  Boolean  @default(false)
