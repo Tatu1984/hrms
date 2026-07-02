@@ -1115,6 +1115,8 @@ model LocationConsent {
   accuracyM  Float?
   capturedAt DateTime?
   userAgent  String?
+  // IP address at the time consent was recorded; re-prompt only when it changes.
+  ipAddress  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
