@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/daily-work-updates - Fetch daily work updates
 export async function GET(req: Request) {
@@ -32,6 +33,7 @@ export async function GET(req: Request) {
     // Build query filters
     const where: any = {
       employeeId: requestedEmployeeId,
+      ...orgWhere(session),
     };
 
     if (date) {
@@ -134,13 +136,13 @@ export async function POST(req: Request) {
         obstaclesOvercome: obstaclesOvercome || null,
         tasksLeft: tasksLeft || null,
       },
-      create: {
+      create: withOrg(session, {
         employeeId,
         date: updateDate,
         workCompleted,
         obstaclesOvercome: obstaclesOvercome || null,
         tasksLeft: tasksLeft || null,
-      },
+      }),
     });
 
     return NextResponse.json({
@@ -178,9 +180,9 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Verify the update belongs to the current employee
-    const existingUpdate = await prisma.dailyWorkUpdate.findUnique({
-      where: { id },
+    // Verify the update belongs to the current employee (scoped to caller's org)
+    const existingUpdate = await prisma.dailyWorkUpdate.findFirst({
+      where: { id, ...orgWhere(session) },
     });
 
     if (!existingUpdate) {

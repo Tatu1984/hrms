@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/api-auth';
+import { orgWhere } from '@/lib/tenant';
 
 // GET single designation
 export async function GET(
@@ -13,8 +14,8 @@ export async function GET(
 
     const { id } = await params;
 
-    const designation = await prisma.designation.findUnique({
-      where: { id },
+    const designation = await prisma.designation.findFirst({
+      where: { id, ...orgWhere(auth) },
       include: {
         department: true,
         parent: true,
@@ -46,9 +47,9 @@ export async function PUT(
     const body = await request.json();
     const { name, level, departmentId, parentId, description, isActive } = body;
 
-    // Check if designation exists
-    const existing = await prisma.designation.findUnique({
-      where: { id },
+    // Check if designation exists (scoped to caller's org)
+    const existing = await prisma.designation.findFirst({
+      where: { id, ...orgWhere(auth) },
     });
 
     if (!existing) {
@@ -105,9 +106,9 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if designation exists
-    const existing = await prisma.designation.findUnique({
-      where: { id },
+    // Check if designation exists (scoped to caller's org)
+    const existing = await prisma.designation.findFirst({
+      where: { id, ...orgWhere(auth) },
       include: {
         children: true,
       },
@@ -127,7 +128,7 @@ export async function DELETE(
 
     // Check if any employees have this designation
     const employeesWithDesignation = await prisma.employee.count({
-      where: { designation: existing.name },
+      where: { designation: existing.name, ...orgWhere(auth) },
     });
 
     if (employeesWithDesignation > 0) {

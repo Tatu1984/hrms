@@ -32,9 +32,20 @@ export async function getOrCreateBalance(
   });
   if (existing) return existing;
 
-  const policy = await prisma.leavePolicy.findUnique({ where: { leaveType } });
+  const [policy, employee] = await Promise.all([
+    prisma.leavePolicy.findUnique({ where: { leaveType } }),
+    prisma.employee.findUnique({ where: { id: employeeId }, select: { organizationId: true } }),
+  ]);
   return prisma.leaveBalance.create({
-    data: { employeeId, year, leaveType, allocated: policy?.annualQuota ?? 0, used: 0 },
+    data: {
+      employeeId,
+      year,
+      leaveType,
+      allocated: policy?.annualQuota ?? 0,
+      used: 0,
+      // Inherit the employee's tenant so balances stay org-scoped.
+      organizationId: employee?.organizationId ?? null,
+    },
   });
 }
 

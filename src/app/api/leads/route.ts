@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/leads - Get all leads
 export async function GET(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (status) {
       where.status = status;
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     const lead = await prisma.lead.create({
-      data: {
+      data: withOrg(session, {
         leadNumber,
         companyName,
         companyAddress: companyAddress || null,
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         callbackDateTime: callbackDateTime ? new Date(callbackDateTime) : null,
         assignedTo: assignedTo || null,
         notes: notes || null,
-      },
+      }),
     });
 
     return NextResponse.json({ success: true, lead }, { status: 201 });
@@ -151,7 +152,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
     });
 
-    if (!existing) {
+    if (!existing || (session.organizationId && existing.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
@@ -214,6 +215,10 @@ export async function DELETE(request: NextRequest) {
       where: { id },
       include: { sale: true },
     });
+
+    if (!lead || (session.organizationId && lead.organizationId !== session.organizationId)) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
 
     if (lead?.sale) {
       return NextResponse.json({ error: 'Cannot delete lead that has been converted to sale' }, { status: 400 });

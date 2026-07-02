@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,9 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Check if settings exist
-    const existing = await prisma.salaryConfig.findFirst();
+    const existing = await prisma.salaryConfig.findFirst({
+      where: { ...orgWhere(session) },
+    });
 
     const num = (v: unknown, d: number) => {
       const n = parseFloat(String(v));
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       settings = await prisma.salaryConfig.create({
-        data: settingsData,
+        data: withOrg(session, settingsData),
       });
     }
 
@@ -71,7 +74,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const settings = await prisma.salaryConfig.findFirst();
+    const session = await getSession();
+    const settings = await prisma.salaryConfig.findFirst({
+      where: { ...orgWhere(session) },
+    });
     return NextResponse.json(settings || {});
   } catch (error) {
     console.error('Error fetching payroll settings:', error);

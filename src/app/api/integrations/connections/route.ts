@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { createAsanaClient } from '@/lib/integrations/asana-client';
 import { encryptSecret } from '@/lib/crypto';
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const connections = await prisma.integrationConnection.findMany({
+      where: { ...orgWhere(session) },
       include: {
         userMappings: {
           select: {
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     // Create connection
     const connection = await prisma.integrationConnection.create({
-      data: {
+      data: withOrg(session, {
         platform,
         name,
         authType: authType || 'PAT',
@@ -152,7 +154,7 @@ export async function POST(request: NextRequest) {
         confluenceSpaceKey: confluenceSpaceKey || null,
         isActive: true,
         createdBy: session.employeeId,
-      },
+      }),
     });
 
     return NextResponse.json({
@@ -181,6 +183,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Connection ID required' }, { status: 400 });
+    }
+
+    const existing = await prisma.integrationConnection.findFirst({
+      where: { id, ...orgWhere(session) },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
     }
 
     await prisma.integrationConnection.delete({

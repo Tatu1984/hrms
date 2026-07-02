@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // Message has a `sender` relation but no `recipient` relation in the schema
 // (only a recipientId column), so we resolve recipient Employee records manually
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // sent or received
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (type === 'sent') {
       where.senderId = session.employeeId;
@@ -122,14 +123,14 @@ export async function POST(request: NextRequest) {
     }
 
     const message = await prisma.message.create({
-      data: {
+      data: withOrg(session, {
         senderId: currentUser.employee.id,
         recipientId: recipientEmployeeId,
         subject: subject || '',
         content,
         tracked: tracked || false,
         read: false,
-      },
+      }),
       include: {
         sender: {
           select: {
@@ -170,8 +171,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Message ID required' }, { status: 400 });
     }
 
-    const existing = await prisma.message.findUnique({
-      where: { id },
+    const existing = await prisma.message.findFirst({
+      where: { id, ...orgWhere(session) },
     });
 
     if (!existing) {
@@ -229,8 +230,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Message ID required' }, { status: 400 });
     }
 
-    const message = await prisma.message.findUnique({
-      where: { id },
+    const message = await prisma.message.findFirst({
+      where: { id, ...orgWhere(session) },
     });
 
     if (!message) {

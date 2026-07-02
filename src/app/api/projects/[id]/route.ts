@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -24,6 +25,15 @@ export async function PATCH(
 
     if (!status) {
       return NextResponse.json({ error: 'Status is required' }, { status: 400 });
+    }
+
+    const existing = await prisma.project.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     const project = await prisma.project.update({
@@ -53,6 +63,15 @@ export async function DELETE(
     }
 
     const { id } = params;
+
+    const existing = await prisma.project.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
 
     await prisma.project.delete({
       where: { id },

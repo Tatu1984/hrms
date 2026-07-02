@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -17,8 +18,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { id: params.id },
+    const employee = await prisma.employee.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
       include: {
         reportingHead: {
           select: {
@@ -64,6 +65,16 @@ export async function PUT(
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Ensure the employee belongs to the caller's org before updating.
+    const existingEmployee = await prisma.employee.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existingEmployee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const body = await request.json();
@@ -134,9 +145,9 @@ export async function DELETE(
 
     const employeeId = params.id;
 
-    // Check if employee exists
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
+    // Check if employee exists (scoped to caller's org)
+    const employee = await prisma.employee.findFirst({
+      where: { id: employeeId, ...orgWhere(session) },
       select: { id: true, name: true, employeeId: true },
     });
 

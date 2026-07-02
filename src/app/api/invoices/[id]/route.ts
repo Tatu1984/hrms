@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -21,6 +22,16 @@ export async function PATCH(
     const { id } = params;
     const body = await request.json();
     const { status, paidAmount, paidDate, paidCurrency } = body;
+
+    // Verify the invoice belongs to the caller's org
+    const scopedInvoice = await prisma.invoice.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!scopedInvoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
 
     const updateData: any = {};
 
@@ -99,8 +110,8 @@ export async function GET(
 
     const { id } = params;
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, ...orgWhere(session) },
     });
 
     if (!invoice) {
@@ -135,7 +146,7 @@ export async function PUT(
 
     // Check if invoice exists
     const existingInvoice = await prisma.invoice.findUnique({ where: { id } });
-    if (!existingInvoice) {
+    if (!existingInvoice || (session.organizationId && existingInvoice.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
@@ -186,7 +197,7 @@ export async function DELETE(
 
     // Check if invoice exists
     const existingInvoice = await prisma.invoice.findUnique({ where: { id } });
-    if (!existingInvoice) {
+    if (!existingInvoice || (session.organizationId && existingInvoice.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 

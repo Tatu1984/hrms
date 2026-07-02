@@ -45,6 +45,14 @@ export async function PUT(request: NextRequest) {
   }
   const allocated = Math.max(0, Math.floor(Number(body.allocated) || 0));
   const existing = await getOrCreateBalance(employeeId, year, leaveType);
+  // Reject cross-org access: the balance must be unowned or in the caller's org.
+  if (
+    auth.organizationId &&
+    existing.organizationId != null &&
+    existing.organizationId !== auth.organizationId
+  ) {
+    return NextResponse.json({ error: 'Leave balance not found' }, { status: 404 });
+  }
   const saved = await prisma.leaveBalance.update({
     where: { id: existing.id },
     data: { allocated },

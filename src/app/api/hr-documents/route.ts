@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma, HRDocType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET - Fetch all HR documents
 export async function GET(request: NextRequest) {
@@ -15,8 +16,8 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
 
     const where: Prisma.HRDocumentWhereInput = type
-      ? { type: type as HRDocType, isActive: true }
-      : { isActive: true };
+      ? { ...orgWhere(session), type: type as HRDocType, isActive: true }
+      : { ...orgWhere(session), isActive: true };
 
     const documents = await prisma.hRDocument.findMany({
       where,
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     const { type, title, description, content, filePath, year } = body;
 
     const document = await prisma.hRDocument.create({
-      data: {
+      data: withOrg(session, {
         type,
         title,
         description,
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
         year,
         createdBy: session.userId,
         updatedBy: session.userId,
-      },
+      }),
     });
 
     return NextResponse.json(document);

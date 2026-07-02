@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/api-auth';
+import { orgWhere } from '@/lib/tenant';
 
 // GET single department
 export async function GET(
@@ -13,8 +14,8 @@ export async function GET(
 
     const { id } = await params;
 
-    const department = await prisma.department.findUnique({
-      where: { id },
+    const department = await prisma.department.findFirst({
+      where: { id, ...orgWhere(auth) },
       include: {
         parent: true,
         children: true,
@@ -46,9 +47,9 @@ export async function PUT(
     const body = await request.json();
     const { name, code, description, headId, parentId, isActive } = body;
 
-    // Check if department exists
-    const existing = await prisma.department.findUnique({
-      where: { id },
+    // Check if department exists (scoped to caller's org)
+    const existing = await prisma.department.findFirst({
+      where: { id, ...orgWhere(auth) },
     });
 
     if (!existing) {
@@ -115,9 +116,9 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if department exists
-    const existing = await prisma.department.findUnique({
-      where: { id },
+    // Check if department exists (scoped to caller's org)
+    const existing = await prisma.department.findFirst({
+      where: { id, ...orgWhere(auth) },
       include: {
         children: true,
         designations: true,
@@ -146,7 +147,7 @@ export async function DELETE(
 
     // Check if any employees belong to this department
     const employeesInDepartment = await prisma.employee.count({
-      where: { department: existing.name },
+      where: { department: existing.name, ...orgWhere(auth) },
     });
 
     if (employeesInDepartment > 0) {

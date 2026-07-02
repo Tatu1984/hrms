@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/api-auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET - Fetch all bank accounts for a company
 export async function GET(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const accounts = await prisma.companyBankAccount.findMany({
-      where: { companyId },
+      where: { companyId, ...orgWhere(auth) },
       orderBy: [
         { isDefault: 'desc' },
         { createdAt: 'desc' },
@@ -46,16 +47,16 @@ export async function POST(request: NextRequest) {
     // If this account is set as default, unset other defaults
     if (accountData.isDefault) {
       await prisma.companyBankAccount.updateMany({
-        where: { companyId, isDefault: true },
+        where: { companyId, isDefault: true, ...orgWhere(auth) },
         data: { isDefault: false },
       });
     }
 
     const account = await prisma.companyBankAccount.create({
-      data: {
+      data: withOrg(auth, {
         companyId,
         ...accountData,
-      },
+      }),
     });
 
     return NextResponse.json(account);
@@ -81,9 +82,17 @@ export async function PUT(request: NextRequest) {
     // If this account is set as default, unset other defaults
     if (accountData.isDefault) {
       await prisma.companyBankAccount.updateMany({
-        where: { companyId, isDefault: true, NOT: { id } },
+        where: { companyId, isDefault: true, NOT: { id }, ...orgWhere(auth) },
         data: { isDefault: false },
       });
+    }
+
+    const existing = await prisma.companyBankAccount.findFirst({
+      where: { id, ...orgWhere(auth) },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
     const account = await prisma.companyBankAccount.update({
@@ -109,6 +118,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    const existing = await prisma.companyBankAccount.findFirst({
+      where: { id, ...orgWhere(auth) },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
     await prisma.companyBankAccount.delete({

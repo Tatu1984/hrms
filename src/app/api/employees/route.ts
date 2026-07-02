@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession, hashPassword } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const employees = await prisma.employee.findMany({
+      where: { ...orgWhere(session) },
       include: {
         reportingHead: {
           select: {

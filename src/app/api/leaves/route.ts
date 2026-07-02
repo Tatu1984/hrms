@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 import { markLeaveAttendance, revertLeaveAttendance } from '@/lib/attendance-utils';
 import { isPaidLeave, isEnforced, remainingBalance, adjustUsed, getOrCreateBalance } from '@/lib/leave-balance';
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     const employeeId = searchParams.get('employeeId');
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (employeeId) {
       where.employeeId = employeeId;
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const leave = await prisma.leave.create({
-      data: {
+      data: withOrg(session, {
         employeeId: targetEmployeeId,
         leaveType,
         startDate: start,
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
         days,
         reason,
         status: 'PENDING',
-      },
+      }),
       include: {
         employee: {
           select: {
@@ -210,9 +211,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Find the leave request
-    const leave = await prisma.leave.findUnique({
-      where: { id },
+    // Find the leave request (scoped to caller's org)
+    const leave = await prisma.leave.findFirst({
+      where: { id, ...orgWhere(session) },
       include: { employee: true },
     });
 

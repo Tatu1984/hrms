@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -37,6 +38,7 @@ export async function GET(
     // Fetch all messages between these two users
     const messages = await prisma.message.findMany({
       where: {
+        ...orgWhere(session),
         OR: [
           {
             senderId: currentUser.employee.id,
@@ -55,6 +57,7 @@ export async function GET(
     // Mark messages from recipient as read
     await prisma.message.updateMany({
       where: {
+        ...orgWhere(session),
         senderId: recipientUser.employee.id,
         recipientId: currentUser.employee.id,
         read: false,

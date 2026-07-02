@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
+import { orgWhere, withOrg } from '@/lib/tenant';
 import { isFriday, isMonday, processWeekendCascade } from '@/lib/attendance-utils';
 
 /**
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     // Build query
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (employeeId) {
       where.employeeId = employeeId;
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
 
       // Create new record
       attendance = await prisma.attendance.create({
-        data: {
+        data: withOrg(session, {
           employeeId,
           date: targetDate,
           status,
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest) {
           punchOut: punchOut ? new Date(punchOut) : null,
           totalHours: totalHours || 0,
           breakDuration: breakDuration || 0,
-        },
+        }),
         include: {
           employee: {
             select: {
@@ -277,13 +278,13 @@ export async function POST(request: NextRequest) {
       const ipAddress = getClientIp(request);
 
       const attendance = await prisma.attendance.create({
-        data: {
+        data: withOrg(session, {
           employeeId: targetEmployeeId,
           date: punchInDate, // Date when they punched in (locks the work to this date)
           punchIn: now,
           punchInIp: ipAddress,
           status: 'PRESENT',
-        },
+        }),
         include: {
           employee: {
             select: {
@@ -590,9 +591,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Attendance ID required' }, { status: 400 });
     }
 
-    // Find the attendance record
-    const attendance = await prisma.attendance.findUnique({
-      where: { id: attendanceId },
+    // Find the attendance record (scoped to caller's org)
+    const attendance = await prisma.attendance.findFirst({
+      where: { id: attendanceId, ...orgWhere(session) },
       include: {
         employee: {
           select: {

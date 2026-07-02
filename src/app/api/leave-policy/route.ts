@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/api-auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 import type { LeaveType } from '@prisma/client';
 
 const PAID_TYPES: LeaveType[] = ['SICK', 'CASUAL', 'EARNED'];
@@ -10,7 +11,7 @@ export async function GET() {
   const auth = await requireAuth();
   if (auth instanceof NextResponse) return auth;
 
-  const existing = await prisma.leavePolicy.findMany();
+  const existing = await prisma.leavePolicy.findMany({ where: { ...orgWhere(auth) } });
   const byType = new Map(existing.map((p) => [p.leaveType, p]));
   const policies = PAID_TYPES.map(
     (t) => byType.get(t) ?? { leaveType: t, annualQuota: 0 },
@@ -33,11 +34,18 @@ export async function PUT(request: NextRequest) {
   for (const p of policies) {
     if (!PAID_TYPES.includes(p.leaveType)) continue;
     const quota = Math.max(0, Math.floor(Number(p.annualQuota) || 0));
-    const saved = await prisma.leavePolicy.upsert({
-      where: { leaveType: p.leaveType },
-      create: { leaveType: p.leaveType, annualQuota: quota },
-      update: { annualQuota: quota },
+    // Org-scoped upsert: find the caller's policy for this type, then update or create.
+    const existing = await prisma.leavePolicy.findFirst({
+      where: { leaveType: p.leaveType, ...orgWhere(auth) },
     });
+    const saved = existing
+      ? await prisma.leavePolicy.update({
+          where: { id: existing.id },
+          data: { annualQuota: quota },
+        })
+      : await prisma.leavePolicy.create({
+          data: withOrg(auth, { leaveType: p.leaveType, annualQuota: quota }),
+        });
     results.push(saved);
   }
   return NextResponse.json({ success: true, policies: results });

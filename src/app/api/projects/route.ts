@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/projects - Get all projects
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     // Role-based filtering
     if (session.role === 'MANAGER') {
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Create project with members
     const project = await prisma.project.create({
-      data: {
+      data: withOrg(session, {
         projectId,
         name,
         description,
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
             employeeId,
           })),
         },
-      },
+      }),
       include: {
         members: {
           include: {
@@ -189,7 +190,7 @@ export async function PUT(request: NextRequest) {
       include: { members: true },
     });
 
-    if (!existing) {
+    if (!existing || (session.organizationId && existing.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
@@ -264,6 +265,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
+    }
+
+    // Verify the project belongs to the caller's org before deleting
+    const existing = await prisma.project.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     // Delete project (cascade will handle members and tasks)

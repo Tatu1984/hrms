@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 
 type RouteContext = {
@@ -19,8 +20,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const document = await prisma.hRDocument.findUnique({
-      where: { id: params.id },
+    const document = await prisma.hRDocument.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
     });
 
     if (!document) {
@@ -48,6 +49,14 @@ export async function PUT(
 
     const body = await request.json();
     const { type, title, description, content, filePath, year } = body;
+
+    const existing = await prisma.hRDocument.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
 
     const document = await prisma.hRDocument.update({
       where: { id: params.id },
@@ -79,6 +88,14 @@ export async function DELETE(
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const existing = await prisma.hRDocument.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
     await prisma.hRDocument.update({

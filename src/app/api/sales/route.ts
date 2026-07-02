@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/sales - Get all sales
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (status) {
       where.status = status;
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Create sale
       const sale = await tx.sale.create({
-        data: {
+        data: withOrg(session, {
           saleNumber,
           leadId: leadId || null,
           companyName,
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
           notes: notes || null,
           accountSynced: false,
           projectSynced: false,
-        },
+        }),
       });
 
       // If converting from lead, update lead status
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
         } : null;
 
         const project = await tx.project.create({
-          data: {
+          data: withOrg(session, {
             projectId,
             name: `${companyName} - ${product}`,
             description: notes || `Project from sale ${saleNumber}`,
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
             milestones: milestonesData ? (milestonesData as Prisma.InputJsonValue) : Prisma.JsonNull,
             leadId: leadId || null,
             saleId: sale.id,
-          },
+          }),
         });
 
         // Mark sale as synced with project
@@ -283,7 +284,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
     });
 
-    if (!existing) {
+    if (!existing || (session.organizationId && existing.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
 
@@ -392,6 +393,10 @@ export async function DELETE(request: NextRequest) {
     const sale = await prisma.sale.findUnique({
       where: { id },
     });
+
+    if (!sale || (session.organizationId && sale.organizationId !== session.organizationId)) {
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+    }
 
     if (sale?.status === 'PAID') {
       return NextResponse.json({ error: 'Cannot delete paid sale' }, { status: 400 });

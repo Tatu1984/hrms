@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/api-auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET all designations
 export async function GET(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     const includeInactive = searchParams.get('includeInactive') === 'true';
     const departmentId = searchParams.get('departmentId');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(auth) };
     if (!includeInactive) {
       where.isActive = true;
     }
@@ -63,13 +64,13 @@ export async function POST(request: NextRequest) {
     }
 
     const designation = await prisma.designation.create({
-      data: {
+      data: withOrg(auth, {
         name,
         level: level || 0,
         departmentId: departmentId || null,
         parentId: parentId || null,
         description: description || null,
-      },
+      }),
       include: {
         department: true,
         parent: true,

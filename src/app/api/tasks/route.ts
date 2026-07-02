@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/tasks - Get all tasks
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     // Role-based filtering
     if (session.role === 'EMPLOYEE') {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     const task = await prisma.task.create({
-      data: {
+      data: withOrg(session, {
         title,
         description: description || '',
         projectId: projectId || null,
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
         priority: priority || 'MEDIUM',
         status: status || 'PENDING',
         dueDate: dueDate ? new Date(dueDate) : null,
-      },
+      }),
       include: {
         employee: {
           select: {
@@ -161,7 +162,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    if (!existing) {
+    if (!existing || (session.organizationId && existing.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
@@ -239,6 +240,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Task ID required' }, { status: 400 });
+    }
+
+    // Verify the task belongs to the caller's org
+    const scopedTask = await prisma.task.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!scopedTask) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
     // If manager, verify they manage the assigned employee

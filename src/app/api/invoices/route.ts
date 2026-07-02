@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/invoices - Get all invoices
 export async function GET(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (status) {
       where.status = status;
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const invoice = await prisma.invoice.create({
-      data: {
+      data: withOrg(session, {
         invoiceNumber,
         clientName,
         clientEmail: clientEmail || null,
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
         status: status || 'DRAFT',
         notes: notes || null,
         skyDoSynced: false, // SkyDo integration field
-      },
+      }),
     });
 
     return NextResponse.json({ success: true, invoice }, { status: 201 });
@@ -119,7 +120,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
     });
 
-    if (!existing) {
+    if (!existing || (session.organizationId && existing.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
@@ -160,6 +161,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Invoice ID required' }, { status: 400 });
+    }
+
+    // Verify the invoice belongs to the caller's org before deleting
+    const existing = await prisma.invoice.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
     await prisma.invoice.delete({

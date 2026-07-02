@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 export async function GET() {
   try {
@@ -80,6 +81,7 @@ export async function GET() {
     const unreadCounts = await prisma.message.groupBy({
       by: ['senderId'],
       where: {
+        ...orgWhere(session),
         senderId: { in: contactIds },
         recipientId: currentUser.employee!.id,
         read: false,

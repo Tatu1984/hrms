@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/api-auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET all departments
 export async function GET(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    const where: any = {};
+    const where: any = { ...orgWhere(auth) };
     if (!includeInactive) {
       where.isActive = true;
     }
@@ -68,13 +69,13 @@ export async function POST(request: NextRequest) {
     }
 
     const department = await prisma.department.create({
-      data: {
+      data: withOrg(auth, {
         name,
         code: code || null,
         description: description || null,
         headId: headId || null,
         parentId: parentId || null,
-      },
+      }),
       include: {
         parent: true,
         children: true,

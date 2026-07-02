@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     let profile = await prisma.companyProfile.findFirst({
+      where: { ...orgWhere(session) },
       include: {
         bankAccounts: {
           orderBy: [
@@ -23,10 +25,10 @@ export async function GET(request: NextRequest) {
     if (!profile) {
       // Create default profile if none exists
       profile = await prisma.companyProfile.create({
-        data: {
+        data: withOrg(session, {
           companyName: 'Infiniti Tech Partners',
           country: 'India',
-        },
+        }),
         include: {
           bankAccounts: true,
         },
@@ -50,7 +52,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Get existing profile or create new one
-    let profile = await prisma.companyProfile.findFirst();
+    let profile = await prisma.companyProfile.findFirst({
+      where: { ...orgWhere(session) },
+    });
 
     if (profile) {
       // Update existing profile
@@ -76,7 +80,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new profile
       profile = await prisma.companyProfile.create({
-        data: {
+        data: withOrg(session, {
           companyName: body.companyName,
           address1: body.address1,
           address2: body.address2,
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest) {
           panNumber: body.panNumber,
           gstNumber: body.gstNumber,
           cinNumber: body.cinNumber,
-        },
+        }),
       });
     }
 

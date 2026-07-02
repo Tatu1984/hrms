@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 
 // GET /api/holidays - Get all holidays
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
     const month = searchParams.get('month');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (year) {
       const yearNum = parseInt(year);
@@ -76,13 +77,13 @@ export async function POST(request: NextRequest) {
     const year = holidayDate.getFullYear();
 
     const holiday = await prisma.holiday.create({
-      data: {
+      data: withOrg(session, {
         name,
         date: holidayDate,
         year,
         isOptional: isOptional || false,
         description,
-      },
+      }),
     });
 
     return NextResponse.json(holiday, { status: 201 });
@@ -105,6 +106,16 @@ export async function PUT(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Holiday ID is required' }, { status: 400 });
+    }
+
+    // Ensure the holiday belongs to the caller's org before updating.
+    const existingHoliday = await prisma.holiday.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existingHoliday) {
+      return NextResponse.json({ error: 'Holiday not found' }, { status: 404 });
     }
 
     const body = await request.json();
@@ -144,6 +155,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Holiday ID is required' }, { status: 400 });
+    }
+
+    // Ensure the holiday belongs to the caller's org before deleting.
+    const existingHoliday = await prisma.holiday.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existingHoliday) {
+      return NextResponse.json({ error: 'Holiday not found' }, { status: 404 });
     }
 
     await prisma.holiday.delete({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
 import { isFriday, isMonday, isSaturday, isSunday } from '@/lib/attendance-utils';
 import { computeStatutoryDeductions, type DeductionToggles } from '@/lib/payroll-calc';
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
     const employeeId = searchParams.get('employeeId');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     // Role-based filtering
     if (session.role === 'EMPLOYEE') {
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get employees to process
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
     if (employeeIds && employeeIds.length > 0) {
       where.id = { in: employeeIds };
     }
@@ -170,6 +171,7 @@ export async function POST(request: NextRequest) {
             gte: monthStartDate,
             lte: monthEndDate,
           },
+          ...orgWhere(session),
         },
         orderBy: { date: 'asc' },
       });
@@ -389,7 +391,7 @@ export async function POST(request: NextRequest) {
       const daysAbsent = Math.max(0, workingDays - presentDays);
 
       const payrollRecord = await prisma.payroll.create({
-        data: {
+        data: withOrg(session, {
           employeeId: emp.id,
           month: parseInt(month),
           year: parseInt(year),
@@ -417,7 +419,7 @@ export async function POST(request: NextRequest) {
 
           netSalary,
           status: 'PENDING',
-        },
+        }),
         include: {
           employee: {
             select: {
@@ -465,7 +467,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    const existing = await prisma.payroll.findUnique({ where: { id } });
+    const existing = await prisma.payroll.findFirst({ where: { id, ...orgWhere(session) } });
     if (!existing) {
       return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
     }
@@ -524,6 +526,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Payroll ID required' }, { status: 400 });
+    }
+
+    // Ensure the payroll record belongs to the caller's org before deleting.
+    const existing = await prisma.payroll.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
     }
 
     await prisma.payroll.delete({
