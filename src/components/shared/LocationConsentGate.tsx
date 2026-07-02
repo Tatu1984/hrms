@@ -31,6 +31,38 @@ function isPermissionDenied(e: unknown): boolean {
 }
 
 /**
+ * Read the current geolocation permission WITHOUT triggering the browser prompt.
+ * Returns 'unsupported' where the Permissions API isn't available.
+ */
+async function queryGeoPermission(): Promise<PermissionState | 'unsupported'> {
+  try {
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return 'unsupported';
+    const s = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    return s.state;
+  } catch {
+    return 'unsupported';
+  }
+}
+
+// Run the consent flow at most once per browser session, so a page refresh never
+// re-prompts. Cleared when the tab/session ends (i.e. on the next fresh login).
+const SESSION_FLAG = 'hrms:geo:handled';
+function alreadyHandled(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+function markHandled() {
+  try {
+    sessionStorage.setItem(SESSION_FLAG, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
  * Get a position, preferring a precise GPS fix. Desktops without a GPS chip
  * frequently time out on high-accuracy reads, so on a non-permission failure we
  * retry with a coarse network fix (and allow a recent cached one) rather than
@@ -77,6 +109,8 @@ export default function LocationConsentGate() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Only act once per browser session — never on every refresh.
+      if (alreadyHandled()) return;
       try {
         const res = await fetch('/api/location-consent');
         if (!res.ok) return;
@@ -84,22 +118,28 @@ export default function LocationConsentGate() {
         if (cancelled) return;
 
         if (status === 'GRANTED') {
-          // Already consented — refresh the location quietly (no UI, no popup).
-          // Never downgrade the stored status here: a transient failure must not
-          // turn a granted consent into a re-prompt on the next login.
-          try {
-            const pos = await getPosition(true);
-            await post({
-              status: 'GRANTED',
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            });
-          } catch {
-            /* permission may have been revoked in the browser; ignore */
+          markHandled();
+          // Only read the location if the browser permission is ALREADY granted —
+          // that path never shows a prompt. If it's 'prompt'/'denied'/unsupported,
+          // do nothing here (no nag); we keep the last known fix from grant time.
+          const perm = await queryGeoPermission();
+          if (perm === 'granted') {
+            try {
+              const pos = await getPosition(true);
+              await post({
+                status: 'GRANTED',
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+              });
+            } catch {
+              /* transient; keep stored status */
+            }
           }
         } else {
-          // NONE / DENIED / PENDING → ask again.
+          // Not yet granted — ask once this session (the native prompt only fires
+          // when the user clicks "Allow").
+          markHandled();
           setOpen(true);
         }
       } catch {
