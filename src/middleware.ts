@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { decrypt } from './lib/auth';
+// Import from the edge-safe JWT module (jose only). Importing from './lib/auth'
+// would pull session-store -> node:crypto into the Edge bundle and fail deploy.
+import { decrypt } from './lib/jwt';
 
 const publicPaths = ['/login'];
 const adminPaths = ['/admin'];
