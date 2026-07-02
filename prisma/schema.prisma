@@ -3,30 +3,50 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   // Direct (non-pooled) connection for migrations/introspection. Neon's pooled
   // endpoint can't hold the advisory locks `migrate deploy` needs. Falls back to
   // DATABASE_URL at runtime (the app only ever uses `url`).
   directUrl = env("DIRECT_URL")
 }
 
+// Tenant. Each customer company is one Organization; tenant-owned rows carry
+// organizationId. Nullable during rollout so existing single-tenant data keeps
+// working (backfilled to a default org).
+model Organization {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  isActive  Boolean    @default(true)
+  settings  Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  users     User[]
+  employees Employee[]
+
+  @@index([slug])
+}
+
 model User {
-  id          String     @id @default(cuid())
-  email       String     @unique
-  username    String     @unique
-  password    String
-  role        Role       @default(EMPLOYEE)
-  employeeId  String?    @unique
-  permissions Json?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  employee    Employee?  @relation(fields: [employeeId], references: [id])
-  userRoles   UserRole[]
+  id             String        @id @default(cuid())
+  email          String        @unique
+  username       String        @unique
+  password       String
+  role           Role          @default(EMPLOYEE)
+  employeeId     String?       @unique
+  organizationId String?
+  permissions    Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  employee       Employee?     @relation(fields: [employeeId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  userRoles      UserRole[]
 
   @@index([email])
   @@index([username])
   @@index([role])
+  @@index([organizationId])
 }
 
 // ==========================================
@@ -77,6 +97,7 @@ model Permission {
 model Employee {
   id                       String             @id @default(cuid())
   employeeId               String             @unique
+  organizationId           String?
   name                     String
   email                    String             @unique
   phone                    String
@@ -120,8 +141,10 @@ model Employee {
   projects                 ProjectMember[]
   tasks                    Task[]
   user                     User?
+  organization             Organization?      @relation(fields: [organizationId], references: [id])
 
   @@index([isActive])
+  @@index([organizationId])
 }
 
 model Attendance {

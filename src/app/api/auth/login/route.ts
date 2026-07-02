@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
       employeeId: user.employeeId || undefined,
       name: user.employee?.name || user.username,
       permissions: user.permissions || null,
+      organizationId: user.organizationId || undefined,
       sessionId,
     });
 

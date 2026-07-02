@@ -14,6 +14,8 @@ export interface JWTPayload {
   employeeId?: string;
   name: string;
   permissions?: any;
+  /** Tenant the user belongs to (multi-tenancy). */
+  organizationId?: string;
   /** Opaque id of the server-side Session row this token belongs to. */
   sessionId?: string;
 }
@@ -61,6 +63,7 @@ export async function decrypt(token: string): Promise<JWTPayload | null> {
         employeeId: typeof payload.employeeId === 'string' ? payload.employeeId : undefined,
         name: payload.name,
         permissions: payload.permissions || null,
+        organizationId: typeof payload.organizationId === 'string' ? payload.organizationId : undefined,
         sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       };
     }

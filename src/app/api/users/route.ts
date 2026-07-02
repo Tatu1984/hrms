@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
         role: role || 'EMPLOYEE',
         employeeId: employeeId || null,
         permissions: permissions || null,
+        organizationId: auth.organizationId ?? null,
       },
     });
 

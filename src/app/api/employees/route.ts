@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     const newEmployee = await prisma.employee.create({
       data: {
         employeeId: empId,
+        organizationId: session?.organizationId ?? null,
         name: body.name,
         email: body.email,
         phone: body.phone,
