@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Enforce leave balance only for types with a configured policy (see
     // isEnforced). UNPAID is always allowed (it simply isn't paid).
-    if (await isEnforced(leaveType)) {
+    if (await isEnforced(leaveType, session.organizationId)) {
       const remaining = await remainingBalance(targetEmployeeId, start.getFullYear(), leaveType);
       if (days > remaining) {
         return NextResponse.json(
@@ -279,7 +279,7 @@ export async function PUT(request: NextRequest) {
     const isNewApproval = status === 'APPROVED' && leave.status !== 'APPROVED';
 
     // Hard-enforce quota at approval time only for configured (paid) types.
-    if (isNewApproval && (await isEnforced(effType))) {
+    if (isNewApproval && (await isEnforced(effType, session.organizationId))) {
       const bal = await getOrCreateBalance(leave.employeeId, effYear, effType);
       if (bal.used + effDays > bal.allocated) {
         return NextResponse.json(

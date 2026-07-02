@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Check if invoice number already exists
-    const existing = await prisma.invoice.findUnique({
-      where: { invoiceNumber },
+    // Check if invoice number already exists (within the caller's org)
+    const existing = await prisma.invoice.findFirst({
+      where: { invoiceNumber, ...orgWhere(session) },
     });
 
     if (existing) {

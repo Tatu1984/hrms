@@ -19,22 +19,23 @@ async function seedHierarchy() {
   ];
 
   for (const dept of departments) {
-    await prisma.department.upsert({
-      where: { name: dept.name },
-      update: {},
-      create: dept,
-    });
+    // department.name is now unique per-org, so upsert-by-name is no longer
+    // valid; emulate it with a scoped lookup + create.
+    const existing = await prisma.department.findFirst({ where: { name: dept.name } });
+    if (!existing) {
+      await prisma.department.create({ data: dept });
+    }
   }
 
   console.log(`Seeded ${departments.length} departments`);
 
   // Fetch department IDs for linking
-  const mgmt = await prisma.department.findUnique({ where: { name: 'Management' } });
-  const dev = await prisma.department.findUnique({ where: { name: 'Development' } });
-  const design = await prisma.department.findUnique({ where: { name: 'Design' } });
-  const sales = await prisma.department.findUnique({ where: { name: 'Sales' } });
-  const hr = await prisma.department.findUnique({ where: { name: 'HR' } });
-  const ops = await prisma.department.findUnique({ where: { name: 'Operations' } });
+  const mgmt = await prisma.department.findFirst({ where: { name: 'Management' } });
+  const dev = await prisma.department.findFirst({ where: { name: 'Development' } });
+  const design = await prisma.department.findFirst({ where: { name: 'Design' } });
+  const sales = await prisma.department.findFirst({ where: { name: 'Sales' } });
+  const hr = await prisma.department.findFirst({ where: { name: 'HR' } });
+  const ops = await prisma.department.findFirst({ where: { name: 'Operations' } });
 
   // Seed Designations with hierarchy levels
   const designations = [
@@ -84,15 +85,20 @@ async function seedHierarchy() {
   ];
 
   for (const desig of designations) {
-    await prisma.designation.upsert({
-      where: { name: desig.name },
-      update: {
-        level: desig.level,
-        departmentId: desig.departmentId,
-        description: desig.description,
-      },
-      create: desig,
-    });
+    // designation.name is now unique per-org; emulate the upsert manually.
+    const existing = await prisma.designation.findFirst({ where: { name: desig.name } });
+    if (existing) {
+      await prisma.designation.update({
+        where: { id: existing.id },
+        data: {
+          level: desig.level,
+          departmentId: desig.departmentId,
+          description: desig.description,
+        },
+      });
+    } else {
+      await prisma.designation.create({ data: desig });
+    }
   }
 
   console.log(`Seeded ${designations.length} designations`);

@@ -12,9 +12,16 @@ export function isPaidLeave(leaveType: LeaveType): boolean {
  * accrues, so enabling a policy later reflects prior usage. Avoids locking
  * everyone out of leave the moment this ships with no quotas set.
  */
-export async function isEnforced(leaveType: LeaveType): Promise<boolean> {
+export async function isEnforced(
+  leaveType: LeaveType,
+  organizationId?: string | null,
+): Promise<boolean> {
   if (!isPaidLeave(leaveType)) return false;
-  const policy = await prisma.leavePolicy.findUnique({ where: { leaveType } });
+  // Policies are per-org, so a type is only "enforced" if the caller's org has
+  // configured a policy for it.
+  const policy = await prisma.leavePolicy.findFirst({
+    where: { leaveType, ...(organizationId ? { organizationId } : {}) },
+  });
   return !!policy;
 }
 
@@ -32,10 +39,18 @@ export async function getOrCreateBalance(
   });
   if (existing) return existing;
 
-  const [policy, employee] = await Promise.all([
-    prisma.leavePolicy.findUnique({ where: { leaveType } }),
-    prisma.employee.findUnique({ where: { id: employeeId }, select: { organizationId: true } }),
-  ]);
+  // Resolve the employee's tenant first, then look up the policy within that org
+  // (policies are per-org now that leaveType is no longer globally unique).
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { organizationId: true },
+  });
+  const policy = await prisma.leavePolicy.findFirst({
+    where: {
+      leaveType,
+      ...(employee?.organizationId ? { organizationId: employee.organizationId } : {}),
+    },
+  });
   return prisma.leaveBalance.create({
     data: {
       employeeId,

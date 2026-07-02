@@ -54,9 +54,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Designation name is required' }, { status: 400 });
     }
 
-    // Check if designation with same name exists
-    const existing = await prisma.designation.findUnique({
-      where: { name },
+    // Check if designation with same name exists (within the caller's org)
+    const existing = await prisma.designation.findFirst({
+      where: { name, ...orgWhere(auth) },
     });
 
     if (existing) {

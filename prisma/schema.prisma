@@ -96,10 +96,10 @@ model Permission {
 
 model Employee {
   id                       String             @id @default(cuid())
-  employeeId               String             @unique
+  employeeId               String
   organizationId           String?
   name                     String
-  email                    String             @unique
+  email                    String
   phone                    String
   altPhone                 String?
   address                  String
@@ -143,6 +143,8 @@ model Employee {
   user                     User?
   organization             Organization?      @relation(fields: [organizationId], references: [id])
 
+  @@unique([organizationId, employeeId])
+  @@unique([organizationId, email])
   @@index([isActive])
   @@index([organizationId])
 }
@@ -248,7 +250,7 @@ model Leave {
 model Project {
   id              String          @id @default(cuid())
   organizationId  String?
-  projectId       String          @unique
+  projectId       String
   name            String
   description     String
   sowDocument     String?
@@ -268,6 +270,7 @@ model Project {
   members         ProjectMember[]
   tasks           Task[]
 
+  @@unique([organizationId, projectId])
   @@index([status])
   @@index([startDate])
   @@index([organizationId])
@@ -393,10 +396,11 @@ model SalaryConfig {
 model LeavePolicy {
   id             String    @id @default(cuid())
   organizationId String?
-  leaveType      LeaveType @unique
+  leaveType      LeaveType
   annualQuota    Int       @default(0)
   updatedAt      DateTime  @updatedAt
 
+  @@unique([organizationId, leaveType])
   @@index([organizationId])
 }
 
@@ -469,7 +473,7 @@ model CompanyBankAccount {
 model Invoice {
   id             String        @id @default(cuid())
   organizationId String?
-  invoiceNumber  String        @unique
+  invoiceNumber  String
   clientName     String
   clientEmail    String?
   amount         Float
@@ -486,6 +490,7 @@ model Invoice {
   paidAmount     Float?
   paidDate       DateTime?
 
+  @@unique([organizationId, invoiceNumber])
   @@index([status])
   @@index([dueDate])
   @@index([organizationId])
@@ -581,7 +586,7 @@ model Report {
 model Lead {
   id                   String        @id @default(cuid())
   organizationId       String?
-  leadNumber           String        @unique
+  leadNumber           String
   companyName          String
   companyAddress       String?
   contactName          String
@@ -603,6 +608,7 @@ model Lead {
   saleId               String?       @unique
   sale                 Sale?         @relation(fields: [saleId], references: [id])
 
+  @@unique([organizationId, leadNumber])
   @@index([status])
   @@index([assignedTo])
   @@index([createdAt])
@@ -612,7 +618,7 @@ model Lead {
 model Sale {
   id             String     @id @default(cuid())
   organizationId String?
-  saleNumber     String     @unique
+  saleNumber     String
   leadId         String?    @unique
   companyName    String
   contactName    String
@@ -642,6 +648,7 @@ model Sale {
   updatedAt      DateTime   @updatedAt
   lead           Lead?
 
+  @@unique([organizationId, saleNumber])
   @@index([status])
   @@index([closedBy])
   @@index([month, year])
@@ -907,7 +914,7 @@ model EmployeeDocument {
 model Designation {
   id             String        @id @default(cuid())
   organizationId String?
-  name           String        @unique
+  name           String
   level          Int           @default(0)
   departmentId   String?
   parentId       String?
@@ -919,6 +926,7 @@ model Designation {
   parent         Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id])
   children       Designation[] @relation("DesignationHierarchy")
 
+  @@unique([organizationId, name])
   @@index([level])
   @@index([departmentId])
   @@index([isActive])
@@ -928,8 +936,8 @@ model Designation {
 model Department {
   id             String        @id @default(cuid())
   organizationId String?
-  name           String        @unique
-  code           String?       @unique
+  name           String
+  code           String?
   description    String?
   headId         String?
   parentId       String?
@@ -940,6 +948,8 @@ model Department {
   children       Department[]  @relation("DepartmentHierarchy")
   designations   Designation[]
 
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
   @@index([isActive])
   @@index([organizationId])
 }

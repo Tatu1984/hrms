@@ -56,10 +56,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Designation not found' }, { status: 404 });
     }
 
-    // Check for duplicate name (excluding current designation)
+    // Check for duplicate name (excluding current designation, within the caller's org)
     if (name && name !== existing.name) {
-      const duplicate = await prisma.designation.findUnique({
-        where: { name },
+      const duplicate = await prisma.designation.findFirst({
+        where: { name, ...orgWhere(auth) },
       });
       if (duplicate) {
         return NextResponse.json({ error: 'Designation with this name already exists' }, { status: 400 });

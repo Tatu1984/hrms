@@ -56,20 +56,20 @@ export async function PUT(
       return NextResponse.json({ error: 'Department not found' }, { status: 404 });
     }
 
-    // Check for duplicate name (excluding current department)
+    // Check for duplicate name (excluding current department, within the caller's org)
     if (name && name !== existing.name) {
-      const duplicate = await prisma.department.findUnique({
-        where: { name },
+      const duplicate = await prisma.department.findFirst({
+        where: { name, ...orgWhere(auth) },
       });
       if (duplicate) {
         return NextResponse.json({ error: 'Department with this name already exists' }, { status: 400 });
       }
     }
 
-    // Check for duplicate code (excluding current department)
+    // Check for duplicate code (excluding current department, within the caller's org)
     if (code && code !== existing.code) {
-      const duplicate = await prisma.department.findUnique({
-        where: { code },
+      const duplicate = await prisma.department.findFirst({
+        where: { code, ...orgWhere(auth) },
       });
       if (duplicate) {
         return NextResponse.json({ error: 'Department with this code already exists' }, { status: 400 });

@@ -49,19 +49,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Department name is required' }, { status: 400 });
     }
 
-    // Check if department with same name exists
-    const existingName = await prisma.department.findUnique({
-      where: { name },
+    // Check if department with same name exists (within the caller's org)
+    const existingName = await prisma.department.findFirst({
+      where: { name, ...orgWhere(auth) },
     });
 
     if (existingName) {
       return NextResponse.json({ error: 'Department with this name already exists' }, { status: 400 });
     }
 
-    // Check if code is provided and unique
+    // Check if code is provided and unique (within the caller's org)
     if (code) {
-      const existingCode = await prisma.department.findUnique({
-        where: { code },
+      const existingCode = await prisma.department.findFirst({
+        where: { code, ...orgWhere(auth) },
       });
       if (existingCode) {
         return NextResponse.json({ error: 'Department with this code already exists' }, { status: 400 });
