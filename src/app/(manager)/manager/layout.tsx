@@ -40,7 +40,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
           {children}
         </main>
       </div>
-      <PopupMessenger currentUserId={session.id} currentUserName={session.name} />
+      <PopupMessenger currentUserId={session.userId} currentUserName={session.name} />
     </div>
   );
 }
