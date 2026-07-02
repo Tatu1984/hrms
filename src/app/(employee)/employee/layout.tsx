@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import Sidebar from '@/components/shared/sidebar';
-import Navbar from '@/components/shared/navbar';
+import AppShell from '@/components/shared/app-shell';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 import { ActivityHeartbeat } from '@/components/employee/ActivityHeartbeat';
 import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
@@ -30,18 +29,14 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <>
       <ActivityHeartbeat />
       <BrowserActivityTracker />
       <LocationConsentGate />
-      <Sidebar items={sidebarItems} baseUrl="/employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar userName={session.name} userRole="Employee" />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </div>
+      <AppShell items={sidebarItems} userName={session.name} userRole="Employee">
+        {children}
+      </AppShell>
       <PopupMessenger currentUserId={session.userId} currentUserName={session.name} />
-    </div>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import Sidebar from '@/components/shared/sidebar';
-import Navbar from '@/components/shared/navbar';
+import AppShell from '@/components/shared/app-shell';
 import { PopupMessenger } from '@/components/messenger/PopupMessenger';
 import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTracker';
 import LocationConsentGate from '@/components/shared/LocationConsentGate';
@@ -30,17 +29,13 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <>
       <BrowserActivityTracker />
       <LocationConsentGate />
-      <Sidebar items={sidebarItems} baseUrl="/manager" />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar userName={session.name} userRole="Manager" />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </div>
+      <AppShell items={sidebarItems} userName={session.name} userRole="Manager">
+        {children}
+      </AppShell>
       <PopupMessenger currentUserId={session.userId} currentUserName={session.name} />
-    </div>
+    </>
   );
 }
