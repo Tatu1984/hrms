@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
+import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
@@ -97,11 +98,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await verifyAuth(request);
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // RBAC: only ADMIN/MANAGER may create accounting records.
+    const auth = await requireRole("ADMIN", "MANAGER");
+    if (auth instanceof NextResponse) return auth;
 
     const body = await request.json();
     const validatedData = createPartySchema.parse(body);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { intelligentAutomation } from '@/lib/ai/automation';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { action } = body;
+
+    // Only notification prioritization uses OpenAI; every other automation
+    // action (leave evaluation, anomaly detection, compliance, rules) is rule-based.
+    if (action === 'prioritize-notifications' && !isOpenAIConfigured()) {
+      return NextResponse.json(
+        { error: 'AI features are not configured', configured: false },
+        { status: 503 }
+      );
+    }
 
     switch (action) {
       case 'evaluate-leave': {

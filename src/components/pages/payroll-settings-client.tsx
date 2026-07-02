@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -38,8 +40,18 @@ export function PayrollSettingsClient({ settings }: PayrollSettingsClientProps) 
     // Deduction Percentages
     pfPercentage: settings?.pfPercentage || 12,
     esiPercentage: settings?.esiPercentage || 0.75,
-    tdsPercentage: 10, // TDS percentage
+    esiWageCeiling: 21000, // ESI applies below this monthly gross
+    tdsPercentage: 10, // TDS percentage (legacy display)
     professionalTax: 200, // Fixed professional tax
+
+    // Deduction Toggles (which statutory deductions are applied)
+    applyPf: false,
+    applyEsi: false,
+    applyTds: false,
+    applyProfessionalTax: true,
+
+    // TDS slabs as JSON: [{ upTo: number|null, rate: number }]
+    tdsSlabs: '[]',
 
     // Display Settings
     showPF: true,
@@ -52,15 +64,66 @@ export function PayrollSettingsClient({ settings }: PayrollSettingsClientProps) 
     showSpecialAllowance: true,
   });
 
+  // Rehydrate all values from the persisted settings on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/payroll-settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data || typeof data !== 'object') return;
+        const bonus = (data.bonusRules && typeof data.bonusRules === 'object') ? data.bonusRules : {};
+        setFormData((prev) => ({
+          ...prev,
+          basicSalaryPercentage: typeof bonus.basicSalaryPercentage === 'number' ? bonus.basicSalaryPercentage : prev.basicSalaryPercentage,
+          variablePayPercentage: typeof bonus.variablePayPercentage === 'number' ? bonus.variablePayPercentage : prev.variablePayPercentage,
+          pfPercentage: typeof data.pfPercentage === 'number' ? data.pfPercentage : prev.pfPercentage,
+          esiPercentage: typeof data.esiPercentage === 'number' ? data.esiPercentage : prev.esiPercentage,
+          esiWageCeiling: typeof data.esiWageCeiling === 'number' ? data.esiWageCeiling : prev.esiWageCeiling,
+          professionalTax: typeof data.professionalTax === 'number' ? data.professionalTax : prev.professionalTax,
+          applyPf: typeof data.applyPf === 'boolean' ? data.applyPf : prev.applyPf,
+          applyEsi: typeof data.applyEsi === 'boolean' ? data.applyEsi : prev.applyEsi,
+          applyTds: typeof data.applyTds === 'boolean' ? data.applyTds : prev.applyTds,
+          applyProfessionalTax: typeof data.applyProfessionalTax === 'boolean' ? data.applyProfessionalTax : prev.applyProfessionalTax,
+          tdsSlabs: Array.isArray(data.tdsSlabs) ? JSON.stringify(data.tdsSlabs, null, 2) : prev.tdsSlabs,
+        }));
+      } catch (err) {
+        console.error('Failed to load payroll settings:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Parse the TDS slabs JSON textarea into an array (if provided/valid)
+    let parsedTdsSlabs: unknown = undefined;
+    const raw = formData.tdsSlabs?.trim();
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+          alert('TDS slabs must be a JSON array, e.g. [{"upTo":250000,"rate":0}]');
+          return;
+        }
+        parsedTdsSlabs = parsed;
+      } catch {
+        alert('TDS slabs is not valid JSON. Please fix it or leave it empty.');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch('/api/payroll-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, tdsSlabs: parsedTdsSlabs }),
       });
 
       if (response.ok) {
@@ -205,6 +268,54 @@ export function PayrollSettingsClient({ settings }: PayrollSettingsClientProps) 
           <CardTitle>Deduction Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Statutory deduction toggles */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="applyPf" className="cursor-pointer">Apply PF</Label>
+                <p className="text-xs text-gray-500">Deduct Provident Fund</p>
+              </div>
+              <Switch
+                id="applyPf"
+                checked={formData.applyPf}
+                onCheckedChange={(checked) => setFormData({ ...formData, applyPf: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="applyEsi" className="cursor-pointer">Apply ESI</Label>
+                <p className="text-xs text-gray-500">Deduct Employee State Insurance</p>
+              </div>
+              <Switch
+                id="applyEsi"
+                checked={formData.applyEsi}
+                onCheckedChange={(checked) => setFormData({ ...formData, applyEsi: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="applyTds" className="cursor-pointer">Apply TDS</Label>
+                <p className="text-xs text-gray-500">Deduct tax using configured slabs</p>
+              </div>
+              <Switch
+                id="applyTds"
+                checked={formData.applyTds}
+                onCheckedChange={(checked) => setFormData({ ...formData, applyTds: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="applyProfessionalTax" className="cursor-pointer">Apply Professional Tax</Label>
+                <p className="text-xs text-gray-500">Deduct fixed professional tax</p>
+              </div>
+              <Switch
+                id="applyProfessionalTax"
+                checked={formData.applyProfessionalTax}
+                onCheckedChange={(checked) => setFormData({ ...formData, applyProfessionalTax: checked })}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="pfPercentage">PF Percentage (%)</Label>
@@ -268,6 +379,40 @@ export function PayrollSettingsClient({ settings }: PayrollSettingsClientProps) 
                 Fixed professional tax amount per month (typically ₹200)
               </p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="esiWageCeiling">ESI Wage Ceiling (Fixed Amount)</Label>
+              <Input
+                id="esiWageCeiling"
+                type="number"
+                step="1"
+                min="0"
+                value={formData.esiWageCeiling}
+                onChange={(e) => setFormData({ ...formData, esiWageCeiling: parseFloat(e.target.value) })}
+              />
+              <p className="text-xs text-gray-500">
+                ESI is deducted only when monthly gross is at or below this amount (typically ₹21000)
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tdsSlabs">TDS Slabs (JSON)</Label>
+            <Textarea
+              id="tdsSlabs"
+              rows={5}
+              className="font-mono text-xs"
+              value={formData.tdsSlabs}
+              placeholder='[{"upTo":250000,"rate":0},{"upTo":500000,"rate":5},{"upTo":null,"rate":20}]'
+              onChange={(e) => setFormData({ ...formData, tdsSlabs: e.target.value })}
+            />
+            <p className="text-xs text-gray-500">
+              TDS is calculated from these configured slabs when &quot;Apply TDS&quot; is enabled. Each entry is
+              {' '}<code>{'{ "upTo": number|null, "rate": percent }'}</code>; use <code>null</code> for the top slab.
+              Leave empty to keep the existing slabs unchanged.
+            </p>
           </div>
         </CardContent>
       </Card>

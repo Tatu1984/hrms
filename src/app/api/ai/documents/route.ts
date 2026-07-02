@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { documentProcessor } from '@/lib/ai/document-processing';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 export async function POST(request: NextRequest) {
   try {
     const auth = await verifyAuth(request);
     if (!auth || !isAdmin(auth.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Every document action relies on OpenAI; there is no rule-based fallback.
+    if (!isOpenAIConfigured()) {
+      return NextResponse.json(
+        { error: 'AI features are not configured', configured: false },
+        { status: 503 }
+      );
     }
 
     const body = await request.json();

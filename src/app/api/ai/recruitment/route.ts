@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, isAdmin } from '@/lib/auth';
-
-// Check if OpenAI is configured
-const isOpenAIConfigured = (): boolean => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  return !!(apiKey && apiKey !== 'sk-placeholder-key' && apiKey.startsWith('sk-'));
-};
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 // Simple keyword-based resume parser (works without OpenAI)
 function parseResumeContent(content: string) {

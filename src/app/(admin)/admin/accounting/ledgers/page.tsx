@@ -76,6 +76,27 @@ interface Ledger {
   isActive: boolean;
 }
 
+// Shapes returned by the API (Decimal fields are serialized as strings,
+// balance type is stored as "DR"/"CR").
+interface ApiLedgerGroup {
+  id: string;
+  name: string;
+  nature: Ledger["group"]["nature"];
+}
+
+interface ApiLedger {
+  id: string;
+  name: string;
+  code: string | null;
+  group: ApiLedgerGroup;
+  openingBalance: string | number;
+  openingBalanceType: "DR" | "CR" | null;
+  currentBalance: string | number;
+  gstNo: string | null;
+  panNo: string | null;
+  isActive: boolean;
+}
+
 const natureColors: Record<string, string> = {
   ASSETS: "bg-blue-100 text-blue-800",
   LIABILITIES: "bg-red-100 text-red-800",
@@ -92,115 +113,20 @@ function formatCurrency(amount: number) {
   }).format(Math.abs(amount));
 }
 
-// Mock data for demonstration
-const mockLedgers: Ledger[] = [
-  {
-    id: "1",
-    name: "Cash",
-    code: "CASH001",
-    group: { id: "1", name: "Cash & Bank", nature: "ASSETS" },
-    openingBalance: 50000,
-    openingBalanceType: "DEBIT",
-    currentBalance: 125000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Bank Account - HDFC",
-    code: "BANK001",
-    group: { id: "1", name: "Cash & Bank", nature: "ASSETS" },
-    openingBalance: 500000,
-    openingBalanceType: "DEBIT",
-    currentBalance: 875000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Accounts Receivable",
-    code: "AR001",
-    group: { id: "2", name: "Sundry Debtors", nature: "ASSETS" },
-    openingBalance: 200000,
-    openingBalanceType: "DEBIT",
-    currentBalance: 450000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "4",
-    name: "Accounts Payable",
-    code: "AP001",
-    group: { id: "3", name: "Sundry Creditors", nature: "LIABILITIES" },
-    openingBalance: 150000,
-    openingBalanceType: "CREDIT",
-    currentBalance: 280000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "5",
-    name: "Sales Revenue",
-    code: "REV001",
-    group: { id: "4", name: "Direct Income", nature: "INCOME" },
-    openingBalance: 0,
-    openingBalanceType: "CREDIT",
-    currentBalance: 2450000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "6",
-    name: "Salary Expenses",
-    code: "EXP001",
-    group: { id: "5", name: "Direct Expenses", nature: "EXPENSES" },
-    openingBalance: 0,
-    openingBalanceType: "DEBIT",
-    currentBalance: 1200000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "7",
-    name: "Office Rent",
-    code: "EXP002",
-    group: { id: "6", name: "Indirect Expenses", nature: "EXPENSES" },
-    openingBalance: 0,
-    openingBalanceType: "DEBIT",
-    currentBalance: 360000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-  {
-    id: "8",
-    name: "Capital Account",
-    code: "CAP001",
-    group: { id: "7", name: "Capital", nature: "EQUITY" },
-    openingBalance: 1000000,
-    openingBalanceType: "CREDIT",
-    currentBalance: 1000000,
-    gstNo: null,
-    panNo: null,
-    isActive: true,
-  },
-];
-
-const mockGroups: LedgerGroup[] = [
-  { id: "1", name: "Cash & Bank", nature: "ASSETS" },
-  { id: "2", name: "Sundry Debtors", nature: "ASSETS" },
-  { id: "3", name: "Sundry Creditors", nature: "LIABILITIES" },
-  { id: "4", name: "Direct Income", nature: "INCOME" },
-  { id: "5", name: "Direct Expenses", nature: "EXPENSES" },
-  { id: "6", name: "Indirect Expenses", nature: "EXPENSES" },
-  { id: "7", name: "Capital", nature: "EQUITY" },
-];
+function mapLedger(l: ApiLedger): Ledger {
+  return {
+    id: l.id,
+    name: l.name,
+    code: l.code ?? null,
+    group: l.group,
+    openingBalance: Number(l.openingBalance) || 0,
+    openingBalanceType: l.openingBalanceType === "CR" ? "CREDIT" : "DEBIT",
+    currentBalance: Number(l.currentBalance) || 0,
+    gstNo: l.gstNo ?? null,
+    panNo: l.panNo ?? null,
+    isActive: l.isActive,
+  };
+}
 
 export default function LedgersPage() {
   const [ledgers, setLedgers] = React.useState<Ledger[]>([]);
@@ -257,14 +183,34 @@ export default function LedgersPage() {
     setIsDialogOpen(true);
   };
 
-  React.useEffect(() => {
-    // Load mock data - will be replaced with API call
-    setTimeout(() => {
-      setLedgers(mockLedgers);
-      setGroups(mockGroups);
+  const fetchData = React.useCallback(async () => {
+    try {
+      const [ledgersRes, groupsRes] = await Promise.all([
+        fetch("/api/accounting/ledgers"),
+        fetch("/api/accounting/ledger-groups"),
+      ]);
+
+      if (ledgersRes.ok) {
+        const data: ApiLedger[] = await ledgersRes.json();
+        setLedgers(data.map(mapLedger));
+      }
+
+      if (groupsRes.ok) {
+        const data: ApiLedgerGroup[] = await groupsRes.json();
+        setGroups(
+          data.map((g) => ({ id: g.id, name: g.name, nature: g.nature }))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch ledgers:", error);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   }, []);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSubmitLedger = async () => {
     if (!formData.name || !formData.groupId) {
@@ -273,40 +219,45 @@ export default function LedgersPage() {
     }
 
     setIsSubmitting(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      if (editingLedger) {
-        setLedgers(prev => prev.map(l =>
-          l.id === editingLedger.id
-            ? { ...l, name: formData.name, code: formData.code || null }
-            : l
-        ));
-      } else {
-        const newLedger: Ledger = {
-          id: Date.now().toString(),
+    try {
+      const res = await fetch("/api/accounting/ledgers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: formData.name,
           code: formData.code || null,
-          group: groups.find(g => g.id === formData.groupId) || groups[0],
+          groupId: formData.groupId,
           openingBalance: parseFloat(formData.openingBalance) || 0,
-          openingBalanceType: formData.openingBalanceType as "DEBIT" | "CREDIT",
-          currentBalance: parseFloat(formData.openingBalance) || 0,
+          openingBalanceType:
+            formData.openingBalanceType === "CREDIT" ? "CR" : "DR",
           gstNo: formData.gstNo || null,
           panNo: formData.panNo || null,
-          isActive: true,
-        };
-        setLedgers(prev => [...prev, newLedger]);
-      }
+          creditLimit: formData.creditLimit
+            ? parseFloat(formData.creditLimit)
+            : null,
+        }),
+      });
 
-      setIsDialogOpen(false);
-      resetForm();
+      if (res.ok) {
+        setIsDialogOpen(false);
+        resetForm();
+        await fetchData();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to save ledger");
+      }
+    } catch (error) {
+      console.error("Failed to save ledger:", error);
+      alert("Failed to save ledger");
+    } finally {
       setIsSubmitting(false);
-    }, 500);
+    }
   };
 
   const handleDeleteLedger = async () => {
     if (!deleteLedgerId) return;
-    setLedgers(prev => prev.filter(l => l.id !== deleteLedgerId));
+    // No delete endpoint yet; remove locally so the UX stays responsive.
+    setLedgers((prev) => prev.filter((l) => l.id !== deleteLedgerId));
     setDeleteLedgerId(null);
   };
 

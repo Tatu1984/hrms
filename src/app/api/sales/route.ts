@@ -219,19 +219,9 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Create gross income entry
-        await tx.account.create({
-          data: {
-            type: 'INCOME',
-            categoryId: category.id,
-            amount: grossAmount,
-            date: new Date(),
-            description: `Sale ${saleNumber} - ${product} - Gross Amount`,
-            reference: saleNumber,
-          },
-        });
-
-        // Create net income entry (after discount and tax)
+        // Book revenue ONCE. Previously both grossAmount and netAmount were
+        // posted as INCOME, double-counting the sale. We record only the net
+        // amount (after discount & tax), which is the actual recognized revenue.
         await tx.account.create({
           data: {
             type: 'INCOME',
@@ -342,21 +332,11 @@ export async function PUT(request: NextRequest) {
           });
         }
 
-        const updatedGross = updateData.grossAmount || existing.grossAmount;
         const updatedNet = updateData.netAmount || existing.netAmount;
 
-        // Create account entries
-        await tx.account.create({
-          data: {
-            type: 'INCOME',
-            categoryId: category.id,
-            amount: updatedGross,
-            date: new Date(),
-            description: `Sale ${existing.saleNumber} - ${updateData.product || existing.product} - Gross Amount`,
-            reference: existing.saleNumber,
-          },
-        });
-
+        // Book revenue ONCE. Previously both gross and net were posted as
+        // INCOME, double-counting the sale. We record only the net amount
+        // (after discount & tax), which is the actual recognized revenue.
         await tx.account.create({
           data: {
             type: 'INCOME',

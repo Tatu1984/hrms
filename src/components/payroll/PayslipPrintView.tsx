@@ -20,6 +20,8 @@ interface PayslipPrintViewProps {
     grossSalary: number;
     professionalTax: number;
     tds: number;
+    pf?: number;
+    esi?: number;
     penalties: number;
     advancePayment: number;
     otherDeductions: number;
@@ -91,6 +93,8 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
   // Deductions - use actual values from payroll
   const professionalTax = payroll.professionalTax || 0;
   const tds = payroll.tds || 0;
+  const pf = payroll.pf || 0;
+  const esi = payroll.esi || 0;
   const absenteeismDeduction = payroll.penalties || 0;
 
   // Calculate totals - must match payroll exactly
@@ -152,7 +156,7 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
             )}
           </div>
           <div className="col-span-10 text-center py-1">
-            <div className="text-base font-bold">{companyProfile?.companyName || 'Infiniti Tech Partners'}</div>
+            <div className="text-base font-bold">{companyProfile?.companyName || 'Company Name'}</div>
             <div className="text-xs">{companyAddress}</div>
           </div>
         </div>
@@ -285,19 +289,23 @@ export function PayslipPrintView({ payroll, companyProfile }: PayslipPrintViewPr
               <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {tds.toLocaleString('en-IN')}</div>
             </div>
 
+            {pf > 0 && (
+              <div className="grid grid-cols-12 border-b border-black">
+                <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">PF</div>
+                <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {pf.toLocaleString('en-IN')}</div>
+              </div>
+            )}
+
+            {esi > 0 && (
+              <div className="grid grid-cols-12 border-b border-black">
+                <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">ESI</div>
+                <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {esi.toLocaleString('en-IN')}</div>
+              </div>
+            )}
+
             <div className="grid grid-cols-12 border-b border-black">
               <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs">Absentiesm</div>
               <div className="col-span-6 px-1 py-0.5 text-right text-xs">Rs. {absenteeismDeduction.toLocaleString('en-IN')}</div>
-            </div>
-
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs"></div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs"></div>
-            </div>
-
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 px-1 py-0.5 font-bold border-r border-black text-xs"></div>
-              <div className="col-span-6 px-1 py-0.5 text-right text-xs"></div>
             </div>
 
             <div className="grid grid-cols-12 border-b border-black">

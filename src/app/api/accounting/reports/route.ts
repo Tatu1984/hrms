@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { verifyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -115,29 +116,43 @@ async function getTrialBalance() {
 }
 
 async function getProfitLoss(startDate: string | null, endDate: string | null) {
-  const dateFilter: Record<string, unknown> = {};
+  // The P&L must reflect activity within the requested period, NOT the lifetime
+  // ledger `currentBalance`. We therefore aggregate posted VoucherEntry
+  // debit/credit amounts for INCOME/EXPENSES ledgers over the date range.
+  const voucherFilter: Prisma.VoucherWhereInput = { isPosted: true };
 
   if (startDate && endDate) {
-    dateFilter.date = {
+    voucherFilter.date = {
       gte: new Date(startDate),
       lte: new Date(endDate),
     };
   }
 
-  // Get income and expense ledgers
-  const ledgerGroups = await prisma.ledgerGroup.findMany({
+  // Income & expense ledgers (used to resolve names/nature after aggregation).
+  const ledgers = await prisma.ledger.findMany({
     where: {
-      nature: { in: ["INCOME", "EXPENSES"] },
+      isActive: true,
+      group: { nature: { in: ["INCOME", "EXPENSES"] } },
     },
-    include: {
-      ledgers: {
-        where: { isActive: true },
-        select: {
-          id: true,
-          name: true,
-          currentBalance: true,
-        },
-      },
+    select: {
+      id: true,
+      name: true,
+      group: { select: { nature: true } },
+    },
+  });
+
+  const ledgerMap = new Map(ledgers.map((l) => [l.id, l]));
+
+  // Sum debit/credit per ledger from posted vouchers within the period.
+  const grouped = await prisma.voucherEntry.groupBy({
+    by: ["ledgerId"],
+    where: {
+      ledgerId: { in: ledgers.map((l) => l.id) },
+      voucher: voucherFilter,
+    },
+    _sum: {
+      debitAmount: true,
+      creditAmount: true,
     },
   });
 
@@ -147,21 +162,29 @@ async function getProfitLoss(startDate: string | null, endDate: string | null) {
   const income: Array<{ name: string; amount: number }> = [];
   const expenses: Array<{ name: string; amount: number }> = [];
 
-  ledgerGroups.forEach((group) => {
-    group.ledgers.forEach((ledger) => {
-      const amount = Number(ledger.currentBalance);
-      if (group.nature === "INCOME") {
-        totalIncome += amount;
-        income.push({ name: ledger.name, amount });
-      } else {
-        totalExpenses += amount;
-        expenses.push({ name: ledger.name, amount });
-      }
-    });
+  grouped.forEach((entry) => {
+    const ledger = ledgerMap.get(entry.ledgerId);
+    if (!ledger) return;
+
+    const debit = Number(entry._sum.debitAmount ?? 0);
+    const credit = Number(entry._sum.creditAmount ?? 0);
+
+    if (ledger.group.nature === "INCOME") {
+      // Income is credit-nature: period income = credit - debit.
+      const amount = credit - debit;
+      totalIncome += amount;
+      income.push({ name: ledger.name, amount });
+    } else {
+      // Expenses are debit-nature: period expense = debit - credit.
+      const amount = debit - credit;
+      totalExpenses += amount;
+      expenses.push({ name: ledger.name, amount });
+    }
   });
 
   return NextResponse.json({
     type: "profit-loss",
+    period: startDate && endDate ? { startDate, endDate } : null,
     income,
     expenses,
     totals: {
@@ -212,6 +235,37 @@ async function getBalanceSheet() {
       }
     });
   });
+
+  // Retained earnings / current-period profit: net income (income - expenses)
+  // is not otherwise closed into an equity ledger, so the accounting equation
+  // (Assets = Liabilities + Equity) would not balance without it. We derive it
+  // from the lifetime balances of income/expense ledgers and surface it as an
+  // equity line.
+  const pnlLedgers = await prisma.ledger.findMany({
+    where: {
+      isActive: true,
+      group: { nature: { in: ["INCOME", "EXPENSES"] } },
+    },
+    select: {
+      currentBalance: true,
+      group: { select: { nature: true } },
+    },
+  });
+
+  let retainedEarnings = 0;
+  pnlLedgers.forEach((ledger) => {
+    const balance = Number(ledger.currentBalance);
+    retainedEarnings +=
+      ledger.group.nature === "INCOME" ? balance : -balance;
+  });
+
+  if (retainedEarnings !== 0) {
+    equity.push({
+      name: "Retained Earnings (Current Period Profit)",
+      amount: retainedEarnings,
+    });
+    totalEquity += retainedEarnings;
+  }
 
   return NextResponse.json({
     type: "balance-sheet",

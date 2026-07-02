@@ -21,6 +21,7 @@ const sidebarItems = [
     { icon: 'Edit3', label: 'Edit Attendance', href: '/admin/attendance/edit' },
   ]},
   { icon: 'Calendar', label: 'Leave Management', href: '/admin/leave-management' },
+  { icon: 'SlidersHorizontal', label: 'Leave Settings', href: '/admin/leave-settings' },
   { icon: 'CalendarDays', label: 'Holidays', href: '/admin/holidays' },
   { icon: 'Timer', label: 'Time Analytics', href: '/admin/time-analytics' },
 

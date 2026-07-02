@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { predictiveAnalytics } from '@/lib/ai/predictive-analytics';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +18,15 @@ export async function GET(request: NextRequest) {
     // Only admins can view predictions for other employees
     if (employeeId && employeeId !== auth.employeeId && !isAdmin(auth.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Attrition predictions call OpenAI for recommendations; the other types
+    // (performance, workload, team-health) are rule-based and work without a key.
+    if (type === 'attrition' && !isOpenAIConfigured()) {
+      return NextResponse.json(
+        { error: 'AI features are not configured', configured: false },
+        { status: 503 }
+      );
     }
 
     switch (type) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { advancedAnalytics } from '@/lib/ai/analytics';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { action } = body;
+
+    // NL query parsing requires OpenAI; generate-insights and what-if are rule-based.
+    if (action === 'query' && !isOpenAIConfigured()) {
+      return NextResponse.json(
+        { error: 'AI features are not configured', configured: false },
+        { status: 503 }
+      );
+    }
 
     switch (action) {
       case 'query': {

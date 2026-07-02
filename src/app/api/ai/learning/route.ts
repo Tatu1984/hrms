@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, isAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-
-// Check if OpenAI is configured
-const isOpenAIConfigured = (): boolean => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  return !!(apiKey && apiKey !== 'sk-placeholder-key' && apiKey.startsWith('sk-'));
-};
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 // Role-based required skills (fallback data)
 const ROLE_SKILLS: Record<string, { skill: string; level: number }[]> = {

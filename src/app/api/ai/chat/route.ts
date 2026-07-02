@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hrChatbot } from '@/lib/ai/chatbot';
 import { verifyAuth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-
-// Check if OpenAI is properly configured
-const isOpenAIConfigured = (): boolean => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  return !!(apiKey && apiKey !== 'sk-placeholder-key' && apiKey.startsWith('sk-'));
-};
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
 
 // Get employee-specific data for personalized responses
 async function getEmployeeData(employeeId: string | null) {

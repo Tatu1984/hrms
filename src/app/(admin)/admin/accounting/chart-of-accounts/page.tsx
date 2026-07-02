@@ -14,17 +14,46 @@ import {
   CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type Nature = "ASSETS" | "LIABILITIES" | "INCOME" | "EXPENSES" | "EQUITY";
 
 interface LedgerGroup {
   id: string;
   name: string;
-  nature: "ASSETS" | "LIABILITIES" | "INCOME" | "EXPENSES" | "EQUITY";
+  nature: Nature;
   parentId: string | null;
   children: LedgerGroup[];
   ledgerCount: number;
   totalBalance: number;
+}
+
+// Raw group as returned by /api/accounting/ledger-groups
+interface ApiLedgerGroup {
+  id: string;
+  name: string;
+  nature: Nature;
+  parentId: string | null;
+  _count?: { ledgers: number };
 }
 
 const natureConfig = {
@@ -60,98 +89,45 @@ const natureConfig = {
   },
 };
 
-// Mock data
-const mockGroups: LedgerGroup[] = [
-  {
-    id: "1",
-    name: "Current Assets",
-    nature: "ASSETS",
-    parentId: null,
-    children: [
-      { id: "1a", name: "Cash & Bank", nature: "ASSETS", parentId: "1", children: [], ledgerCount: 5, totalBalance: 1000000 },
-      { id: "1b", name: "Sundry Debtors", nature: "ASSETS", parentId: "1", children: [], ledgerCount: 12, totalBalance: 450000 },
-      { id: "1c", name: "Stock in Trade", nature: "ASSETS", parentId: "1", children: [], ledgerCount: 3, totalBalance: 250000 },
-    ],
-    ledgerCount: 20,
-    totalBalance: 1700000,
-  },
-  {
-    id: "2",
-    name: "Fixed Assets",
-    nature: "ASSETS",
-    parentId: null,
-    children: [
-      { id: "2a", name: "Furniture & Fixtures", nature: "ASSETS", parentId: "2", children: [], ledgerCount: 2, totalBalance: 150000 },
-      { id: "2b", name: "Computer Equipment", nature: "ASSETS", parentId: "2", children: [], ledgerCount: 3, totalBalance: 300000 },
-    ],
-    ledgerCount: 5,
-    totalBalance: 450000,
-  },
-  {
-    id: "3",
-    name: "Current Liabilities",
-    nature: "LIABILITIES",
-    parentId: null,
-    children: [
-      { id: "3a", name: "Sundry Creditors", nature: "LIABILITIES", parentId: "3", children: [], ledgerCount: 8, totalBalance: 280000 },
-      { id: "3b", name: "Duties & Taxes", nature: "LIABILITIES", parentId: "3", children: [], ledgerCount: 4, totalBalance: 85000 },
-    ],
-    ledgerCount: 12,
-    totalBalance: 365000,
-  },
-  {
-    id: "4",
-    name: "Direct Income",
-    nature: "INCOME",
-    parentId: null,
-    children: [
-      { id: "4a", name: "Sales", nature: "INCOME", parentId: "4", children: [], ledgerCount: 3, totalBalance: 2200000 },
-      { id: "4b", name: "Service Revenue", nature: "INCOME", parentId: "4", children: [], ledgerCount: 2, totalBalance: 250000 },
-    ],
-    ledgerCount: 5,
-    totalBalance: 2450000,
-  },
-  {
-    id: "5",
-    name: "Direct Expenses",
-    nature: "EXPENSES",
-    parentId: null,
-    children: [
-      { id: "5a", name: "Salaries & Wages", nature: "EXPENSES", parentId: "5", children: [], ledgerCount: 1, totalBalance: 1200000 },
-      { id: "5b", name: "Professional Fees", nature: "EXPENSES", parentId: "5", children: [], ledgerCount: 2, totalBalance: 180000 },
-    ],
-    ledgerCount: 3,
-    totalBalance: 1380000,
-  },
-  {
-    id: "6",
-    name: "Indirect Expenses",
-    nature: "EXPENSES",
-    parentId: null,
-    children: [
-      { id: "6a", name: "Office Expenses", nature: "EXPENSES", parentId: "6", children: [], ledgerCount: 4, totalBalance: 120000 },
-      { id: "6b", name: "Rent & Utilities", nature: "EXPENSES", parentId: "6", children: [], ledgerCount: 3, totalBalance: 360000 },
-    ],
-    ledgerCount: 7,
-    totalBalance: 480000,
-  },
-  {
-    id: "7",
-    name: "Capital",
-    nature: "EQUITY",
-    parentId: null,
-    children: [],
-    ledgerCount: 2,
-    totalBalance: 1000000,
-  },
-];
-
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(Math.abs(amount));
+}
+
+// Build a two-level tree of top-level groups with their direct children.
+// Balances are not exposed by this endpoint, so totalBalance stays 0.
+function buildTree(raw: ApiLedgerGroup[]): LedgerGroup[] {
+  const nodes = new Map<string, LedgerGroup>();
+  raw.forEach((g) => {
+    nodes.set(g.id, {
+      id: g.id,
+      name: g.name,
+      nature: g.nature,
+      parentId: g.parentId ?? null,
+      children: [],
+      ledgerCount: g._count?.ledgers ?? 0,
+      totalBalance: 0,
+    });
+  });
+
+  const roots: LedgerGroup[] = [];
+  nodes.forEach((node) => {
+    if (node.parentId && nodes.has(node.parentId)) {
+      nodes.get(node.parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  // Roll the child ledger counts up into the parent card total.
+  roots.forEach((root) => {
+    root.ledgerCount += root.children.reduce((sum, c) => sum + c.ledgerCount, 0);
+  });
+
+  return roots;
 }
 
 function GroupCard({ group }: { group: LedgerGroup }) {
@@ -205,13 +181,67 @@ function GroupCard({ group }: { group: LedgerGroup }) {
 export default function ChartOfAccountsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [groups, setGroups] = React.useState<LedgerGroup[]>([]);
+  const [allGroups, setAllGroups] = React.useState<ApiLedgerGroup[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    name: "",
+    nature: "ASSETS",
+    parentId: "",
+  });
+
+  const fetchGroups = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounting/ledger-groups");
+      if (res.ok) {
+        const data: ApiLedgerGroup[] = await res.json();
+        setAllGroups(data);
+        setGroups(buildTree(data));
+      }
+    } catch (error) {
+      console.error("Failed to fetch ledger groups:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
-    setTimeout(() => {
-      setGroups(mockGroups);
-      setIsLoading(false);
-    }, 500);
-  }, []);
+    fetchGroups();
+  }, [fetchGroups]);
+
+  const handleSubmitGroup = async () => {
+    if (!formData.name) {
+      alert("Name is required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/accounting/ledger-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          nature: formData.nature,
+          parentId: formData.parentId || null,
+        }),
+      });
+
+      if (res.ok) {
+        setIsDialogOpen(false);
+        setFormData({ name: "", nature: "ASSETS", parentId: "" });
+        await fetchGroups();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to create group");
+      }
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      alert("Failed to create group");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -229,6 +259,87 @@ export default function ChartOfAccountsPage() {
     EQUITY: groups.filter((g) => g.nature === "EQUITY"),
   };
 
+  const addGroupDialog = (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Group
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Ledger Group</DialogTitle>
+          <DialogDescription>
+            Create a new group to organize your ledger accounts
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label>Group Name *</Label>
+            <Input
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Current Assets"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Nature *</Label>
+            <Select
+              value={formData.nature}
+              onValueChange={(v) => setFormData({ ...formData, nature: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ASSETS">Assets</SelectItem>
+                <SelectItem value="LIABILITIES">Liabilities</SelectItem>
+                <SelectItem value="INCOME">Income</SelectItem>
+                <SelectItem value="EXPENSES">Expenses</SelectItem>
+                <SelectItem value="EQUITY">Equity</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Parent Group</Label>
+            <Select
+              value={formData.parentId || "none"}
+              onValueChange={(v) =>
+                setFormData({ ...formData, parentId: v === "none" ? "" : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None (top-level)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (top-level)</SelectItem>
+                {allGroups.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name} ({g.nature})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setIsDialogOpen(false)}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleSubmitGroup} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create Group
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -245,54 +356,73 @@ export default function ChartOfAccountsPage() {
               View Ledgers
             </Link>
           </Button>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Group
-          </Button>
+          {addGroupDialog}
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {(Object.entries(natureConfig) as [keyof typeof natureConfig, typeof natureConfig[keyof typeof natureConfig]][]).map(([nature, config]) => {
-          const total = groupsByNature[nature].reduce((sum, g) => sum + g.totalBalance, 0);
-          const Icon = config.icon;
-          return (
-            <Card key={nature} className={config.bgColor}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`p-1 rounded ${config.color}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm font-medium">{nature}</span>
-                </div>
-                <div className="text-xl font-bold">{formatCurrency(total)}</div>
-                <p className="text-xs text-gray-500">{config.description}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Groups by Nature */}
-      <div className="space-y-6">
-        {(Object.entries(groupsByNature) as [keyof typeof groupsByNature, LedgerGroup[]][]).map(([nature, natureGroups]) => (
-          <div key={nature}>
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              {React.createElement(natureConfig[nature].icon, { className: "h-5 w-5" })}
-              {nature}
-              <Badge variant="secondary" className="ml-2">
-                {natureGroups.reduce((sum, g) => sum + g.ledgerCount, 0)} ledgers
-              </Badge>
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {natureGroups.map((group) => (
-                <GroupCard key={group.id} group={group} />
-              ))}
+      {groups.length === 0 ? (
+        <Card>
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center">
+              <BookOpen className="h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium">No ledger groups yet</h3>
+              <p className="text-gray-500 mb-4">
+                Create your first group to start building your chart of accounts
+              </p>
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Group
+              </Button>
             </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {(Object.entries(natureConfig) as [keyof typeof natureConfig, typeof natureConfig[keyof typeof natureConfig]][]).map(([nature, config]) => {
+              const total = groupsByNature[nature].reduce((sum, g) => sum + g.totalBalance, 0);
+              const Icon = config.icon;
+              return (
+                <Card key={nature} className={config.bgColor}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`p-1 rounded ${config.color}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-medium">{nature}</span>
+                    </div>
+                    <div className="text-xl font-bold">{formatCurrency(total)}</div>
+                    <p className="text-xs text-gray-500">{config.description}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        ))}
-      </div>
+
+          {/* Groups by Nature */}
+          <div className="space-y-6">
+            {(Object.entries(groupsByNature) as [keyof typeof groupsByNature, LedgerGroup[]][])
+              .filter(([, natureGroups]) => natureGroups.length > 0)
+              .map(([nature, natureGroups]) => (
+                <div key={nature}>
+                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    {React.createElement(natureConfig[nature].icon, { className: "h-5 w-5" })}
+                    {nature}
+                    <Badge variant="secondary" className="ml-2">
+                      {natureGroups.reduce((sum, g) => sum + g.ledgerCount, 0)} ledgers
+                    </Badge>
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {natureGroups.map((group) => (
+                      <GroupCard key={group.id} group={group} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

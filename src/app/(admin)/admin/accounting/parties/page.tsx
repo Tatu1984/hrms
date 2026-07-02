@@ -62,6 +62,22 @@ interface Party {
   isActive: boolean;
 }
 
+// Raw party as returned by the API (Decimal fields serialized as strings).
+interface ApiParty {
+  id: string;
+  name: string;
+  type: "CUSTOMER" | "VENDOR" | "BOTH";
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  gstNo: string | null;
+  panNo: string | null;
+  billingAddress: string | null;
+  billingCity: string | null;
+  currentBalance: string | number;
+  isActive: boolean;
+}
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -70,74 +86,24 @@ function formatCurrency(amount: number) {
   }).format(Math.abs(amount));
 }
 
-// Mock data
-const mockParties: Party[] = [
-  {
-    id: "1",
-    name: "Acme Corporation",
-    type: "CUSTOMER",
-    email: "contact@acme.com",
-    phone: "+91 98765 43210",
-    gstNo: "27AADCA1234A1ZA",
-    panNo: "AADCA1234A",
-    address: "123 Business Park, Mumbai",
-    outstandingReceivable: 150000,
-    outstandingPayable: 0,
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Tech Solutions Pvt Ltd",
-    type: "VENDOR",
-    email: "info@techsolutions.in",
-    phone: "+91 87654 32109",
-    gstNo: "29AABCT1234B1ZV",
-    panNo: "AABCT1234B",
-    address: "456 Industrial Area, Bangalore",
-    outstandingReceivable: 0,
-    outstandingPayable: 85000,
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Global Services Inc",
-    type: "BOTH",
-    email: "hello@globalservices.com",
-    phone: "+91 76543 21098",
-    gstNo: "06AADCG5678C1ZR",
-    panNo: "AADCG5678C",
-    address: "789 Corporate Tower, Delhi",
-    outstandingReceivable: 200000,
-    outstandingPayable: 50000,
-    isActive: true,
-  },
-  {
-    id: "4",
-    name: "Office Supplies Co",
-    type: "VENDOR",
-    email: "sales@officesupplies.in",
-    phone: "+91 65432 10987",
-    gstNo: null,
-    panNo: "AABCO5678D",
-    address: "101 Market Street, Chennai",
-    outstandingReceivable: 0,
-    outstandingPayable: 25000,
-    isActive: true,
-  },
-  {
-    id: "5",
-    name: "Startup Ventures",
-    type: "CUSTOMER",
-    email: "founders@startupventures.io",
-    phone: "+91 54321 09876",
-    gstNo: "27AADCS9012E1ZQ",
-    panNo: "AADCS9012E",
-    address: "202 Innovation Hub, Pune",
-    outstandingReceivable: 100000,
-    outstandingPayable: 0,
-    isActive: true,
-  },
-];
+function mapParty(p: ApiParty): Party {
+  const balance = Number(p.currentBalance) || 0;
+  const isCustomer = p.type === "CUSTOMER" || p.type === "BOTH";
+  const isVendor = p.type === "VENDOR" || p.type === "BOTH";
+  return {
+    id: p.id,
+    name: p.name,
+    type: p.type,
+    email: p.email || "",
+    phone: p.phone || p.mobile || "",
+    gstNo: p.gstNo ?? null,
+    panNo: p.panNo ?? null,
+    address: [p.billingAddress, p.billingCity].filter(Boolean).join(", "),
+    outstandingReceivable: isCustomer && balance > 0 ? balance : 0,
+    outstandingPayable: isVendor && balance > 0 ? balance : 0,
+    isActive: p.isActive,
+  };
+}
 
 export default function PartiesPage() {
   const [parties, setParties] = React.useState<Party[]>([]);
@@ -156,12 +122,23 @@ export default function PartiesPage() {
     address: "",
   });
 
-  React.useEffect(() => {
-    setTimeout(() => {
-      setParties(mockParties);
+  const fetchParties = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounting/parties");
+      if (res.ok) {
+        const data: ApiParty[] = await res.json();
+        setParties(data.map(mapParty));
+      }
+    } catch (error) {
+      console.error("Failed to fetch parties:", error);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   }, []);
+
+  React.useEffect(() => {
+    fetchParties();
+  }, [fetchParties]);
 
   const handleSubmitParty = async () => {
     if (!formData.name || !formData.email) {
@@ -170,22 +147,35 @@ export default function PartiesPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const newParty: Party = {
-        id: Date.now().toString(),
-        ...formData,
-        type: formData.type as Party["type"],
-        gstNo: formData.gstNo || null,
-        panNo: formData.panNo || null,
-        outstandingReceivable: 0,
-        outstandingPayable: 0,
-        isActive: true,
-      };
-      setParties(prev => [...prev, newParty]);
-      setIsDialogOpen(false);
-      setFormData({ name: "", type: "CUSTOMER", email: "", phone: "", gstNo: "", panNo: "", address: "" });
+    try {
+      const res = await fetch("/api/accounting/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          type: formData.type,
+          email: formData.email,
+          phone: formData.phone,
+          gstNo: formData.gstNo || undefined,
+          panNo: formData.panNo || undefined,
+          billingAddress: formData.address || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        setIsDialogOpen(false);
+        setFormData({ name: "", type: "CUSTOMER", email: "", phone: "", gstNo: "", panNo: "", address: "" });
+        await fetchParties();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to add party");
+      }
+    } catch (error) {
+      console.error("Failed to add party:", error);
+      alert("Failed to add party");
+    } finally {
       setIsSubmitting(false);
-    }, 500);
+    }
   };
 
   const filteredParties = React.useMemo(() => {
@@ -276,7 +266,7 @@ export default function PartiesPage() {
     },
     {
       id: "actions",
-      cell: ({ row }) => (
+      cell: () => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -421,7 +411,21 @@ export default function PartiesPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <DataTable columns={columns} data={filteredParties} searchKey="name" searchPlaceholder="Search parties..." />
+          {filteredParties.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Users className="h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium">No parties found</h3>
+              <p className="text-gray-500 mb-4">
+                Get started by adding your first customer or vendor
+              </p>
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Party
+              </Button>
+            </div>
+          ) : (
+            <DataTable columns={columns} data={filteredParties} searchKey="name" searchPlaceholder="Search parties..." />
+          )}
         </CardContent>
       </Card>
     </div>

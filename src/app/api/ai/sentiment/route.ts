@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sentimentAnalyzer } from '@/lib/ai/sentiment';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { isOpenAIConfigured } from '@/lib/ai/is-configured';
+
+// Actions that require a live OpenAI call. 'employee-trend' reads stored
+// analyses from the DB and works without a key, so it is excluded.
+const AI_ACTIONS = ['analyze', 'analyze-batch', 'team-report', 'detect-critical', 'analyze-survey'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +16,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { action } = body;
+
+    if (AI_ACTIONS.includes(action) && !isOpenAIConfigured()) {
+      return NextResponse.json(
+        { error: 'AI features are not configured', configured: false },
+        { status: 503 }
+      );
+    }
 
     switch (action) {
       case 'analyze': {
