@@ -2,9 +2,8 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { LeaveActionButtons } from '@/components/admin/LeaveActionButtons';
 
 export default async function ManagerLeavePage() {
   const session = await getSession();
@@ -85,19 +84,7 @@ export default async function ManagerLeavePage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {leave.status === 'PENDING' && (
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="text-green-600">
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-red-600">
-                              <XCircle className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-orange-600">
-                              <Clock className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        )}
+                        <LeaveActionButtons leaveId={leave.id} currentStatus={leave.status} />
                       </td>
                     </tr>
                   );
