@@ -33,15 +33,17 @@ const pathToPermissionMap: Record<string, string> = {
 };
 
 function checkSectionPermission(pathname: string, permissions: any): boolean {
-  // Admin role has access to everything
-  if (!permissions) {
-    return true; // If no permissions set, allow access (backward compatibility)
-  }
-
-  // Always allow dashboard access - it's the base/fallback page
-  // This prevents redirect loops when users don't have other permissions
+  // Always allow the dashboard — it's the base/fallback page (prevents redirect
+  // loops for users who lack other section permissions).
   if (pathname.endsWith('/dashboard')) {
     return true;
+  }
+
+  // Default-deny: a non-admin with no permissions object gets nothing beyond the
+  // dashboard. (Previously this returned true, granting full access — a
+  // privilege-escalation hole.)
+  if (!permissions) {
+    return false;
   }
 
   // Find the section from the pathname
@@ -54,7 +56,8 @@ function checkSectionPermission(pathname: string, permissions: any): boolean {
     }
   }
 
-  // Allow access by default for unmatched paths
+  // Unmatched paths (e.g. profile, payslips) have no dedicated permission key;
+  // the role-prefix checks already scope them to the user's own area.
   return true;
 }
 
@@ -92,8 +95,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/${session.role.toLowerCase()}/dashboard`, request.url));
   }
 
-  // Check section-level permissions (except for admins who have full access)
-  if (session.role !== 'ADMIN' && session.permissions) {
+  // Check section-level permissions for all non-admins (admins have full access).
+  // Runs even when permissions is null so a user without a permissions object is
+  // confined to their dashboard rather than granted everything.
+  if (session.role !== 'ADMIN') {
     const hasPermission = checkSectionPermission(pathname, session.permissions);
     if (!hasPermission) {
       // Redirect to dashboard if no permission
