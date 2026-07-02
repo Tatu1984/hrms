@@ -127,19 +127,14 @@ export default function LocationConsentGate() {
     }
   };
 
-  const notNow = async () => {
-    setBusy(true);
-    try {
-      await post({ status: 'DENIED' }).catch(() => {});
-      setOpen(false);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && notNow()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open}>
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-blue-600" />
@@ -154,7 +149,7 @@ export default function LocationConsentGate() {
             <span className="block rounded-md bg-blue-50 border border-blue-200 p-3 text-blue-900">
               <ShieldCheck className="inline w-4 h-4 mr-1 -mt-0.5" />
               Your location is shared only with your employer&apos;s admins, used for login/attendance
-              verification, and only while you consent. You can decline.
+              verification. <strong>Location access is required to continue.</strong>
             </span>
             {error && (
               <span className="block rounded-md bg-red-50 border border-red-200 p-3 text-red-700">
@@ -163,11 +158,8 @@ export default function LocationConsentGate() {
             )}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={notNow} disabled={busy}>
-            Not now
-          </Button>
-          <Button onClick={allow} disabled={busy}>
+        <DialogFooter>
+          <Button onClick={allow} disabled={busy} className="w-full">
             {busy ? 'Requesting…' : 'Allow precise location'}
           </Button>
         </DialogFooter>
