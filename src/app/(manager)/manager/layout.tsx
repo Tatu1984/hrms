@@ -6,19 +6,28 @@ import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTrack
 import LocationConsentGate from '@/components/shared/LocationConsentGate';
 
 const sidebarItems = [
+  { heading: 'Overview' },
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/manager/dashboard' },
+
+  { heading: 'Time & Attendance' },
   { icon: 'Clock', label: 'Attendance', href: '/manager/attendance' },
   { icon: 'Timer', label: 'Time Analytics', href: '/manager/time-analytics' },
   { icon: 'Calendar', label: 'Leave', href: '/manager/leave' },
+
+  { heading: 'Work' },
   { icon: 'FolderKanban', label: 'Projects', href: '/manager/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/manager/tasks' },
     { icon: 'FileText', label: 'Daily Updates', href: '/manager/daily-updates' },
     { icon: 'Layers', label: 'Work Items', href: '/manager/work-items' },
   ]},
-  { icon: 'BookOpen', label: 'Documentation', href: '/manager/documentation' },
+
+  { heading: 'Business' },
   { icon: 'Receipt', label: 'Invoices', href: '/manager/invoices' },
-  { icon: 'MessageSquare', label: 'Messages', href: '/manager/messages' },
   { icon: 'BarChart3', label: 'Reports', href: '/manager/reports' },
+
+  { heading: 'More' },
+  { icon: 'MessageSquare', label: 'Messages', href: '/manager/messages' },
+  { icon: 'BookOpen', label: 'Documentation', href: '/manager/documentation' },
 ];
 
 export default async function ManagerLayout({ children }: { children: React.ReactNode }) {

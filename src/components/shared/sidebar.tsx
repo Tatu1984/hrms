@@ -13,10 +13,12 @@ import {
 } from '@/components/ui/tooltip';
 
 interface SidebarItem {
-  icon: string;
-  label: string;
-  href: string;
+  icon?: string;
+  label?: string;
+  href?: string;
   children?: SidebarItem[];
+  /** When set, this node is a non-clickable section header, not a link. */
+  heading?: string;
 }
 
 interface SidebarProps {
@@ -27,7 +29,8 @@ interface SidebarProps {
   onNavigate?: () => void;
 }
 
-function getIcon(name: string) {
+function getIcon(name?: string) {
+  if (!name) return undefined;
   return (Icons as unknown as Record<string, Icons.LucideIcon>)[name];
 }
 
@@ -45,10 +48,12 @@ export default function Sidebar({
       .filter((item) =>
         item.children?.some(
           (child) =>
-            pathname === child.href || pathname.startsWith(child.href + '/'),
+            !!child.href &&
+            (pathname === child.href || pathname.startsWith(child.href + '/')),
         ),
       )
-      .map((item) => item.href);
+      .map((item) => item.href)
+      .filter((h): h is string => !!h);
     if (activeParents.length) {
       setExpanded((prev) => Array.from(new Set([...prev, ...activeParents])));
     }
@@ -62,8 +67,8 @@ export default function Sidebar({
     );
   };
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/');
+  const isActive = (href?: string) =>
+    !!href && (pathname === href || pathname.startsWith(href + '/'));
 
   const linkBase =
     'group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors';
@@ -86,7 +91,7 @@ export default function Sidebar({
 
     const link = (
       <Link
-        href={item.href}
+        href={item.href ?? '#'}
         onClick={onNavigate}
         className={cn(
           linkBase,
@@ -115,9 +120,29 @@ export default function Sidebar({
   };
 
   const renderItem = (item: SidebarItem, level = 0) => {
+    // Section header — a non-clickable label that groups the items below it.
+    if (item.heading) {
+      if (collapsed) {
+        return (
+          <div
+            key={`h-${item.heading}`}
+            className="mx-2 my-2 border-t border-sidebar-border/60"
+          />
+        );
+      }
+      return (
+        <div
+          key={`h-${item.heading}`}
+          className="px-2.5 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 first:pt-1"
+        >
+          {item.heading}
+        </div>
+      );
+    }
+
     const hasChildren = !!item.children?.length;
     const active = isActive(item.href);
-    const isExpanded = expanded.includes(item.href);
+    const isExpanded = !!item.href && expanded.includes(item.href);
 
     if (!hasChildren || collapsed) {
       return <div key={item.href}>{renderLink(item, { active, level })}</div>;
@@ -127,7 +152,7 @@ export default function Sidebar({
       <div key={item.href}>
         <div className="flex items-center gap-1">
           <Link
-            href={item.href}
+            href={item.href ?? '#'}
             onClick={onNavigate}
             className={cn(linkBase, 'flex-1', active ? linkActive : linkIdle)}
           >
@@ -141,7 +166,7 @@ export default function Sidebar({
           </Link>
           <button
             type="button"
-            onClick={() => toggleExpand(item.href)}
+            onClick={() => item.href && toggleExpand(item.href)}
             aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
             aria-expanded={isExpanded}
             className={cn(

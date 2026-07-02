@@ -7,18 +7,25 @@ import { BrowserActivityTracker } from '@/components/shared/BrowserActivityTrack
 import LocationConsentGate from '@/components/shared/LocationConsentGate';
 
 const sidebarItems = [
+  { heading: 'Overview' },
   { icon: 'LayoutDashboard', label: 'Dashboard', href: '/employee/dashboard' },
+
+  { heading: 'Time & Attendance' },
   { icon: 'Clock', label: 'Attendance', href: '/employee/attendance' },
   { icon: 'Timer', label: 'Time Analytics', href: '/employee/time-analytics' },
   { icon: 'Calendar', label: 'Leaves', href: '/employee/leaves' },
+
+  { heading: 'Work' },
   { icon: 'FolderKanban', label: 'Projects', href: '/employee/projects', children: [
     { icon: 'CheckSquare', label: 'Tasks', href: '/employee/tasks' },
     { icon: 'FileText', label: 'Daily Updates', href: '/employee/daily-updates' },
     { icon: 'Layers', label: 'Work Items', href: '/employee/work-items' },
   ]},
-  { icon: 'BookOpen', label: 'Documentation', href: '/employee/documentation' },
-  { icon: 'MessageSquare', label: 'Messages', href: '/employee/messages' },
+
+  { heading: 'More' },
   { icon: 'Receipt', label: 'Payslips', href: '/employee/payslips' },
+  { icon: 'MessageSquare', label: 'Messages', href: '/employee/messages' },
+  { icon: 'BookOpen', label: 'Documentation', href: '/employee/documentation' },
 ];
 
 export default async function EmployeeLayout({ children }: { children: React.ReactNode }) {

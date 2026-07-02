@@ -8,10 +8,12 @@ import Navbar from '@/components/shared/navbar';
 import { Button } from '@/components/ui/button';
 
 interface SidebarItem {
-  icon: string;
-  label: string;
-  href: string;
+  icon?: string;
+  label?: string;
+  href?: string;
   children?: SidebarItem[];
+  /** Non-clickable section header grouping the items below it. */
+  heading?: string;
 }
 
 interface AppShellProps {

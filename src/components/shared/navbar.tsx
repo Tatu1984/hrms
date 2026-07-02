@@ -15,9 +15,10 @@ import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 
 interface NavItem {
-  label: string;
-  href: string;
+  label?: string;
+  href?: string;
   children?: NavItem[];
+  heading?: string;
 }
 
 interface NavbarProps {
@@ -37,9 +38,9 @@ function titleize(segment: string) {
 function resolveTitle(items: NavItem[] | undefined, pathname: string): string {
   if (items) {
     for (const item of items) {
-      if (item.href === pathname) return item.label;
+      if (item.href === pathname && item.label) return item.label;
       for (const child of item.children ?? []) {
-        if (child.href === pathname) return child.label;
+        if (child.href === pathname && child.label) return child.label;
       }
     }
   }
