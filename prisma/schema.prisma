@@ -148,30 +148,32 @@ model Employee {
 }
 
 model Attendance {
-  id            String           @id @default(cuid())
-  employeeId    String
-  date          DateTime
-  punchIn       DateTime?
-  punchOut      DateTime?
-  breakStart    DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
-  breakEnd      DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
-  grossHours    Float? // Total hours = Punch Out - Punch In (raw time in office)
-  totalHours    Float? // Active work hours = grossHours - breakDuration - idleTime
-  breakDuration Float? // Total break duration (calculated from all breaks)
-  idleTime      Float? // Total idle time (from inactive heartbeats)
-  status        AttendanceStatus @default(ABSENT)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  punchInIp     String?
-  punchOutIp    String?
-  activityLogs  ActivityLog[]
-  breaks        Break[] // Multiple breaks per attendance
-  employee      Employee         @relation(fields: [employeeId], references: [id])
+  id             String           @id @default(cuid())
+  organizationId String?
+  employeeId     String
+  date           DateTime
+  punchIn        DateTime?
+  punchOut       DateTime?
+  breakStart     DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
+  breakEnd       DateTime? // Deprecated: Use breaks relation instead. Kept for backward compatibility.
+  grossHours     Float? // Total hours = Punch Out - Punch In (raw time in office)
+  totalHours     Float? // Active work hours = grossHours - breakDuration - idleTime
+  breakDuration  Float? // Total break duration (calculated from all breaks)
+  idleTime       Float? // Total idle time (from inactive heartbeats)
+  status         AttendanceStatus @default(ABSENT)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  punchInIp      String?
+  punchOutIp     String?
+  activityLogs   ActivityLog[]
+  breaks         Break[] // Multiple breaks per attendance
+  employee       Employee         @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date], name: "employeeId_date")
   @@index([employeeId])
   @@index([date])
   @@index([status])
+  @@index([organizationId])
 }
 
 model Break {
@@ -223,26 +225,29 @@ model ActivityLog {
 }
 
 model Leave {
-  id           String      @id @default(cuid())
-  employeeId   String
-  leaveType    LeaveType
-  startDate    DateTime
-  endDate      DateTime
-  days         Int
-  reason       String
-  status       LeaveStatus @default(PENDING)
-  adminComment String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  employee     Employee    @relation(fields: [employeeId], references: [id])
+  id             String      @id @default(cuid())
+  organizationId String?
+  employeeId     String
+  leaveType      LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  days           Int
+  reason         String
+  status         LeaveStatus @default(PENDING)
+  adminComment   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  employee       Employee    @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId])
   @@index([status])
   @@index([startDate])
+  @@index([organizationId])
 }
 
 model Project {
   id              String          @id @default(cuid())
+  organizationId  String?
   projectId       String          @unique
   name            String
   description     String
@@ -265,6 +270,7 @@ model Project {
 
   @@index([status])
   @@index([startDate])
+  @@index([organizationId])
 }
 
 model ProjectMember {
@@ -278,20 +284,23 @@ model ProjectMember {
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  projectId   String?
-  milestone   String?
-  assignedTo  String
-  title       String
-  description String
-  status      TaskStatus   @default(PENDING)
-  priority    Priority     @default(MEDIUM)
-  dueDate     DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  employee    Employee     @relation(fields: [assignedTo], references: [id])
-  project     Project?     @relation(fields: [projectId], references: [id])
-  updates     TaskUpdate[]
+  id             String       @id @default(cuid())
+  organizationId String?
+  projectId      String?
+  milestone      String?
+  assignedTo     String
+  title          String
+  description    String
+  status         TaskStatus   @default(PENDING)
+  priority       Priority     @default(MEDIUM)
+  dueDate        DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  employee       Employee     @relation(fields: [assignedTo], references: [id])
+  project        Project?     @relation(fields: [projectId], references: [id])
+  updates        TaskUpdate[]
+
+  @@index([organizationId])
 }
 
 model TaskUpdate {
@@ -305,6 +314,7 @@ model TaskUpdate {
 
 model DailyWorkUpdate {
   id                String   @id @default(cuid())
+  organizationId    String?
   employeeId        String
   date              DateTime
   workCompleted     String
@@ -316,10 +326,12 @@ model DailyWorkUpdate {
   @@unique([employeeId, date], name: "employeeId_date")
   @@index([employeeId])
   @@index([date])
+  @@index([organizationId])
 }
 
 model Payroll {
   id              String        @id @default(cuid())
+  organizationId  String?
   employeeId      String
   month           Int
   year            Int
@@ -351,10 +363,12 @@ model Payroll {
   @@index([employeeId])
   @@index([month, year])
   @@index([status])
+  @@index([organizationId])
 }
 
 model SalaryConfig {
   id                   String   @id @default(cuid())
+  organizationId       String?
   pfPercentage         Float    @default(12)
   esiPercentage        Float    @default(0.75)
   // ESI applies only when monthly gross is at/below this ceiling.
@@ -370,96 +384,111 @@ model SalaryConfig {
   taxSlabs             Json?
   bonusRules           Json?
   updatedAt            DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 // Admin-configurable annual paid-leave entitlement per leave type (one row per
 // type). UNPAID has no quota. Used as the default when allocating LeaveBalance.
 model LeavePolicy {
-  id          String    @id @default(cuid())
-  leaveType   LeaveType @unique
-  annualQuota Int       @default(0)
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String?
+  leaveType      LeaveType @unique
+  annualQuota    Int       @default(0)
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
 }
 
 // Per-employee, per-year balance for a leave type. `allocated` is admin-editable
 // (defaults from LeavePolicy); `used` is incremented as leaves are approved.
 model LeaveBalance {
-  id         String    @id @default(cuid())
-  employeeId String
-  year       Int
-  leaveType  LeaveType
-  allocated  Int       @default(0)
-  used       Int       @default(0)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  employee   Employee  @relation(fields: [employeeId], references: [id])
+  id             String    @id @default(cuid())
+  organizationId String?
+  employeeId     String
+  year           Int
+  leaveType      LeaveType
+  allocated      Int       @default(0)
+  used           Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  employee       Employee  @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, year, leaveType])
   @@index([employeeId])
+  @@index([organizationId])
 }
 
 model CompanyProfile {
-  id           String               @id @default(cuid())
-  companyName  String               @default("Infiniti Tech Partners")
-  address1     String?
-  address2     String?
-  city         String?
-  state        String?
-  pincode      String?
-  country      String               @default("India")
-  phone        String?
-  email        String?
-  website      String?
-  logo         String?
-  panNumber    String?
-  gstNumber    String?
-  cinNumber    String?
-  updatedAt    DateTime             @updatedAt
-  bankAccounts CompanyBankAccount[]
+  id             String               @id @default(cuid())
+  organizationId String?
+  companyName    String               @default("Infiniti Tech Partners")
+  address1       String?
+  address2       String?
+  city           String?
+  state          String?
+  pincode        String?
+  country        String               @default("India")
+  phone          String?
+  email          String?
+  website        String?
+  logo           String?
+  panNumber      String?
+  gstNumber      String?
+  cinNumber      String?
+  updatedAt      DateTime             @updatedAt
+  bankAccounts   CompanyBankAccount[]
+
+  @@index([organizationId])
 }
 
 model CompanyBankAccount {
-  id            String         @id @default(cuid())
-  companyId     String
-  nickname      String
-  accountType   String         @default("Indian")
-  bankName      String
-  accountNumber String
-  accountHolder String?
-  ifscCode      String?
-  branchName    String?
-  swiftCode     String?
-  iban          String?
-  routingNumber String?
-  bankAddress   String?
-  currency      String         @default("INR")
-  isDefault     Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  company       CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id             String         @id @default(cuid())
+  organizationId String?
+  companyId      String
+  nickname       String
+  accountType    String         @default("Indian")
+  bankName       String
+  accountNumber  String
+  accountHolder  String?
+  ifscCode       String?
+  branchName     String?
+  swiftCode      String?
+  iban           String?
+  routingNumber  String?
+  bankAddress    String?
+  currency       String         @default("INR")
+  isDefault      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  company        CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  clientName    String
-  clientEmail   String?
-  amount        Float
-  currency      String        @default("INR")
-  status        InvoiceStatus @default(DRAFT)
-  items         Json?
-  dueDate       DateTime?
-  notes         String?
-  skyDoSynced   Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  clientAddress String?
-  fileUrl       String?
-  paidAmount    Float?
-  paidDate      DateTime?
+  id             String        @id @default(cuid())
+  organizationId String?
+  invoiceNumber  String        @unique
+  clientName     String
+  clientEmail    String?
+  amount         Float
+  currency       String        @default("INR")
+  status         InvoiceStatus @default(DRAFT)
+  items          Json?
+  dueDate        DateTime?
+  notes          String?
+  skyDoSynced    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  clientAddress  String?
+  fileUrl        String?
+  paidAmount     Float?
+  paidDate       DateTime?
 
   @@index([status])
   @@index([dueDate])
+  @@index([organizationId])
 }
 
 model Account {
@@ -492,20 +521,22 @@ model AccountCategory {
 }
 
 model Message {
-  id          String   @id @default(cuid())
-  senderId    String
-  recipientId String
-  subject     String?
-  content     String
-  read        Boolean  @default(false)
-  tracked     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  sender      Employee @relation(fields: [senderId], references: [id])
+  id             String   @id @default(cuid())
+  organizationId String?
+  senderId       String
+  recipientId    String
+  subject        String?
+  content        String
+  read           Boolean  @default(false)
+  tracked        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  sender         Employee @relation(fields: [senderId], references: [id])
 
   @@index([senderId])
   @@index([recipientId])
   @@index([recipientId, read])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 model MessagingPermission {
@@ -535,17 +566,21 @@ model SalesTarget {
 }
 
 model Report {
-  id          String     @id @default(cuid())
-  reportType  ReportType
-  month       Int?
-  year        Int?
-  data        Json
-  generatedBy String?
-  createdAt   DateTime   @default(now())
+  id             String     @id @default(cuid())
+  organizationId String?
+  reportType     ReportType
+  month          Int?
+  year           Int?
+  data           Json
+  generatedBy    String?
+  createdAt      DateTime   @default(now())
+
+  @@index([organizationId])
 }
 
 model Lead {
   id                   String        @id @default(cuid())
+  organizationId       String?
   leadNumber           String        @unique
   companyName          String
   companyAddress       String?
@@ -571,63 +606,70 @@ model Lead {
   @@index([status])
   @@index([assignedTo])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 model Sale {
-  id            String     @id @default(cuid())
-  saleNumber    String     @unique
-  leadId        String?    @unique
-  companyName   String
-  contactName   String
-  email         String
-  phone         String
-  product       String
-  quantity      Int        @default(1)
-  unitPrice     Float
-  grossAmount   Float
-  upfrontAmount Float
-  discount      Float      @default(0)
-  taxPercentage Float      @default(0)
-  taxAmount     Float      @default(0)
-  netAmount     Float
-  currency      String     @default("USD")
-  status        SaleStatus @default(PENDING)
-  closedBy      String?
-  closedAt      DateTime?
-  month         Int?
-  year          Int?
-  commission    Float?
-  notes         String?
-  accountSynced Boolean    @default(false)
-  projectSynced Boolean    @default(false)
-  projectId     String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  lead          Lead?
+  id             String     @id @default(cuid())
+  organizationId String?
+  saleNumber     String     @unique
+  leadId         String?    @unique
+  companyName    String
+  contactName    String
+  email          String
+  phone          String
+  product        String
+  quantity       Int        @default(1)
+  unitPrice      Float
+  grossAmount    Float
+  upfrontAmount  Float
+  discount       Float      @default(0)
+  taxPercentage  Float      @default(0)
+  taxAmount      Float      @default(0)
+  netAmount      Float
+  currency       String     @default("USD")
+  status         SaleStatus @default(PENDING)
+  closedBy       String?
+  closedAt       DateTime?
+  month          Int?
+  year           Int?
+  commission     Float?
+  notes          String?
+  accountSynced  Boolean    @default(false)
+  projectSynced  Boolean    @default(false)
+  projectId      String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  lead           Lead?
 
   @@index([status])
   @@index([closedBy])
   @@index([month, year])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 model HRDocument {
-  id          String    @id @default(cuid())
-  type        HRDocType
-  title       String
-  description String?
-  content     String?
-  filePath    String?
-  year        Int?
-  isActive    Boolean   @default(true)
-  createdBy   String?
-  updatedBy   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String?
+  type           HRDocType
+  title          String
+  description    String?
+  content        String?
+  filePath       String?
+  year           Int?
+  isActive       Boolean   @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
 }
 
 model IntegrationConnection {
   id                 String                   @id @default(cuid())
+  organizationId     String?
   platform           IntegrationType
   name               String
   authType           String
@@ -654,6 +696,7 @@ model IntegrationConnection {
 
   @@index([platform])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 model IntegrationUserMapping {
@@ -862,39 +905,43 @@ model EmployeeDocument {
 }
 
 model Designation {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  level        Int           @default(0)
-  departmentId String?
-  parentId     String?
-  description  String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  department   Department?   @relation(fields: [departmentId], references: [id])
-  parent       Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id])
-  children     Designation[] @relation("DesignationHierarchy")
+  id             String        @id @default(cuid())
+  organizationId String?
+  name           String        @unique
+  level          Int           @default(0)
+  departmentId   String?
+  parentId       String?
+  description    String?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  department     Department?   @relation(fields: [departmentId], references: [id])
+  parent         Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id])
+  children       Designation[] @relation("DesignationHierarchy")
 
   @@index([level])
   @@index([departmentId])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 model Department {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  code         String?       @unique
-  description  String?
-  headId       String?
-  parentId     String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  parent       Department?   @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children     Department[]  @relation("DepartmentHierarchy")
-  designations Designation[]
+  id             String        @id @default(cuid())
+  organizationId String?
+  name           String        @unique
+  code           String?       @unique
+  description    String?
+  headId         String?
+  parentId       String?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  parent         Department?   @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children       Department[]  @relation("DepartmentHierarchy")
+  designations   Designation[]
 
   @@index([isActive])
+  @@index([organizationId])
 }
 
 model AuditLog {
@@ -1125,17 +1172,19 @@ model LocationConsent {
 }
 
 model Holiday {
-  id          String   @id @default(cuid())
-  name        String
-  date        DateTime
-  year        Int
-  isOptional  Boolean  @default(false)
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String?
+  name           String
+  date           DateTime
+  year           Int
+  isOptional     Boolean  @default(false)
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([date])
   @@index([year])
+  @@index([organizationId])
 }
 
 enum Role {
