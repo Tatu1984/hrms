@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { markLeaveAttendance, revertLeaveAttendance } from '@/lib/attendance-utils';
+import { isPaidLeave, isEnforced, remainingBalance, adjustUsed, getOrCreateBalance } from '@/lib/leave-balance';
 
 // GET /api/leaves - Get leave requests
 export async function GET(request: NextRequest) {
@@ -147,6 +148,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Enforce leave balance only for types with a configured policy (see
+    // isEnforced). UNPAID is always allowed (it simply isn't paid).
+    if (await isEnforced(leaveType)) {
+      const remaining = await remainingBalance(targetEmployeeId, start.getFullYear(), leaveType);
+      if (days > remaining) {
+        return NextResponse.json(
+          { error: `Insufficient ${leaveType.toLowerCase()} leave balance: ${remaining} day(s) remaining, ${days} requested.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const leave = await prisma.leave.create({
       data: {
         employeeId: targetEmployeeId,
@@ -257,6 +270,24 @@ export async function PUT(request: NextRequest) {
       if (adminComment !== undefined) updateData.adminComment = adminComment;
     }
 
+    // Effective values that will apply after this update (dates/type may change).
+    const effType = (updateData.leaveType as typeof leave.leaveType) ?? leave.leaveType;
+    const effStart = (updateData.startDate as Date) ?? leave.startDate;
+    const effDays = (updateData.days as number) ?? leave.days;
+    const effYear = new Date(effStart).getFullYear();
+    const isNewApproval = status === 'APPROVED' && leave.status !== 'APPROVED';
+
+    // Hard-enforce quota at approval time only for configured (paid) types.
+    if (isNewApproval && (await isEnforced(effType))) {
+      const bal = await getOrCreateBalance(leave.employeeId, effYear, effType);
+      if (bal.used + effDays > bal.allocated) {
+        return NextResponse.json(
+          { error: `Cannot approve: exceeds ${effType.toLowerCase()} leave balance (${bal.allocated - bal.used} day(s) remaining, ${effDays} requested).` },
+          { status: 400 }
+        );
+      }
+    }
+
     const updatedLeave = await prisma.leave.update({
       where: { id },
       data: updateData,
@@ -272,21 +303,28 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // Handle attendance marking based on leave status change
-    if (status === 'APPROVED') {
-      // Mark all days in the leave period as LEAVE status in attendance
+    // Handle attendance marking + balance accounting on status change.
+    if (isNewApproval) {
+      // Paid leave is credited in attendance and consumes balance; UNPAID is
+      // marked LEAVE_UNPAID (not paid) and does not consume a quota.
       await markLeaveAttendance(
         leave.employeeId,
         updatedLeave.startDate,
-        updatedLeave.endDate
+        updatedLeave.endDate,
+        isPaidLeave(effType),
       );
-    } else if (status === 'REJECTED' || status === 'CANCELLED') {
-      // If a previously approved leave is now rejected/cancelled, revert the attendance
-      if (leave.status === 'APPROVED') {
-        await revertLeaveAttendance(
+      if (isPaidLeave(effType)) {
+        await adjustUsed(leave.employeeId, effYear, effType, effDays);
+      }
+    } else if ((status === 'REJECTED' || status === 'CANCELLED') && leave.status === 'APPROVED') {
+      // Revert a previously-approved leave: restore attendance and give back balance.
+      await revertLeaveAttendance(leave.employeeId, leave.startDate, leave.endDate);
+      if (isPaidLeave(leave.leaveType)) {
+        await adjustUsed(
           leave.employeeId,
-          leave.startDate,
-          leave.endDate
+          new Date(leave.startDate).getFullYear(),
+          leave.leaveType,
+          -leave.days,
         );
       }
     }

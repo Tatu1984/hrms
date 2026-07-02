@@ -13,35 +13,40 @@ export async function POST(request: NextRequest) {
     const {
       pfPercentage,
       esiPercentage,
-      tdsPercentage,
+      esiWageCeiling,
       professionalTax,
+      tdsSlabs,
+      applyPf,
+      applyEsi,
+      applyTds,
+      applyProfessionalTax,
       basicSalaryPercentage,
       variablePayPercentage,
-      showPF,
-      showESI,
-      showTDS,
-      showProfessionalTax,
     } = body;
 
     // Check if settings exist
     const existing = await prisma.salaryConfig.findFirst();
 
+    const num = (v: unknown, d: number) => {
+      const n = parseFloat(String(v));
+      return Number.isFinite(n) ? n : d;
+    };
+    const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
+
     const settingsData = {
-      pfPercentage: parseFloat(pfPercentage) || 12,
-      esiPercentage: parseFloat(esiPercentage) || 0.75,
-      taxSlabs: {
-        tdsPercentage: parseFloat(tdsPercentage) || 10,
-        professionalTax: parseFloat(professionalTax) || 200,
-      },
+      pfPercentage: num(pfPercentage, existing?.pfPercentage ?? 12),
+      esiPercentage: num(esiPercentage, existing?.esiPercentage ?? 0.75),
+      esiWageCeiling: num(esiWageCeiling, existing?.esiWageCeiling ?? 21000),
+      professionalTax: num(professionalTax, existing?.professionalTax ?? 200),
+      // tdsSlabs: [{ upTo: number|null, rate: number }]; undefined => leave unchanged
+      tdsSlabs: Array.isArray(tdsSlabs) ? tdsSlabs : undefined,
+      applyPf: bool(applyPf, existing?.applyPf ?? false),
+      applyEsi: bool(applyEsi, existing?.applyEsi ?? false),
+      applyTds: bool(applyTds, existing?.applyTds ?? false),
+      applyProfessionalTax: bool(applyProfessionalTax, existing?.applyProfessionalTax ?? true),
       bonusRules: {
-        basicSalaryPercentage: parseFloat(basicSalaryPercentage) || 70,
-        variablePayPercentage: parseFloat(variablePayPercentage) || 30,
-        displayOptions: {
-          showPF: showPF !== false,
-          showESI: showESI !== false,
-          showTDS: showTDS !== false,
-          showProfessionalTax: showProfessionalTax !== false,
-        },
+        basicSalaryPercentage: num(basicSalaryPercentage, 70),
+        variablePayPercentage: num(variablePayPercentage, 30),
       },
     };
 

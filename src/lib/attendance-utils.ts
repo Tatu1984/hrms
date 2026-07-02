@@ -194,10 +194,13 @@ export async function processWeekendCascade(
 export async function markLeaveAttendance(
   employeeId: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  paid: boolean = true
 ): Promise<{ updatedRecords: any[]; createdRecords: any[] }> {
   const updatedRecords: any[] = [];
   const createdRecords: any[] = [];
+  // Paid leave is credited (LEAVE); unpaid leave is not paid by payroll (LEAVE_UNPAID).
+  const leaveStatus = paid ? 'LEAVE' : 'LEAVE_UNPAID';
 
   const start = new Date(startDate);
   start.setHours(0, 0, 0, 0);
@@ -224,19 +227,19 @@ export async function markLeaveAttendance(
     });
 
     if (existing) {
-      // Update existing record to LEAVE
+      // Update existing record to the leave status
       const updated = await prisma.attendance.update({
         where: { id: existing.id },
-        data: { status: 'LEAVE' },
+        data: { status: leaveStatus },
       });
       updatedRecords.push(updated);
     } else {
-      // Create new attendance record as LEAVE
+      // Create new attendance record with the leave status
       const created = await prisma.attendance.create({
         data: {
           employeeId,
           date: dayStart,
-          status: 'LEAVE',
+          status: leaveStatus,
           punchIn: null,
           punchOut: null,
           totalHours: 0,

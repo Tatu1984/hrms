@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isFriday, isMonday, isSaturday, isSunday } from '@/lib/attendance-utils';
+import { computeStatutoryDeductions, type DeductionToggles } from '@/lib/payroll-calc';
 
 // GET /api/payroll - Get payroll records
 export async function GET(request: NextRequest) {
@@ -90,6 +91,10 @@ export async function POST(request: NextRequest) {
     }
 
     const employees = await prisma.employee.findMany({ where });
+
+    // Deduction config + optional per-run toggle overrides (admin's choice).
+    const salaryConfig = await prisma.salaryConfig.findFirst();
+    const deductionOverrides: DeductionToggles | undefined = body.applyDeductions;
 
     const payrollRecords = [];
 
@@ -355,14 +360,22 @@ export async function POST(request: NextRequest) {
       const variablePayable = Math.round(variablePaid * 100) / 100;
       const grossSalary = Math.round(totalPaid * 100) / 100;
 
-      // Deductions
-      const professionalTax = 200; // Fixed P.tax
-      const tds = 0; // TDS deactivated
-      const penalties = 0; // Will be input by admin
-      const advancePayment = 0; // Will be input by admin
-      const otherDeductions = 0;
+      // Statutory deductions from SalaryConfig, each toggleable (admin's choice).
+      const statutory = computeStatutoryDeductions(
+        { basicPayable, grossSalary },
+        salaryConfig,
+        deductionOverrides,
+      );
+      const pf = statutory.pf;
+      const esi = statutory.esi;
+      const professionalTax = statutory.professionalTax;
+      const tds = statutory.tds;
+      const penalties = 0; // admin-editable post-generation (PUT)
+      const advancePayment = 0; // admin-editable post-generation (PUT)
+      const otherDeductions = 0; // admin-editable post-generation (PUT)
 
-      const totalDeductions = professionalTax + tds + penalties + advancePayment + otherDeductions;
+      const totalDeductions =
+        pf + esi + professionalTax + tds + penalties + advancePayment + otherDeductions;
 
       // Net Salary
       const netSalary = Math.round((grossSalary - totalDeductions) * 100) / 100;
@@ -393,6 +406,8 @@ export async function POST(request: NextRequest) {
           variablePayable,
           grossSalary,
 
+          pf,
+          esi,
           professionalTax,
           tds,
           penalties,
@@ -444,15 +459,40 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, penalties, advancePayment, otherDeductions } = body;
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'ID and status required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'ID required' }, { status: 400 });
+    }
+
+    const existing = await prisma.payroll.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
+    }
+
+    const data: Record<string, unknown> = {};
+    if (status) data.status = status;
+
+    // Allow admin to enter manual deductions; recompute totals + net when any change.
+    const editsDeductions =
+      penalties !== undefined || advancePayment !== undefined || otherDeductions !== undefined;
+    if (editsDeductions) {
+      const newPenalties = penalties !== undefined ? Number(penalties) : existing.penalties;
+      const newAdvance = advancePayment !== undefined ? Number(advancePayment) : existing.advancePayment;
+      const newOther = otherDeductions !== undefined ? Number(otherDeductions) : existing.otherDeductions;
+      const totalDeductions =
+        existing.pf + existing.esi + existing.professionalTax + existing.tds +
+        newPenalties + newAdvance + newOther;
+      data.penalties = newPenalties;
+      data.advancePayment = newAdvance;
+      data.otherDeductions = newOther;
+      data.totalDeductions = Math.round(totalDeductions * 100) / 100;
+      data.netSalary = Math.round((existing.grossSalary - totalDeductions) * 100) / 100;
     }
 
     const payroll = await prisma.payroll.update({
       where: { id },
-      data: { status },
+      data,
       include: {
         employee: {
           select: {
