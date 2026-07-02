@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db';
 import { createAzureDevOpsClient, type AzureDevOpsWorkItem, type AzureDevOpsCommit } from './azure-devops-client';
 import { createAsanaClient, type AsanaTask } from './asana-client';
 import { createConfluenceClient, type ConfluencePage } from './confluence-client';
+import { decryptSecret } from '@/lib/crypto';
 import type { IntegrationType } from '@prisma/client';
 
 export interface SyncOptions {
@@ -118,7 +119,7 @@ export class IntegrationSyncService {
       return;
     }
 
-    const client = createAzureDevOpsClient(connection.organizationUrl, connection.accessToken);
+    const client = createAzureDevOpsClient(connection.organizationUrl, decryptSecret(connection.accessToken));
 
     // Test connection
     const isConnected = await client.testConnection();
@@ -199,7 +200,7 @@ export class IntegrationSyncService {
       return;
     }
 
-    const client = createAsanaClient(connection.accessToken);
+    const client = createAsanaClient(decryptSecret(connection.accessToken));
 
     // Test connection
     const isConnected = await client.testConnection();
@@ -467,7 +468,7 @@ export class IntegrationSyncService {
     const client = createConfluenceClient(
       connection.organizationUrl,
       email,
-      connection.accessToken,
+      decryptSecret(connection.accessToken),
       connection.confluenceSpaceKey
     );
 

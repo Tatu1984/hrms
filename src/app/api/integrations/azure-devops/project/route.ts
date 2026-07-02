@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
+import { decryptSecret } from '@/lib/crypto';
 
 // GET /api/integrations/azure-devops/project - Get detailed project information
 export async function GET(request: NextRequest) {
@@ -41,10 +42,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create Azure DevOps client
+    // Create Azure DevOps client (token is stored encrypted at rest)
     const client = createAzureDevOpsClient(
       connection.organizationUrl,
-      connection.accessToken
+      decryptSecret(connection.accessToken)
     );
 
     // Fetch all data in parallel

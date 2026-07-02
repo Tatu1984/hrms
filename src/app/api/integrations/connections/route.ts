@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { createAsanaClient } from '@/lib/integrations/asana-client';
+import { encryptSecret } from '@/lib/crypto';
 
 // GET /api/integrations/connections - Get all integration connections
 export async function GET(request: NextRequest) {
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
         platform,
         name,
         authType: authType || 'PAT',
-        accessToken, // TODO: Encrypt this in production
+        accessToken: encryptSecret(accessToken), // encrypted at rest (AES-256-GCM)
         organizationUrl,
         organizationName: finalOrgName,
         workspaceId: body.workspaceId,
