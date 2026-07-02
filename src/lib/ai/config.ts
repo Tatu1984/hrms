@@ -1,13 +1,23 @@
 // AI Configuration and Constants
 import OpenAI from 'openai';
 
-// Lazy-loaded OpenAI client instance
+// Provider-agnostic: works with any OpenAI-compatible API (OpenAI, Groq, Gemini
+// OpenAI-compat, OpenRouter, local Ollama, ...). Configure via env:
+//   AI_API_KEY   (or OPENAI_API_KEY)  — the provider key
+//   AI_BASE_URL  — provider endpoint, e.g. https://api.groq.com/openai/v1
+//   AI_MODEL     — chat model id, e.g. llama-3.3-70b-versatile
+export const AI_API_KEY = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || '';
+export const AI_BASE_URL = process.env.AI_BASE_URL || undefined; // undefined => OpenAI default
+export const AI_CHAT_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+
+// Lazy-loaded client instance
 let _openai: OpenAI | null = null;
 
 export const getOpenAI = (): OpenAI => {
   if (!_openai) {
     _openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder-key',
+      apiKey: AI_API_KEY || 'placeholder-key',
+      baseURL: AI_BASE_URL,
     });
   }
   return _openai;
@@ -20,11 +30,13 @@ export const openai = {
   },
 };
 
-// AI Model configurations
+// AI Model configurations. Chat models resolve to the configured provider model
+// so features work across providers; embeddings default to OpenAI names (only
+// used if the provider supports embeddings).
 export const AI_MODELS = {
-  GPT4: 'gpt-4-turbo-preview',
-  GPT4_VISION: 'gpt-4-vision-preview',
-  GPT35: 'gpt-3.5-turbo',
+  GPT4: AI_CHAT_MODEL,
+  GPT4_VISION: AI_CHAT_MODEL,
+  GPT35: AI_CHAT_MODEL,
   EMBEDDING: 'text-embedding-3-small',
   EMBEDDING_LARGE: 'text-embedding-3-large',
 } as const;
