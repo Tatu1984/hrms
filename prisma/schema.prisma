@@ -47,6 +47,8 @@ model User {
   permissions        Json?
   // Force a password change on next login (e.g. after admin-created temp password).
   mustChangePassword Boolean       @default(false)
+  // Platform super-admin: cross-org console access (org provisioning, activate/deactivate).
+  isSuperAdmin       Boolean       @default(false)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   employee           Employee?     @relation(fields: [employeeId], references: [id])

@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       where: { OR: [{ email }, { username: email }] },
       include: {
         employee: { select: { id: true, name: true, employeeId: true, isActive: true } },
+        organization: { select: { isActive: true } },
       },
     });
 
@@ -96,6 +97,11 @@ export async function POST(request: NextRequest) {
 
     if (user.employee && !user.employee.isActive) {
       return fail('ACCOUNT_DEACTIVATED', 403, 'Account has been deactivated. Please contact admin.');
+    }
+
+    // Deny login for a deactivated tenant (super-admin can toggle this).
+    if (user.organization && !user.organization.isActive) {
+      return fail('ORG_DEACTIVATED', 403, 'This organization has been deactivated. Please contact support.');
     }
 
     const isValidPassword = await verifyPassword(password, user.password);
