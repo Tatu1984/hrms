@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { withOrg } from '@/lib/tenant';
 import { saveUpload } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Create invoice record in database
     const invoice = await prisma.invoice.create({
-      data: {
+      data: withOrg(session, {
         invoiceNumber,
         clientName,
         clientEmail: '',
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
         status: 'DRAFT',
         items: [],
         fileUrl: relativeFilePath,
-      },
+      }),
     });
 
     return NextResponse.json({

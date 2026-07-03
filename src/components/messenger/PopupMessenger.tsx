@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, X, Minimize2, Send, Search, Circle } from 'lucide-react';
+import { MessageSquare, X, Minimize2, Send, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -10,7 +10,6 @@ interface Contact {
   id: string;
   name: string;
   designation: string;
-  online: boolean;
   unreadCount: number;
 }
 
@@ -180,17 +179,8 @@ export function PopupMessenger({ currentUserId, currentUserName }: PopupMessenge
                   onClick={() => openChat(contact)}
                   className="w-full p-3 hover:bg-gray-50 flex items-center gap-3 border-b transition-colors"
                 >
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold">
-                      {contact.name.charAt(0)}
-                    </div>
-                    <Circle
-                      className={`absolute bottom-0 right-0 w-3 h-3 ${
-                        contact.online
-                          ? 'fill-green-500 text-green-500'
-                          : 'fill-gray-400 text-gray-400'
-                      }`}
-                    />
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold">
+                    {contact.name.charAt(0)}
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-medium text-sm">{contact.name}</div>
@@ -273,9 +263,7 @@ function ChatWindow({ window, currentUserId, onClose, onMinimize, onSend, style 
           </div>
           <div>
             <div className="font-medium text-sm">{window.contact.name}</div>
-            <div className="text-xs text-orange-100">
-              {window.contact.online ? 'Active now' : 'Offline'}
-            </div>
+            <div className="text-xs text-orange-100">{window.contact.designation}</div>
           </div>
         </div>
         <div className="flex gap-1">

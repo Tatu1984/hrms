@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { orgWhere, withOrg } from '@/lib/tenant';
+import { assertPublicHttpsUrl } from '@/lib/url-guard';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { createAsanaClient } from '@/lib/integrations/asana-client';
 import { encryptSecret } from '@/lib/crypto';
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      try {
+        assertPublicHttpsUrl(organizationUrl);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Invalid organization URL' },
+          { status: 400 }
+        );
+      }
       const client = createAzureDevOpsClient(organizationUrl, accessToken);
       isValid = await client.testConnection();
     } else if (platform === 'ASANA') {
@@ -121,6 +130,14 @@ export async function POST(request: NextRequest) {
       if (!confluenceEmail) {
         return NextResponse.json(
           { error: 'Email is required for Confluence' },
+          { status: 400 }
+        );
+      }
+      try {
+        assertPublicHttpsUrl(organizationUrl);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Invalid organization URL' },
           { status: 400 }
         );
       }

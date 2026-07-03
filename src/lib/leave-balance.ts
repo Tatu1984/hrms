@@ -73,7 +73,12 @@ export async function remainingBalance(
   return bal.allocated - bal.used;
 }
 
-/** Adjust `used` by delta (clamped at 0). Used +delta on approve, -delta on revert. */
+/**
+ * Adjust `used` by delta atomically. Used +delta on approve (non-enforced
+ * accrual), -delta on revert. The `increment` is a single DB statement so
+ * concurrent adjustments can't clobber each other (no read-modify-write lost
+ * update); a follow-up clamp floors `used` at 0 in case a revert over-subtracts.
+ */
 export async function adjustUsed(
   employeeId: string,
   year: number,
@@ -81,6 +86,33 @@ export async function adjustUsed(
   delta: number,
 ) {
   const bal = await getOrCreateBalance(employeeId, year, leaveType);
-  const used = Math.max(0, bal.used + delta);
-  return prisma.leaveBalance.update({ where: { id: bal.id }, data: { used } });
+  await prisma.leaveBalance.update({
+    where: { id: bal.id },
+    data: { used: { increment: delta } },
+  });
+  await prisma.leaveBalance.updateMany({
+    where: { id: bal.id, used: { lt: 0 } },
+    data: { used: 0 },
+  });
+  return prisma.leaveBalance.findUnique({ where: { id: bal.id } });
+}
+
+/**
+ * Atomically consume `days` from the balance iff there is room. Returns true if
+ * consumed, false if it would exceed the allocation. Race-safe: the quota check
+ * and the increment happen in ONE conditional UPDATE, so two concurrent
+ * approvals can't both pass the check and over-allocate.
+ */
+export async function tryConsume(
+  employeeId: string,
+  year: number,
+  leaveType: LeaveType,
+  days: number,
+): Promise<boolean> {
+  const bal = await getOrCreateBalance(employeeId, year, leaveType);
+  const result = await prisma.leaveBalance.updateMany({
+    where: { id: bal.id, used: { lte: bal.allocated - days } },
+    data: { used: { increment: days } },
+  });
+  return result.count > 0;
 }

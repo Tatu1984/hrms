@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { orgWhere, withOrg } from '@/lib/tenant';
 import { markLeaveAttendance, revertLeaveAttendance } from '@/lib/attendance-utils';
-import { isPaidLeave, isEnforced, remainingBalance, adjustUsed, getOrCreateBalance } from '@/lib/leave-balance';
+import { isPaidLeave, isEnforced, remainingBalance, adjustUsed, getOrCreateBalance, tryConsume } from '@/lib/leave-balance';
 
 // GET /api/leaves - Get leave requests
 export async function GET(request: NextRequest) {
@@ -278,10 +278,17 @@ export async function PUT(request: NextRequest) {
     const effYear = new Date(effStart).getFullYear();
     const isNewApproval = status === 'APPROVED' && leave.status !== 'APPROVED';
 
-    // Hard-enforce quota at approval time only for configured (paid) types.
-    if (isNewApproval && (await isEnforced(effType, session.organizationId))) {
-      const bal = await getOrCreateBalance(leave.employeeId, effYear, effType);
-      if (bal.used + effDays > bal.allocated) {
+    // For a newly-approved paid leave under an enforced (configured) policy,
+    // atomically reserve the days now so we can reject over-quota BEFORE the
+    // approval is written. tryConsume does the quota check + increment in a
+    // single conditional UPDATE, so two concurrent approvals can't both pass the
+    // check and over-allocate (the old read-then-write allowed that race).
+    const enforceQuota =
+      isNewApproval && isPaidLeave(effType) && (await isEnforced(effType, session.organizationId));
+    if (enforceQuota) {
+      const consumed = await tryConsume(leave.employeeId, effYear, effType, effDays);
+      if (!consumed) {
+        const bal = await getOrCreateBalance(leave.employeeId, effYear, effType);
         return NextResponse.json(
           { error: `Cannot approve: exceeds ${effType.toLowerCase()} leave balance (${bal.allocated - bal.used} day(s) remaining, ${effDays} requested).` },
           { status: 400 }
@@ -314,7 +321,9 @@ export async function PUT(request: NextRequest) {
         updatedLeave.endDate,
         isPaidLeave(effType),
       );
-      if (isPaidLeave(effType)) {
+      // Enforced types already had their balance atomically consumed above;
+      // only non-enforced paid types accrue `used` here (accrues without blocking).
+      if (isPaidLeave(effType) && !enforceQuota) {
         await adjustUsed(leave.employeeId, effYear, effType, effDays);
       }
     } else if ((status === 'REJECTED' || status === 'CANCELLED') && leave.status === 'APPROVED') {

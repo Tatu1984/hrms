@@ -41,6 +41,12 @@ describe('computeStatutoryDeductions', () => {
     expect(above.esi).toBe(0); // gross above 21000 ceiling
   });
 
+  it('does not levy professional tax on a zero-gross month (no negative net)', () => {
+    const r = computeStatutoryDeductions({ basicPayable: 0, grossSalary: 0 }, baseConfig);
+    expect(r.professionalTax).toBe(0);
+    expect(r).toEqual({ pf: 0, esi: 0, tds: 0, professionalTax: 0 });
+  });
+
   it('per-run overrides win over config defaults', () => {
     const r = computeStatutoryDeductions(
       { basicPayable: 50000, grossSalary: 60000 },

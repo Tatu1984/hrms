@@ -21,3 +21,25 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Production build
+        # The build does not connect to the DB (pages fetch at runtime), so it
+        # only needs env vars to be *present*. Real repo secrets are used when
+        # set; otherwise safe placeholders let the build compile + typecheck +
+        # prerender. Placeholders are never used at runtime.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://u:p@127.0.0.1:5432/db' }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://u:p@127.0.0.1:5432/db' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-placeholder-secret-not-used-at-runtime' }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY || '0000000000000000000000000000000000000000000000000000000000000000' }}
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build

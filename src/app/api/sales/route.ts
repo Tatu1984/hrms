@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Generate sale number
+    // Generate sale number — scoped to the caller's org so numbering is per-tenant
+    // (previously global, which leaked other tenants' volume and caused gaps).
     const lastSale = await prisma.sale.findFirst({
+      where: { ...orgWhere(session) },
       orderBy: { saleNumber: 'desc' },
     });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
@@ -17,6 +18,14 @@ export async function PUT(
     }
     const body = await request.json();
     const { permissions } = body;
+    // Ensure the target user belongs to the caller's org before updating.
+    const existing = await prisma.user.findFirst({
+      where: { id: params.id, ...orgWhere(session) },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
     const user = await prisma.user.update({
       where: { id: params.id },
       data: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { orgWhere } from '@/lib/tenant';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 import { deleteUpload } from '@/lib/storage';
@@ -29,9 +30,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get document to get file path
-    const document = await prisma.employeeDocument.findUnique({
-      where: { id: documentId },
+    // Get document to get file path. EmployeeDocument has no organizationId, so
+    // scope cross-tenant access via the parent employee's org.
+    const document = await prisma.employeeDocument.findFirst({
+      where: { id: documentId, employee: { ...orgWhere(session) } },
     });
 
     if (!document) {
@@ -78,6 +80,15 @@ export async function PUT(
     }
 
     const { documentId } = params;
+
+    // Ensure the document's employee belongs to the caller's org before verifying.
+    const existing = await prisma.employeeDocument.findFirst({
+      where: { id: documentId, employee: { ...orgWhere(session) } },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
 
     const document = await prisma.employeeDocument.update({
       where: { id: documentId },

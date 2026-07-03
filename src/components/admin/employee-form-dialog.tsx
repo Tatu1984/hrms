@@ -263,6 +263,17 @@ export default function EmployeeFormDialog({ employee, employees = [], mode = 'c
         }
       }
 
+      // Surface the one-time temp password to the admin (shown once; the API
+      // never returns it again). Share it securely with the new hire.
+      if (mode === 'create' && employeeData.tempPassword) {
+        alert(
+          `Employee created successfully.\n\n` +
+          `Temporary login password for ${employeeData.email || 'the new employee'}:\n\n` +
+          `    ${employeeData.tempPassword}\n\n` +
+          `Share this securely — it is shown only once and cannot be retrieved later.`
+        );
+      }
+
       setOpen(false);
       router.refresh();
     } catch (error: any) {

@@ -39,12 +39,14 @@ function parseResumeContent(content: string) {
     content.toLowerCase().includes(skill.toLowerCase())
   );
 
+  // Proficiency level cannot be reliably inferred from keyword matching, so mark it unknown.
   const skills = foundSkills.map(skill => ({
     name: skill,
-    level: Math.random() > 0.5 ? 'advanced' : 'intermediate'
+    level: 'unknown'
   }));
 
-  // Extract experience (look for company/role patterns)
+  // Extract experience (only the roles actually detected in the text — no fabricated
+  // company names or durations, which a keyword parser cannot know).
   const experience: { company: string; role: string; duration?: string }[] = [];
 
   const rolePatterns = [
@@ -56,32 +58,17 @@ function parseResumeContent(content: string) {
   const roles = content.match(rolePatterns[0]) || content.match(rolePatterns[1]) || content.match(rolePatterns[2]) || [];
   const uniqueRoles = [...new Set(roles)];
 
-  uniqueRoles.slice(0, 3).forEach((role, idx) => {
-    experience.push({
-      role: role.trim(),
-      company: `Company ${idx + 1}`,
-      duration: `${Math.floor(Math.random() * 4) + 1} years`
-    });
+  uniqueRoles.slice(0, 3).forEach((role) => {
+    experience.push({ role: role.trim(), company: '' });
   });
 
-  if (experience.length === 0) {
-    experience.push({ company: 'Previous Company', role: 'Software Developer', duration: '2+ years' });
-  }
-
-  // Extract education
+  // Extract education (only detected degrees; institution is unknown from keyword matching).
   const education: { institution: string; degree: string }[] = [];
   const degreeMatch = content.match(/(?:B\.?Tech|B\.?E\.?|B\.?S\.?|M\.?Tech|M\.?S\.?|Ph\.?D)/gi);
   if (degreeMatch) {
-    degreeMatch.slice(0, 2).forEach(degree => {
-      education.push({
-        degree: degree.toUpperCase().replace(/\./g, '') + ' Computer Science',
-        institution: 'University'
-      });
+    [...new Set(degreeMatch.map(d => d.toUpperCase().replace(/\./g, '')))].slice(0, 2).forEach(degree => {
+      education.push({ degree, institution: '' });
     });
-  }
-
-  if (education.length === 0) {
-    education.push({ institution: 'University', degree: 'Bachelor\'s Degree' });
   }
 
   // Calculate score based on extracted info
@@ -215,11 +202,11 @@ export async function POST(request: NextRequest) {
       }
 
       case 'match-candidate': {
+        // Without an AI provider we cannot rank candidates — return an honest empty result.
         return NextResponse.json({
-          matches: [
-            { candidateId: '1', name: 'Sample Candidate 1', score: 85, matchedSkills: ['React', 'TypeScript'] },
-            { candidateId: '2', name: 'Sample Candidate 2', score: 78, matchedSkills: ['Node.js', 'Python'] }
-          ]
+          matches: [],
+          available: false,
+          message: 'AI matching unavailable — configure an AI provider to enable candidate matching.'
         });
       }
 

@@ -67,26 +67,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, date, isOptional, description } = body;
+    const { name, date, isOptional, description, durationDays } = body;
 
     if (!name || !date) {
       return NextResponse.json({ error: 'Name and date are required' }, { status: 400 });
     }
 
-    const holidayDate = new Date(date);
-    const year = holidayDate.getFullYear();
+    // Duration lets a single entry span consecutive days (e.g. a multi-day festival).
+    // We materialize one row per day so all existing single-day holiday checks
+    // (attendance cron, reports, payroll) keep working unchanged.
+    const duration = Math.max(1, Math.min(31, parseInt(String(durationDays ?? 1)) || 1));
+    const startDate = new Date(date);
 
-    const holiday = await prisma.holiday.create({
-      data: withOrg(session, {
-        name,
-        date: holidayDate,
-        year,
-        isOptional: isOptional || false,
-        description,
-      }),
-    });
+    const holidays = await prisma.$transaction(
+      Array.from({ length: duration }, (_, i) => {
+        const holidayDate = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+        return prisma.holiday.create({
+          data: withOrg(session, {
+            name,
+            date: holidayDate,
+            year: holidayDate.getFullYear(),
+            isOptional: isOptional || false,
+            description,
+          }),
+        });
+      })
+    );
 
-    return NextResponse.json(holiday, { status: 201 });
+    // Preserve the original single-holiday response shape for callers that expect it.
+    return NextResponse.json(duration === 1 ? holidays[0] : holidays, { status: 201 });
   } catch (error) {
     console.error('Error creating holiday:', error);
     return NextResponse.json({ error: 'Failed to create holiday' }, { status: 500 });

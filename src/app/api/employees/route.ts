@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import { prisma } from '@/lib/db';
 import { getSession, hashPassword } from '@/lib/auth';
 import { orgWhere } from '@/lib/tenant';
@@ -65,8 +66,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
     }
 
-    // Generate employee ID
+    // Generate employee ID — scoped to the caller's org so each tenant has its
+    // own EMP### sequence (employeeId is unique per org, not globally).
     const lastEmployee = await prisma.employee.findFirst({
+      where: { ...orgWhere(session) },
       orderBy: { employeeId: 'desc' },
     });
 
@@ -113,8 +116,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create user account
-    const hashedPwd = await hashPassword('12345678'); // Default password
+    // Create user account with a RANDOM one-time password (no more universally
+    // known "12345678"). The plaintext is returned once below so the admin can
+    // share it with the new hire; it is never stored in plaintext.
+    const tempPassword = 'Hr' + randomBytes(4).toString('hex').toUpperCase() + '!';
+    const hashedPwd = await hashPassword(tempPassword);
     await prisma.user.create({
       data: {
         email: body.email,
@@ -122,10 +128,14 @@ export async function POST(request: NextRequest) {
         password: hashedPwd,
         role: 'EMPLOYEE',
         employeeId: newEmployee.id,
+        // Inherit the creating admin's org so the login identity is tenant-scoped
+        // (previously omitted, which left new hires org-less and fail-open).
+        organizationId: session?.organizationId ?? null,
       },
     });
 
-    return NextResponse.json(newEmployee, { status: 201 });
+    // tempPassword is surfaced ONCE to the admin UI; share it out-of-band.
+    return NextResponse.json({ ...newEmployee, tempPassword }, { status: 201 });
   } catch (error) {
     console.error('Create employee error:', error);
     return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });

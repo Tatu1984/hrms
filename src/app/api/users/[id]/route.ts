@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { requireRole } from '@/lib/api-auth';
+import { orgWhere } from '@/lib/tenant';
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
@@ -20,6 +21,14 @@ export async function PUT(
         { error: 'Username is required' },
         { status: 400 }
       );
+    }
+    // Ensure the target user belongs to the caller's org before updating.
+    const targetUser = await prisma.user.findFirst({
+      where: { id: params.id, ...orgWhere(auth) },
+      select: { id: true },
+    });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     // Check if username is taken by another user
     const existingUser = await prisma.user.findFirst({
@@ -83,6 +92,14 @@ export async function DELETE(
         { error: 'You cannot delete your own account' },
         { status: 400 }
       );
+    }
+    // Ensure the target user belongs to the caller's org before deleting.
+    const targetUser = await prisma.user.findFirst({
+      where: { id: params.id, ...orgWhere(auth) },
+      select: { id: true },
+    });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     await prisma.user.delete({
       where: { id: params.id },

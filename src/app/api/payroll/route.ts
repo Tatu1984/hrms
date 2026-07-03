@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/payroll - Generate payroll
 export async function POST(request: NextRequest) {
+  // Per-employee payroll math is verbose; keep it out of prod logs unless
+  // PAYROLL_DEBUG is explicitly enabled. Errors still use console.error.
+  const dbg = process.env.PAYROLL_DEBUG === 'true' ? console.log : () => {};
   try {
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
@@ -94,7 +97,8 @@ export async function POST(request: NextRequest) {
     const employees = await prisma.employee.findMany({ where });
 
     // Deduction config + optional per-run toggle overrides (admin's choice).
-    const salaryConfig = await prisma.salaryConfig.findFirst();
+    // Scope to the caller's org so each tenant uses its own PF/ESI/TDS/PT rates.
+    const salaryConfig = await prisma.salaryConfig.findFirst({ where: { ...orgWhere(session) } });
     const deductionOverrides: DeductionToggles | undefined = body.applyDeductions;
 
     const payrollRecords = [];
@@ -114,8 +118,8 @@ export async function POST(request: NextRequest) {
       }
 
       // AUTHORITATIVE PAYROLL LOGIC
-      console.log(`\n=== Payroll Calculation for ${emp.name} (${emp.employeeId}) ===`);
-      console.log(`Month: ${month}, Year: ${year}`);
+      dbg(`\n=== Payroll Calculation for ${emp.name} (${emp.employeeId}) ===`);
+      dbg(`Month: ${month}, Year: ${year}`);
 
       // Calculate calculation_date (today or last day of month if past)
       const today = new Date();
@@ -127,6 +131,12 @@ export async function POST(request: NextRequest) {
       const monthEndDate = new Date(year, month, 0);
       monthEndDate.setHours(0, 0, 0, 0);
 
+      // Days in the payroll month (28/29/30/31). A full month's attendance
+      // (weekdays + paid weekends/holidays) equals this, so proration is
+      // salary * presentDays / daysInMonth — never a fixed /30, which mis-pays
+      // 28- and 31-day months.
+      const daysInMonth = monthEndDate.getDate();
+
       // calculation_date is min(today, month_end)
       let calculationDate = new Date(today);
       if (today > monthEndDate) {
@@ -134,9 +144,9 @@ export async function POST(request: NextRequest) {
       }
       calculationDate.setHours(0, 0, 0, 0);
 
-      console.log(`Month start: ${monthStartDate.toISOString().split('T')[0]}`);
-      console.log(`Month end: ${monthEndDate.toISOString().split('T')[0]}`);
-      console.log(`Calculation date: ${calculationDate.toISOString().split('T')[0]}`);
+      dbg(`Month start: ${monthStartDate.toISOString().split('T')[0]}`);
+      dbg(`Month end: ${monthEndDate.toISOString().split('T')[0]}`);
+      dbg(`Calculation date: ${calculationDate.toISOString().split('T')[0]}`);
 
       // Get employee join and leave dates
       const joinDate = new Date(emp.dateOfJoining);
@@ -145,8 +155,8 @@ export async function POST(request: NextRequest) {
       // Note: Employee model doesn't have leaveDate yet, so we'll use null for now
       const leaveDate = null as Date | null; // emp.leaveDate ? new Date(emp.leaveDate) : null;
 
-      console.log(`Join date: ${joinDate.toISOString().split('T')[0]}`);
-      console.log(`Leave date: ${leaveDate ? leaveDate.toISOString().split('T')[0] : 'N/A'}`);
+      dbg(`Join date: ${joinDate.toISOString().split('T')[0]}`);
+      dbg(`Leave date: ${leaveDate ? leaveDate.toISOString().split('T')[0] : 'N/A'}`);
 
       // Determine effective attendance window
       // effective_start = max(join_date, month_start_date)
@@ -160,8 +170,8 @@ export async function POST(request: NextRequest) {
       }
       effectiveEnd.setHours(0, 0, 0, 0);
 
-      console.log(`Effective start: ${effectiveStart.toISOString().split('T')[0]}`);
-      console.log(`Effective end: ${effectiveEnd.toISOString().split('T')[0]}`);
+      dbg(`Effective start: ${effectiveStart.toISOString().split('T')[0]}`);
+      dbg(`Effective end: ${effectiveEnd.toISOString().split('T')[0]}`);
 
       // Get attendance records
       const attendance = await prisma.attendance.findMany({
@@ -176,7 +186,7 @@ export async function POST(request: NextRequest) {
         orderBy: { date: 'asc' },
       });
 
-      console.log(`Total attendance records found: ${attendance.length}`);
+      dbg(`Total attendance records found: ${attendance.length}`);
 
       // Calculate present_days
       let presentDays = 0;
@@ -218,7 +228,7 @@ export async function POST(request: NextRequest) {
 
       // If effective_end < effective_start, present_days = 0
       if (effectiveEnd < effectiveStart) {
-        console.log('Warning: effective_end < effective_start, present_days = 0');
+        dbg('Warning: effective_end < effective_start, present_days = 0');
         presentDays = 0;
       } else {
         // Count days - iterate through each day in the effective window
@@ -270,10 +280,10 @@ export async function POST(request: NextRequest) {
         }
 
         presentDays = fullPresentDays + (0.5 * halfDays);
-        console.log(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Cascaded absent weekends: ${cascadedAbsentDays}`);
+        dbg(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Cascaded absent weekends: ${cascadedAbsentDays}`);
       }
 
-      console.log(`Present days (calculated): ${presentDays}`);
+      dbg(`Present days (calculated): ${presentDays}`);
 
       // Salary calculation based on salaryType
       const isVariable = emp.salaryType === 'VARIABLE';
@@ -296,7 +306,7 @@ export async function POST(request: NextRequest) {
         variablePay = variablePart;
 
         // Calculate fixed paid based on attendance
-        fixedPaid = (fixedPart / 30) * presentDays;
+        fixedPaid = (fixedPart / daysInMonth) * presentDays;
 
         // Calculate gross target and required upfront
         const grossTarget = monthlySalary / 10;
@@ -326,7 +336,7 @@ export async function POST(request: NextRequest) {
 
         totalPaid = fixedPaid + variablePaid;
 
-        console.log(`Variable salary calculation:`, {
+        dbg(`Variable salary calculation:`, {
           monthlySalary,
           fixedPart,
           variablePart,
@@ -341,7 +351,7 @@ export async function POST(request: NextRequest) {
         });
       } else {
         // Fixed salary employee
-        const perDayRate = monthlySalary / 30;
+        const perDayRate = monthlySalary / daysInMonth;
         totalPaid = perDayRate * presentDays;
 
         basicSalary = monthlySalary;
@@ -349,7 +359,7 @@ export async function POST(request: NextRequest) {
         fixedPaid = totalPaid;
         variablePaid = 0;
 
-        console.log(`Fixed salary calculation:`, {
+        dbg(`Fixed salary calculation:`, {
           monthlySalary,
           perDayRate,
           presentDays,
@@ -379,12 +389,13 @@ export async function POST(request: NextRequest) {
       const totalDeductions =
         pf + esi + professionalTax + tds + penalties + advancePayment + otherDeductions;
 
-      // Net Salary
-      const netSalary = Math.round((grossSalary - totalDeductions) * 100) / 100;
+      // Net Salary — floored at 0 so statutory deductions on a low/zero-earning
+      // month can never produce negative take-home.
+      const netSalary = Math.max(0, Math.round((grossSalary - totalDeductions) * 100) / 100);
 
-      console.log(`Gross salary: ${grossSalary}`);
-      console.log(`Total deductions: ${totalDeductions}`);
-      console.log(`Net salary: ${netSalary}\n`);
+      dbg(`Gross salary: ${grossSalary}`);
+      dbg(`Total deductions: ${totalDeductions}`);
+      dbg(`Net salary: ${netSalary}\n`);
 
       // Calculate working days and absent days for display
       const workingDays = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -434,12 +445,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log(`✓ Payroll record created for ${emp.name}`);
+      dbg(`✓ Payroll record created for ${emp.name}`);
       payrollRecords.push(payrollRecord);
     }
 
-    console.log(`\n=== PAYROLL GENERATION COMPLETE ===`);
-    console.log(`Total records generated: ${payrollRecords.length}`);
+    dbg(`\n=== PAYROLL GENERATION COMPLETE ===`);
+    dbg(`Total records generated: ${payrollRecords.length}`);
 
     return NextResponse.json({
       success: true,

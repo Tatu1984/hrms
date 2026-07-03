@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Generate lead number
+    // Generate lead number — scoped to the caller's org so numbering is per-tenant
+    // (previously global, which leaked other tenants' volume and caused gaps).
     const lastLead = await prisma.lead.findFirst({
+      where: { ...orgWhere(session) },
       orderBy: { leadNumber: 'desc' },
     });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -20,8 +21,8 @@ export async function GET(
 
     const { id } = params;
 
-    const payroll = await prisma.payroll.findUnique({
-      where: { id },
+    const payroll = await prisma.payroll.findFirst({
+      where: { id, ...orgWhere(session) },
       include: {
         employee: {
           select: {

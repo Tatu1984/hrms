@@ -52,25 +52,25 @@ async function analyzeSkillGapFallback(employeeId: string, targetRole?: string) 
   const target = targetRole || getNextRole(currentRole);
   const requiredSkills = ROLE_SKILLS[target] || ROLE_SKILLS['Software Engineer'];
 
-  // Generate skill gaps based on required skills
-  const gaps = requiredSkills.map(req => {
-    const currentLevel = Math.floor(Math.random() * req.level) + 1;
-    const gap = Math.max(0, req.level - currentLevel);
-    return {
-      skill: req.skill,
-      currentLevel,
-      requiredLevel: req.level,
-      gap,
-      priority: gap >= 2 ? 'high' : gap >= 1 ? 'medium' : 'low',
-    };
-  }).filter(g => g.gap > 0);
+  // We know the skills a target role requires, but there is no stored source for an
+  // employee's current proficiency. Return the required skills as targets without a
+  // fabricated current level or computed gap, and flag the assessment as unavailable.
+  const gaps = requiredSkills.map(req => ({
+    skill: req.skill,
+    currentLevel: null,
+    requiredLevel: req.level,
+    gap: null,
+    priority: null,
+  }));
 
   return {
     employeeId,
     currentRole,
     targetRole: target,
     gaps,
-    overallGapScore: Math.round((gaps.length / requiredSkills.length) * 100),
+    overallGapScore: null,
+    gapAssessmentAvailable: false,
+    message: 'Skill-gap scoring unavailable — no current proficiency data on record.',
   };
 }
 
@@ -200,13 +200,11 @@ export async function POST(request: NextRequest) {
           const analysis = await analyzeSkillGapFallback(empId, targetRole);
           return NextResponse.json(analysis);
         } catch {
-          // Return mock data if employee not found
+          // Employee not found — return an honest empty result, not fabricated gaps.
           return NextResponse.json({
-            gaps: [
-              { skill: 'Leadership', currentLevel: 2, requiredLevel: 4, gap: 2, priority: 'high' },
-              { skill: 'System Design', currentLevel: 2, requiredLevel: 3, gap: 1, priority: 'medium' },
-              { skill: 'Communication', currentLevel: 3, requiredLevel: 4, gap: 1, priority: 'medium' },
-            ]
+            gaps: [],
+            gapAssessmentAvailable: false,
+            message: 'Skill-gap analysis unavailable for this employee.',
           });
         }
       }
@@ -223,18 +221,8 @@ export async function POST(request: NextRequest) {
           const result = await findMentorsFallback(empId);
           return NextResponse.json(result);
         } catch {
-          // Return mock data
-          return NextResponse.json({
-            matches: [
-              {
-                mentorId: '1',
-                mentorName: 'Sample Mentor',
-                matchScore: 0.85,
-                matchReasons: ['Senior experience', 'Same department'],
-                suggestedTopics: ['Leadership', 'Career growth'],
-              }
-            ]
-          });
+          // No real mentor matches available — return an empty list, not a fake mentor.
+          return NextResponse.json({ matches: [] });
         }
       }
 
@@ -288,16 +276,21 @@ export async function POST(request: NextRequest) {
           take: 20,
         });
 
+        // There is no stored per-employee skill data, so we can list the team members
+        // but cannot report real skill levels or gaps. Return empty skills rather than
+        // hardcoding identical fabricated proficiencies for everyone.
         const skillMatrix = employees.map(emp => ({
           id: emp.id,
           name: emp.name,
-          skills: { 'JavaScript': 3, 'React': 2, 'Communication': 3 },
+          skills: {},
         }));
 
         return NextResponse.json({
           employees: skillMatrix,
-          commonGaps: ['Leadership', 'System Design'],
-          recommendations: ['Consider team training on Leadership', 'Schedule knowledge sharing sessions'],
+          commonGaps: [],
+          recommendations: [],
+          skillDataAvailable: false,
+          message: 'Team skill matrix unavailable — no per-employee skill data on record.',
         });
       }
 

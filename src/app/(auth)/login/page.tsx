@@ -179,15 +179,9 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </Button>
 
-            <div className="text-sm text-gray-500 text-center mt-4 p-4 bg-gray-50 rounded-lg">
-              <p className="font-semibold mb-2">Demo Accounts:</p>
-              <div className="space-y-1">
-                <p>👤 Username: <strong>admin</strong> / Password: <strong>12345678</strong></p>
-                <p>👤 Username: <strong>manager</strong> / Password: <strong>12345678</strong></p>
-                <p>👤 Username: <strong>employee</strong> / Password: <strong>12345678</strong></p>
-                <p className="text-xs mt-2 text-gray-400">You can also login with email</p>
-              </div>
-            </div>
+            <p className="text-xs text-gray-400 text-center mt-4">
+              You can log in with your username or email.
+            </p>
           </form>
         </CardContent>
       </Card>

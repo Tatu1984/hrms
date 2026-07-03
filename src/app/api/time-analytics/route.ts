@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, eachDayOfInterval } from 'date-fns';
 
 interface TimeAnalyticsSummary {
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build role-based employee filter
-    const employeeWhere: any = { isActive: true };
+    const employeeWhere: any = { isActive: true, ...orgWhere(session) };
 
     if (session.role === 'EMPLOYEE') {
       // Employees can only see their own data

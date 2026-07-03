@@ -1,12 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { getClientIp } from '@/lib/ip';
 
 /**
  * Self-serve tenant signup. Provisions a new Organization plus its first ADMIN
  * user (and a matching admin Employee record), then the user logs in normally.
  * Email/username are platform-global identities (one account = one org).
  */
+
+/**
+ * Abuse throttle: cap unauthenticated signup attempts per IP/email within a
+ * window (each successful call provisions an Org + ADMIN user + Employee).
+ * Mirrors the login route's rate-limit intent; login counts audit rows in the
+ * DB, but signup writes no audit events, so we use an in-module sliding window.
+ */
+const MAX_SIGNUP_ATTEMPTS = 5;
+const SIGNUP_WINDOW_MS = 15 * 60 * 1000;
+const signupAttempts = new Map<string, number[]>();
+
+function isSignupRateLimited(...keys: string[]): boolean {
+  const now = Date.now();
+  const since = now - SIGNUP_WINDOW_MS;
+  let limited = false;
+  for (const key of keys) {
+    if (!key) continue;
+    const recent = (signupAttempts.get(key) || []).filter((t) => t > since);
+    recent.push(now);
+    signupAttempts.set(key, recent);
+    if (recent.length > MAX_SIGNUP_ATTEMPTS) limited = true;
+  }
+  return limited;
+}
 function slugify(s: string): string {
   return (
     s
@@ -20,12 +45,21 @@ function slugify(s: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
     const body = await request.json().catch(() => ({}));
     const companyName = String(body.companyName || '').trim();
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const username = String(body.username || email).trim().toLowerCase();
     const password = String(body.password || '');
+
+    // Throttle abusive provisioning before doing any DB work.
+    if (isSignupRateLimited(`ip:${ip}`, email ? `email:${email}` : '')) {
+      return NextResponse.json(
+        { error: 'Too many signup attempts. Please try again later.' },
+        { status: 429 },
+      );
+    }
 
     if (!companyName || !name || !email || !password) {
       return NextResponse.json(

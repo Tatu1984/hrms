@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { requireRole } from '@/lib/api-auth';
+import { orgWhere } from '@/lib/tenant';
 
 export async function POST(req: NextRequest) {
   try {
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
 
     const users = await prisma.user.findMany({
+      where: { ...orgWhere(auth) },
       // Explicit select: never leak the password hash.
       select: {
         id: true,

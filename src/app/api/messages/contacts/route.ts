@@ -96,7 +96,7 @@ export async function GET() {
       id: contact.user?.id || contact.id,
       name: contact.name,
       designation: contact.designation,
-      online: false, // TODO: Implement real-time online status
+      // Real-time presence is not tracked, so no online status is reported.
       unreadCount: unreadMap.get(contact.id) || 0,
     }));
 

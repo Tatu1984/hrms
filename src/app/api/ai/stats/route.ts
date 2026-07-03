@@ -88,16 +88,22 @@ export async function GET(request: NextRequest) {
         chatSessions,
         documentsProcessed: resumeAnalyses + sentimentAnalyses,
         insightsGenerated: insights,
-        accuracyRate: 89, // This would need actual tracking
+        // No accuracy tracking exists yet — return null rather than a fabricated figure.
+        accuracyRate: null,
+        accuracyRateAvailable: false,
       },
       predictions: {
         activePredictions: predictions,
         openAnomalies: anomalies,
-        atRiskEmployees: Math.min(3, Math.floor(employeeCount * 0.1)), // Estimate
+        // No real at-risk model — do not fabricate an estimate.
+        atRiskEmployees: null,
+        atRiskEmployeesAvailable: false,
       },
       recruitment: {
         resumesParsed: resumeAnalyses,
-        candidatesMatched: Math.floor(resumeAnalyses * 0.7),
+        // We track resumes parsed but not candidate matches — don't invent a ratio.
+        candidatesMatched: null,
+        candidatesMatchedAvailable: false,
       },
       learning: {
         skillGapsIdentified: skillGaps,
@@ -127,16 +133,19 @@ export async function GET(request: NextRequest) {
         chatSessions: 0,
         documentsProcessed: 0,
         insightsGenerated: 0,
-        accuracyRate: 0,
+        accuracyRate: null,
+        accuracyRateAvailable: false,
       },
       predictions: {
         activePredictions: 0,
         openAnomalies: 0,
-        atRiskEmployees: 0,
+        atRiskEmployees: null,
+        atRiskEmployeesAvailable: false,
       },
       recruitment: {
         resumesParsed: 0,
-        candidatesMatched: 0,
+        candidatesMatched: null,
+        candidatesMatchedAvailable: false,
       },
       learning: {
         skillGapsIdentified: 0,

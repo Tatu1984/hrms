@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+// BankingDetails has no organizationId column, so we scope cross-tenant access
+// by verifying the parent employee belongs to the caller's org.
+async function employeeInOrg(session: any, employeeId: string): Promise<boolean> {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, ...orgWhere(session) },
+    select: { id: true },
+  });
+  return !!employee;
+}
 
 // GET /api/employees/[id]/banking - Get banking details
 export async function GET(
@@ -27,6 +38,10 @@ export async function GET(
       session.employeeId !== employeeId
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!(await employeeInOrg(session, employeeId))) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const bankingDetails = await prisma.bankingDetails.findUnique({
@@ -60,6 +75,10 @@ export async function POST(
     // Authorization: Only admin or the employee themselves can update
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!(await employeeInOrg(session, employeeId))) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const body = await request.json();
@@ -143,6 +162,10 @@ export async function PUT(
     }
 
     const { id: employeeId } = params;
+
+    if (!(await employeeInOrg(session, employeeId))) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
 
     const bankingDetails = await prisma.bankingDetails.update({
       where: { employeeId },

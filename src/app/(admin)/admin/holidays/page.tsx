@@ -29,6 +29,7 @@ export default function HolidaysPage() {
     date: '',
     isOptional: false,
     description: '',
+    durationDays: 1,
   });
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function HolidaysPage() {
         alert(editingHoliday ? 'Holiday updated successfully' : 'Holiday added successfully');
         setShowAddDialog(false);
         setEditingHoliday(null);
-        setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
+        setNewHoliday({ name: '', date: '', isOptional: false, description: '', durationDays: 1 });
         fetchHolidays();
       } else {
         const data = await response.json();
@@ -89,6 +90,7 @@ export default function HolidaysPage() {
       date: new Date(holiday.date).toISOString().split('T')[0],
       isOptional: holiday.isOptional,
       description: holiday.description || '',
+      durationDays: 1,
     });
     setShowAddDialog(true);
   };
@@ -228,7 +230,7 @@ export default function HolidaysPage() {
         setShowAddDialog(open);
         if (!open) {
           setEditingHoliday(null);
-          setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
+          setNewHoliday({ name: '', date: '', isOptional: false, description: '', durationDays: 1 });
         }
       }}>
         <DialogContent className="max-w-md">
@@ -256,6 +258,38 @@ export default function HolidaysPage() {
                 onChange={(e) => setNewHoliday({ ...newHoliday, date: e.target.value })}
               />
             </div>
+
+            {!editingHoliday && (
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (days)</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={newHoliday.durationDays}
+                  onChange={(e) =>
+                    setNewHoliday({
+                      ...newHoliday,
+                      durationDays: Math.max(1, Math.min(31, parseInt(e.target.value) || 1)),
+                    })
+                  }
+                />
+                {newHoliday.durationDays > 1 && newHoliday.date && (
+                  <p className="text-xs text-muted-foreground">
+                    Creates {newHoliday.durationDays} consecutive holidays from{' '}
+                    {formatDate(new Date(newHoliday.date + 'T00:00:00'))} through{' '}
+                    {formatDate(
+                      new Date(
+                        new Date(newHoliday.date + 'T00:00:00').getTime() +
+                          (newHoliday.durationDays - 1) * 86400000
+                      )
+                    )}
+                    .
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="type">Holiday Type</Label>
@@ -288,7 +322,7 @@ export default function HolidaysPage() {
             <Button variant="outline" onClick={() => {
               setShowAddDialog(false);
               setEditingHoliday(null);
-              setNewHoliday({ name: '', date: '', isOptional: false, description: '' });
+              setNewHoliday({ name: '', date: '', isOptional: false, description: '', durationDays: 1 });
             }}>
               Cancel
             </Button>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 import { isSaturday, isSunday } from '@/lib/attendance-utils';
 
 // GET /api/reports - Generate reports
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
 
 // Attendance Report
 async function generateAttendanceReport(session: any, startDate: string | null, endDate: string | null, employeeId: string | null, page: number = 1, limit: number = 100) {
-  const where: any = {};
+  const where: any = { ...orgWhere(session) };
 
   // Role-based filtering
   if (session.role === 'EMPLOYEE') {
@@ -188,7 +189,7 @@ async function generateAttendanceReport(session: any, startDate: string | null, 
 
 // Payroll Report
 async function generatePayrollReport(session: any, startDate: string | null, endDate: string | null, employeeId: string | null, page: number = 1, limit: number = 100) {
-  const where: any = {};
+  const where: any = { ...orgWhere(session) };
 
   // Role-based filtering
   if (session.role === 'EMPLOYEE') {
@@ -251,7 +252,7 @@ async function generatePayrollReport(session: any, startDate: string | null, end
 
 // Tasks Report
 async function generateTasksReport(session: any, startDate: string | null, endDate: string | null, employeeId: string | null, page: number = 1, limit: number = 100) {
-  const where: any = {};
+  const where: any = { ...orgWhere(session) };
 
   // Role-based filtering
   if (session.role === 'EMPLOYEE') {
@@ -326,7 +327,7 @@ async function generateTasksReport(session: any, startDate: string | null, endDa
 
 // Leaves Report
 async function generateLeavesReport(session: any, startDate: string | null, endDate: string | null, employeeId: string | null, page: number = 1, limit: number = 100) {
-  const where: any = {};
+  const where: any = { ...orgWhere(session) };
 
   // Role-based filtering
   if (session.role === 'EMPLOYEE') {
@@ -401,9 +402,9 @@ async function generateLeavesReport(session: any, startDate: string | null, endD
 
 // Overview Report (Dashboard stats)
 async function generateOverviewReport(session: any) {
-  const employees = await prisma.employee.count();
-  const projects = await prisma.project.count({ where: { status: 'ACTIVE' } });
-  const leaves = await prisma.leave.count({ where: { status: 'PENDING' } });
+  const employees = await prisma.employee.count({ where: { ...orgWhere(session) } });
+  const projects = await prisma.project.count({ where: { status: 'ACTIVE', ...orgWhere(session) } });
+  const leaves = await prisma.leave.count({ where: { status: 'PENDING', ...orgWhere(session) } });
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -412,6 +413,7 @@ async function generateOverviewReport(session: any) {
     where: {
       month: currentMonth,
       year: currentYear,
+      ...orgWhere(session),
     },
   });
 

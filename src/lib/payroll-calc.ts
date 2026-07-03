@@ -98,7 +98,10 @@ export function computeStatutoryDeductions(
   const tds = applyTds
     ? computeMonthlyTds(input.grossSalary, config?.tdsSlabs as TdsSlab[] | null)
     : 0;
-  const professionalTax = applyPt ? ptAmount : 0;
+  // Professional Tax is a flat levy on salary actually paid; if the month's
+  // gross is 0 (e.g. no attendance), no PT is due — otherwise net pay would go
+  // negative for a zero-earning month.
+  const professionalTax = applyPt && input.grossSalary > 0 ? ptAmount : 0;
 
   return { pf, esi, tds, professionalTax };
 }

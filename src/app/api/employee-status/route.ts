@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 // Real-time employee status API with bot detection
 // Returns current status of all employees: ACTIVE, IDLE, BUSY, AWAY, OFFLINE, SUSPICIOUS
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Get all employees with their attendance for today
     const employees = await prisma.employee.findMany({
+      where: { ...orgWhere(session) },
       select: {
         id: true,
         employeeId: true,
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest) {
           gte: today,
           lt: tomorrow,
         },
+        ...orgWhere(session),
       },
       include: {
         activityLogs: {

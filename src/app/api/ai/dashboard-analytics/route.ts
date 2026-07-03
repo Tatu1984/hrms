@@ -95,15 +95,22 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const lateArrivals = await prisma.attendance.count({
+    // Fetch punch-in timestamps and count only those actually after 10:00 AM.
+    // (Time-of-day can't be filtered portably in the query, so evaluate in JS.)
+    const punchIns = await prisma.attendance.findMany({
       where: {
         date: { gte: startOfMonth },
         punchIn: { not: null },
-        // Consider punch in after 10 AM as late
       },
+      select: { punchIn: true },
     });
 
-    return { count: lateArrivals, title: 'Late Arrivals This Month' };
+    const LATE_HOUR = 10; // punch in at/after 10:00 AM counts as late
+    const lateArrivals = punchIns.filter(
+      a => a.punchIn != null && a.punchIn.getHours() >= LATE_HOUR
+    ).length;
+
+    return { count: lateArrivals, title: 'Late Arrivals This Month (after 10 AM)' };
   },
 
   // Leave Analytics

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 
 type RouteContext = {
@@ -24,6 +25,15 @@ export async function PATCH(
 
     if (typeof isActive !== 'boolean') {
       return NextResponse.json({ error: 'isActive must be a boolean' }, { status: 400 });
+    }
+
+    // Ensure the employee belongs to the caller's org before updating.
+    const existing = await prisma.employee.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const employee = await prisma.employee.update({

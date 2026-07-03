@@ -5,10 +5,21 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { saveUpload } from '@/lib/storage';
 import { DocumentType } from '@prisma/client';
+import { orgWhere } from '@/lib/tenant';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+// EmployeeDocument has no organizationId column, so we scope cross-tenant access
+// by verifying the parent employee belongs to the caller's org.
+async function employeeInOrg(session: any, employeeId: string): Promise<boolean> {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, ...orgWhere(session) },
+    select: { id: true },
+  });
+  return !!employee;
+}
 
 // GET /api/employees/[id]/documents - Get all documents for an employee
 export async function GET(
@@ -31,6 +42,10 @@ export async function GET(
       session.employeeId !== employeeId
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!(await employeeInOrg(session, employeeId))) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const documents = await prisma.employeeDocument.findMany({
@@ -65,6 +80,10 @@ export async function POST(
     // Authorization
     if (session.role !== 'ADMIN' && session.employeeId !== employeeId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!(await employeeInOrg(session, employeeId))) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     const formData = await request.formData();

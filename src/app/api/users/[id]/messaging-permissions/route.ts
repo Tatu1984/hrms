@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+// MessagingPermission has no organizationId column, so we scope cross-tenant
+// access by verifying the target user belongs to the caller's org.
+async function userInOrg(session: any, userId: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, ...orgWhere(session) },
+    select: { id: true },
+  });
+  return !!user;
+}
 // PUT - Update messaging permissions for a user
 export async function PUT(
   request: NextRequest,
@@ -14,6 +25,9 @@ export async function PUT(
     const session = await getSession();
     if (!session || session.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!(await userInOrg(session, params.id))) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     const body = await request.json();
     const { canMessagePeers, canMessageManager, canMessageDirector } = body;
@@ -59,6 +73,9 @@ export async function GET(
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!(await userInOrg(session, params.id))) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     const permission = await prisma.messagingPermission.findUnique({
       where: { userId: params.id },

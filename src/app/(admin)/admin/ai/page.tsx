@@ -31,16 +31,16 @@ interface AIStats {
     chatSessions: number;
     documentsProcessed: number;
     insightsGenerated: number;
-    accuracyRate: number;
+    accuracyRate: number | null;
   };
   predictions: {
     activePredictions: number;
     openAnomalies: number;
-    atRiskEmployees: number;
+    atRiskEmployees: number | null;
   };
   recruitment: {
     resumesParsed: number;
-    candidatesMatched: number;
+    candidatesMatched: number | null;
   };
   learning: {
     skillGapsIdentified: number;
@@ -302,10 +302,14 @@ export default function AIHubPage() {
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
             ) : (
               <>
-                <div className="text-3xl font-bold text-green-600">
-                  {stats?.overview.accuracyRate || 0}%
+                <div className="text-3xl font-bold text-muted-foreground">
+                  {stats?.overview.accuracyRate != null
+                    ? `${stats.overview.accuracyRate}%`
+                    : '—'}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Accuracy Rate</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats?.overview.accuracyRate != null ? 'Accuracy Rate' : 'Accuracy Rate (not tracked)'}
+                </p>
               </>
             )}
           </CardContent>
