@@ -57,11 +57,18 @@ export class HRChatbot {
     // Classify intent
     const intent = await this.classifyIntent(userMessage);
 
-    // Build context from previous messages
-    const conversationHistory = session.messages.reverse().map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+    // Build context from previous messages. Stored roles are uppercase
+    // ('USER'/'ASSISTANT'); the chat API requires lowercase 'user'/'assistant',
+    // so normalize (a bare cast previously sent invalid roles -> 400).
+    const conversationHistory = session.messages
+      .reverse()
+      .map((m) => {
+        const role = m.role.toLowerCase();
+        return {
+          role: (role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content,
+        };
+      });
 
     // Get employee context if available
     let employeeContext = '';
