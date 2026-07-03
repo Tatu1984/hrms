@@ -131,12 +131,6 @@ export async function POST(request: NextRequest) {
       const monthEndDate = new Date(year, month, 0);
       monthEndDate.setHours(0, 0, 0, 0);
 
-      // Days in the payroll month (28/29/30/31). A full month's attendance
-      // (weekdays + paid weekends/holidays) equals this, so proration is
-      // salary * presentDays / daysInMonth — never a fixed /30, which mis-pays
-      // 28- and 31-day months.
-      const daysInMonth = monthEndDate.getDate();
-
       // calculation_date is min(today, month_end)
       let calculationDate = new Date(today);
       if (today > monthEndDate) {
@@ -305,8 +299,8 @@ export async function POST(request: NextRequest) {
         basicSalary = fixedPart;
         variablePay = variablePart;
 
-        // Calculate fixed paid based on attendance
-        fixedPaid = (fixedPart / daysInMonth) * presentDays;
+        // Calculate fixed paid based on attendance (fixed 30-day-month divisor).
+        fixedPaid = (fixedPart / 30) * presentDays;
 
         // Calculate gross target and required upfront
         const grossTarget = monthlySalary / 10;
@@ -350,8 +344,8 @@ export async function POST(request: NextRequest) {
           totalPaid: totalPaid.toFixed(2),
         });
       } else {
-        // Fixed salary employee
-        const perDayRate = monthlySalary / daysInMonth;
+        // Fixed salary employee (fixed 30-day-month divisor, no month-length proration).
+        const perDayRate = monthlySalary / 30;
         totalPaid = perDayRate * presentDays;
 
         basicSalary = monthlySalary;

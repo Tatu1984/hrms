@@ -32,8 +32,8 @@
 
 Verified locally: `npm run typecheck` clean, `npm test` 12/12, `npm run build` compiles + 152 pages.
 
-- **Payroll correctness (was mis-paying):**
-  - Prorate by **actual days-in-month** (28/29/30/31), not a fixed `/30`. `payroll/route.ts` (`daysInMonth`), both fixed + variable branches. Fixes Feb underpay / 31-day overpay.
+- **Payroll:**
+  - **Divisor is a fixed `/30` (30-day-month convention) — NO month-length proration** (business rule confirmed by owner 2026-07-03). `salary/30 * presentDays` in both fixed + variable branches. (An earlier days-in-month change was reverted per owner.)
   - **Professional Tax no longer levied on a zero-gross month** (`payroll-calc.ts`) + **net floored at 0** (`payroll/route.ts`) — no more negative take-home. New unit test added.
   - **`SalaryConfig` now org-scoped** (`payroll/route.ts:97`, `orgWhere`) — each tenant uses its own PF/ESI/TDS/PT rates.
 - **Leave balance race fixed:** `adjustUsed` is now atomic (`increment` + floor), and approval uses new **`tryConsume`** (atomic conditional `updateMany`: quota check + increment in one statement). `src/lib/leave-balance.ts`, `leaves/route.ts`. No more lost-update / over-quota via concurrent approvals.
