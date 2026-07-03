@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
       success: true,
       role: user.role,
       name: user.employee?.name || user.username,
+      mustChangePassword: user.mustChangePassword,
     });
   } catch (error) {
     console.error('Login error:', error);

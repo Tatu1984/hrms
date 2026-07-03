@@ -131,6 +131,8 @@ export async function POST(request: NextRequest) {
         // Inherit the creating admin's org so the login identity is tenant-scoped
         // (previously omitted, which left new hires org-less and fail-open).
         organizationId: session?.organizationId ?? null,
+        // Force the new hire to replace the temp password on first login.
+        mustChangePassword: true,
       },
     });
 

@@ -78,6 +78,7 @@ const sidebarItems = [
   ]},
   { icon: 'Plug', label: 'Integrations', href: '/admin/integrations' },
   { icon: 'Building2', label: 'Company Profile', href: '/admin/company-profile' },
+  { icon: 'CreditCard', label: 'Billing', href: '/admin/billing' },
   { icon: 'Settings2', label: 'Payroll Settings', href: '/admin/payroll-settings' },
   { icon: 'BookOpen', label: 'Documentation', href: '/admin/documentation' },
 ];

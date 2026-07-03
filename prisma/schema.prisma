@@ -25,28 +25,53 @@ model Organization {
   users     User[]
   employees Employee[]
 
+  // Billing (Stripe). All nullable/defaulted so billing is optional: with no
+  // Stripe keys configured the app runs on the "free" plan and ignores these.
+  plan                 String    @default("free")
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?
+  subscriptionStatus   String?
+  currentPeriodEnd     DateTime?
+
   @@index([slug])
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  username       String        @unique
-  password       String
-  role           Role          @default(EMPLOYEE)
-  employeeId     String?       @unique
-  organizationId String?
-  permissions    Json?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  employee       Employee?     @relation(fields: [employeeId], references: [id])
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  userRoles      UserRole[]
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  username           String        @unique
+  password           String
+  role               Role          @default(EMPLOYEE)
+  employeeId         String?       @unique
+  organizationId     String?
+  permissions        Json?
+  // Force a password change on next login (e.g. after admin-created temp password).
+  mustChangePassword Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  employee           Employee?     @relation(fields: [employeeId], references: [id])
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+  userRoles          UserRole[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
   @@index([username])
   @@index([role])
   @@index([organizationId])
+}
+
+/// One-time password-reset token. Only the SHA-256 hash of the token is stored;
+/// the raw token is emailed to the user and never persisted.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ==========================================

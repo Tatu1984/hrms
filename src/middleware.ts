@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 // would pull session-store -> node:crypto into the Edge bundle and fail deploy.
 import { decrypt } from './lib/jwt';
 
-const publicPaths = ['/login', '/signup'];
+const publicPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
 const adminPaths = ['/admin'];
 const managerPaths = ['/manager'];
 const employeePaths = ['/employee'];

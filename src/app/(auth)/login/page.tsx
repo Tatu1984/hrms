@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,16 @@ export default function LoginPage() {
 
       // Show success message
       setSuccess(`Welcome back, ${data.name}!`);
+
+      // First-login (or admin-forced) password change: divert to the change
+      // form before landing on the dashboard.
+      if (data.mustChangePassword) {
+        setTimeout(() => {
+          router.push('/change-password');
+          router.refresh();
+        }, 800);
+        return;
+      }
 
       // Initialize heartbeat tracking based on existing attendance
       if (data.role === 'EMPLOYEE' && data.employeeId) {
@@ -178,6 +189,12 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Logging in...' : 'Login'}
             </Button>
+
+            <div className="text-center">
+              <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
 
             <p className="text-xs text-gray-400 text-center mt-4">
               You can log in with your username or email.
