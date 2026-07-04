@@ -1,9 +1,29 @@
 # HRMS — Production Plan of Action / Resume Doc
 
-> Last updated 2026-07-03. Goal: **finish a sellable, multi-tenant, production-grade HRMS.**
-> Status: single-company **~86%**, sellable multi-tenant SaaS **~77%**.
-> A full code audit (5 parallel passes: security, payroll/leave, multi-tenancy, reliability,
-> billing/deploy) was run 2026-07-03; its verified findings drive the LEFT-TO-DO list below.
+> Last updated 2026-07-04. Goal: **finish a sellable, multi-tenant, production-grade HRMS.**
+> Status: single-company **~92%**, sellable multi-tenant SaaS **~90%**.
+> A full code audit (5 parallel passes) ran 2026-07-03. On 2026-07-04 the four remaining
+> "sellable-SaaS" pillars shipped: **billing, email/password-reset, super-admin console,
+> accounting tenant-isolation** (all deployed to prod).
+
+## DONE (2026-07-04 — the 4 SaaS pillars, deployed to prod)
+
+- **Billing (Stripe), graceful:** `src/lib/billing.ts` (plans/limits, lazy `getStripe`, `isBillingConfigured`),
+  `/api/billing/{checkout,portal,status}`, `/api/webhooks/stripe` (raw body + sig verify), `/admin/billing` page +
+  nav. No `STRIPE_*` keys ⇒ billing simply disabled. **Owner TODO:** create products/prices + webhook in Stripe,
+  set `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/`STRIPE_PRICE_PRO` in Vercel.
+- **Email + password reset, graceful:** `src/lib/mailer.ts` (Resend via fetch, no SDK), `src/lib/password-reset.ts`
+  (SHA-256-hashed one-time tokens, 1h TTL). `/api/auth/{forgot-password,reset-password,change-password}`,
+  `/forgot-password` + `/reset-password` + `/change-password` pages, login "Forgot password?" link. New hires get a
+  **random temp password** + `mustChangePassword` → first-login diverts to `/change-password`. No `RESEND_API_KEY` ⇒
+  reset links logged to server console. **Owner TODO (optional):** set `RESEND_API_KEY` + `EMAIL_FROM`.
+- **Super-admin console:** `User.isSuperAdmin` (bootstrapped to the owner), `src/lib/superadmin.ts`,
+  `/api/superadmin/organizations` (GET list+counts / POST provision) + `[id]` PATCH (activate/deactivate),
+  `/superadmin` page. Login now denies a **deactivated org**.
+- **Accounting tenant-isolation:** `organizationId` (+ backfill to org_default) on 11 accounting models; all
+  accounting routes scoped by org. Closes the last major cross-tenant leak. (Doc-number `@unique` stays global until
+  a 2nd tenant uses accounting — then convert to per-org composite.)
+- All shipped in verified increments (typecheck + 12 tests + build) across commits `7bb66a0`, `ad73bec`, `79192e1`.
 
 ---
 
