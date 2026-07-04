@@ -136,26 +136,44 @@ function formatCurrency(amount: number) {
 export default function AccountingDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [unposted, setUnposted] = useState(0);
+  const [posting, setPosting] = useState(false);
+
+  const load = async () => {
+    try {
+      const [summaryRes, unpostedRes] = await Promise.all([
+        fetch('/api/accounting/summary'),
+        fetch('/api/accounting/rebuild-ledgers'),
+      ]);
+      setStats(summaryRes.ok ? await summaryRes.json() : null);
+      setUnposted(unpostedRes.ok ? (await unpostedRes.json()).unposted || 0 : 0);
+    } catch {
+      setStats(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // For now, use mock data - will be replaced with actual API call
-    const mockStats: DashboardStats = {
-      totalIncome: 2450000,
-      totalExpenses: 1820000,
-      netProfit: 630000,
-      cashBalance: 125000,
-      bankBalance: 875000,
-      receivables: 450000,
-      payables: 280000,
-      pendingInvoices: 12,
-      pendingBills: 8,
-    };
-
-    setTimeout(() => {
-      setStats(mockStats);
-      setIsLoading(false);
-    }, 500);
+    load();
   }, []);
+
+  const postToLedgers = async () => {
+    if (!confirm(`Post ${unposted} unposted entr${unposted === 1 ? 'y' : 'ies'} to the double-entry ledgers?`)) return;
+    setPosting(true);
+    try {
+      const res = await fetch('/api/accounting/rebuild-ledgers', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Posted ${data.posted} entr${data.posted === 1 ? 'y' : 'ies'} to the ledgers.${data.failed ? ` ${data.failed} failed.` : ''}`);
+        await load();
+      } else {
+        alert(data.error || 'Failed to post entries');
+      }
+    } finally {
+      setPosting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -176,6 +194,16 @@ export default function AccountingDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
+          {unposted > 0 && (
+            <Button variant="outline" onClick={postToLedgers} disabled={posting}>
+              {posting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Receipt className="mr-2 h-4 w-4" />
+              )}
+              Post {unposted} entr{unposted === 1 ? 'y' : 'ies'} to ledgers
+            </Button>
+          )}
           <Button variant="outline" asChild>
             <Link href="/admin/accounting/fin-reports">
               <BarChart3 className="mr-2 h-4 w-4" />
@@ -242,7 +270,7 @@ export default function AccountingDashboard() {
                 {formatCurrency(stats.netProfit)}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {((stats.netProfit / stats.totalIncome) * 100).toFixed(1)}% profit margin
+                {stats.totalIncome ? ((stats.netProfit / stats.totalIncome) * 100).toFixed(1) : '0.0'}% profit margin
               </p>
             </CardContent>
           </Card>

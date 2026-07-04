@@ -539,11 +539,15 @@ model Account {
   bankInfo        String?
   paymentTo       String?
   paymentCategory String?
+  // Links this quick-entry to its double-entry voucher (null = not yet posted to
+  // the ledgers). Used to backfill legacy entries idempotently.
+  voucherId       String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   category        AccountCategory @relation(fields: [categoryId], references: [id])
 
   @@index([organizationId])
+  @@index([voucherId])
 }
 
 model AccountCategory {

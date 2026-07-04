@@ -4,8 +4,9 @@ import { getSession } from '@/lib/auth';
 import { orgWhere, withOrg } from '@/lib/tenant';
 import type { JWTPayload } from '@/lib/jwt';
 
-// Helper function to create a voucher entry for the accounting system
-async function createVoucherForAccountEntry(
+// Helper function to create a voucher entry for the accounting system.
+// Exported so the ledger-backfill endpoint can replay legacy Account entries.
+export async function createVoucherForAccountEntry(
   session: JWTPayload,
   type: 'INCOME' | 'EXPENSE',
   amount: number,
@@ -313,6 +314,11 @@ export async function POST(request: NextRequest) {
       reference,
       category?.name
     );
+
+    // Link the quick-entry to its voucher so it isn't re-posted by the backfill.
+    if (voucher?.id) {
+      await prisma.account.update({ where: { id: account.id }, data: { voucherId: voucher.id } });
+    }
 
     return NextResponse.json({ success: true, account, voucherId: voucher?.id }, { status: 201 });
   } catch (error) {
