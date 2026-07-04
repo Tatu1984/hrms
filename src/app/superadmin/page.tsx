@@ -55,6 +55,21 @@ export default function SuperAdminPage() {
     else alert((await res.json()).error || 'Failed to update');
   };
 
+  const resetAdmin = async (org: Org) => {
+    if (!confirm(`Reset the admin password for ${org.name}? A new temporary password will be shown once.`)) return;
+    const res = await fetch(`/api/superadmin/organizations/${org.id}/reset-admin`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(
+        `Admin password reset for ${org.name}.\n\n` +
+        `User: ${data.email}\nTemporary password:\n\n    ${data.tempPassword}\n\n` +
+        `Share this securely — shown once. They must change it on next login.`
+      );
+    } else {
+      alert(data.error || 'Failed to reset admin password');
+    }
+  };
+
   const createOrg = async () => {
     setCreating(true);
     try {
@@ -159,9 +174,14 @@ export default function SuperAdminPage() {
                       <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{org._count.employees} employees</span>
                     </div>
                   </div>
-                  <Button variant={org.isActive ? 'outline' : 'default'} size="sm" onClick={() => toggleActive(org)}>
-                    {org.isActive ? 'Deactivate' : 'Activate'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => resetAdmin(org)}>
+                      Reset admin
+                    </Button>
+                    <Button variant={org.isActive ? 'outline' : 'default'} size="sm" onClick={() => toggleActive(org)}>
+                      {org.isActive ? 'Deactivate' : 'Activate'}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -190,14 +189,9 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </Button>
 
-            <div className="text-center">
-              <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-
             <p className="text-xs text-gray-400 text-center mt-4">
-              You can log in with your username or email.
+              You can log in with your username or email. Forgot your password?
+              Contact your administrator to have it reset.
             </p>
           </form>
         </CardContent>

@@ -50,7 +50,8 @@ export async function PUT(
       role: role || 'EMPLOYEE',
       permissions: permissions || null,
     };
-    // Only update password if provided
+    // Only update password if provided. An admin setting a password is a reset,
+    // so force the user to choose their own on next login.
     if (password && password.length > 0) {
       if (password.length < 6) {
         return NextResponse.json(
@@ -59,6 +60,7 @@ export async function PUT(
         );
       }
       updateData.password = await bcrypt.hash(password, 10);
+      updateData.mustChangePassword = true;
     }
     const user = await prisma.user.update({
       where: { id: params.id },
