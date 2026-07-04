@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       isActive: true,
+      ...orgWhere(session),
     };
 
     if (categoryId) {
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await prisma.item.create({
-      data: validatedData,
+      data: withOrg(auth, validatedData),
       include: {
         category: {
           select: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     const voucherTypes = await prisma.voucherType.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...orgWhere(session) },
       orderBy: { name: "asc" },
     });
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const voucherType = await prisma.voucherType.create({
-      data: validatedData,
+      data: withOrg(auth, validatedData),
     });
 
     return NextResponse.json(voucherType, { status: 201 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Check if already seeded
-    const existingGroups = await prisma.ledgerGroup.count();
+    // Check if already seeded (scoped to caller's org)
+    const existingGroups = await prisma.ledgerGroup.count({
+      where: { ...orgWhere(session) },
+    });
     if (existingGroups > 0) {
       return NextResponse.json({
         message: "Accounting system already initialized",
@@ -32,125 +35,125 @@ export async function POST(request: NextRequest) {
     const fyStartYear = currentMonth >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
     const fiscalYear = await prisma.fiscalYear.create({
-      data: {
+      data: withOrg(session, {
         name: `${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`,
         startDate: new Date(fyStartYear, 3, 1), // April 1
         endDate: new Date(fyStartYear + 1, 2, 31), // March 31
-      },
+      }),
     });
 
     // Create default ledger groups with standard chart of accounts
     const ledgerGroups = await Promise.all([
       // ASSETS
       prisma.ledgerGroup.create({
-        data: { name: "Fixed Assets", nature: "ASSETS", isSystem: true, sequence: 1 },
+        data: withOrg(session, { name: "Fixed Assets", nature: "ASSETS", isSystem: true, sequence: 1 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Current Assets", nature: "ASSETS", isSystem: true, sequence: 2 },
+        data: withOrg(session, { name: "Current Assets", nature: "ASSETS", isSystem: true, sequence: 2 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Cash & Bank", nature: "ASSETS", isSystem: true, sequence: 3 },
+        data: withOrg(session, { name: "Cash & Bank", nature: "ASSETS", isSystem: true, sequence: 3 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Sundry Debtors", nature: "ASSETS", isSystem: true, sequence: 4 },
+        data: withOrg(session, { name: "Sundry Debtors", nature: "ASSETS", isSystem: true, sequence: 4 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Loans & Advances", nature: "ASSETS", isSystem: true, sequence: 5 },
+        data: withOrg(session, { name: "Loans & Advances", nature: "ASSETS", isSystem: true, sequence: 5 }),
       }),
       // LIABILITIES
       prisma.ledgerGroup.create({
-        data: { name: "Capital Account", nature: "LIABILITIES", isSystem: true, sequence: 6 },
+        data: withOrg(session, { name: "Capital Account", nature: "LIABILITIES", isSystem: true, sequence: 6 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Current Liabilities", nature: "LIABILITIES", isSystem: true, sequence: 7 },
+        data: withOrg(session, { name: "Current Liabilities", nature: "LIABILITIES", isSystem: true, sequence: 7 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Sundry Creditors", nature: "LIABILITIES", isSystem: true, sequence: 8 },
+        data: withOrg(session, { name: "Sundry Creditors", nature: "LIABILITIES", isSystem: true, sequence: 8 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Duties & Taxes", nature: "LIABILITIES", isSystem: true, sequence: 9 },
+        data: withOrg(session, { name: "Duties & Taxes", nature: "LIABILITIES", isSystem: true, sequence: 9 }),
       }),
       // INCOME
       prisma.ledgerGroup.create({
-        data: { name: "Sales Account", nature: "INCOME", isSystem: true, affectsGrossProfit: true, sequence: 10 },
+        data: withOrg(session, { name: "Sales Account", nature: "INCOME", isSystem: true, affectsGrossProfit: true, sequence: 10 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Direct Income", nature: "INCOME", isSystem: true, affectsGrossProfit: true, sequence: 11 },
+        data: withOrg(session, { name: "Direct Income", nature: "INCOME", isSystem: true, affectsGrossProfit: true, sequence: 11 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Indirect Income", nature: "INCOME", isSystem: true, sequence: 12 },
+        data: withOrg(session, { name: "Indirect Income", nature: "INCOME", isSystem: true, sequence: 12 }),
       }),
       // EXPENSES
       prisma.ledgerGroup.create({
-        data: { name: "Purchase Account", nature: "EXPENSES", isSystem: true, affectsGrossProfit: true, sequence: 13 },
+        data: withOrg(session, { name: "Purchase Account", nature: "EXPENSES", isSystem: true, affectsGrossProfit: true, sequence: 13 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Direct Expenses", nature: "EXPENSES", isSystem: true, affectsGrossProfit: true, sequence: 14 },
+        data: withOrg(session, { name: "Direct Expenses", nature: "EXPENSES", isSystem: true, affectsGrossProfit: true, sequence: 14 }),
       }),
       prisma.ledgerGroup.create({
-        data: { name: "Indirect Expenses", nature: "EXPENSES", isSystem: true, sequence: 15 },
+        data: withOrg(session, { name: "Indirect Expenses", nature: "EXPENSES", isSystem: true, sequence: 15 }),
       }),
       // EQUITY
       prisma.ledgerGroup.create({
-        data: { name: "Reserves & Surplus", nature: "EQUITY", isSystem: true, sequence: 16 },
+        data: withOrg(session, { name: "Reserves & Surplus", nature: "EQUITY", isSystem: true, sequence: 16 }),
       }),
     ]);
 
     // Create default voucher types
     await Promise.all([
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Payment",
           code: "PYMT",
           nature: "PAYMENT",
           numberingPrefix: "PYMT",
           autoNumbering: true,
-        },
+        }),
       }),
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Receipt",
           code: "RCPT",
           nature: "RECEIPT",
           numberingPrefix: "RCPT",
           autoNumbering: true,
-        },
+        }),
       }),
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Journal",
           code: "JV",
           nature: "JOURNAL",
           numberingPrefix: "JV",
           autoNumbering: true,
-        },
+        }),
       }),
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Contra",
           code: "CNTR",
           nature: "CONTRA",
           numberingPrefix: "CNTR",
           autoNumbering: true,
-        },
+        }),
       }),
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Sales",
           code: "SALE",
           nature: "SALES",
           numberingPrefix: "INV",
           autoNumbering: true,
-        },
+        }),
       }),
       prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: "Purchase",
           code: "PURCH",
           nature: "PURCHASE",
           numberingPrefix: "BILL",
           autoNumbering: true,
-        },
+        }),
       }),
     ]);
 
@@ -159,19 +162,19 @@ export async function POST(request: NextRequest) {
 
     if (cashBankGroup) {
       await prisma.ledger.create({
-        data: {
+        data: withOrg(session, {
           name: "Cash",
           groupId: cashBankGroup.id,
           isActive: true,
-        },
+        }),
       });
 
       await prisma.ledger.create({
-        data: {
+        data: withOrg(session, {
           name: "Petty Cash",
           groupId: cashBankGroup.id,
           isActive: true,
-        },
+        }),
       });
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     const bankAccounts = await prisma.acctBankAccount.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...orgWhere(session) },
       orderBy: { name: "asc" },
     });
 
@@ -62,36 +63,36 @@ export async function POST(request: NextRequest) {
     }
 
     const bankAccount = await prisma.acctBankAccount.create({
-      data: {
+      data: withOrg(auth, {
         ...validatedData,
         currentBalance: validatedData.openingBalance,
-      },
+      }),
     });
 
     // Also create a corresponding ledger
     let bankGroup = await prisma.ledgerGroup.findFirst({
-      where: { name: "Cash & Bank" },
+      where: { name: "Cash & Bank", ...orgWhere(auth) },
     });
 
     if (!bankGroup) {
       bankGroup = await prisma.ledgerGroup.create({
-        data: {
+        data: withOrg(auth, {
           name: "Cash & Bank",
           nature: "ASSETS",
           isSystem: true,
-        },
+        }),
       });
     }
 
     await prisma.ledger.create({
-      data: {
+      data: withOrg(auth, {
         name: `${validatedData.bankName} - ${validatedData.accountNumber.slice(-4)}`,
         groupId: bankGroup.id,
         bankAccountId: bankAccount.id,
         openingBalance: validatedData.openingBalance,
         currentBalance: validatedData.openingBalance,
         openingBalanceType: "DR",
-      },
+      }),
     });
 
     return NextResponse.json(bankAccount, { status: 201 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     const nature = searchParams.get("nature");
     const search = searchParams.get("search");
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { ...orgWhere(session) };
 
     if (groupId) {
       where.groupId = groupId;
@@ -107,10 +108,10 @@ export async function POST(request: NextRequest) {
     }
 
     const ledger = await prisma.ledger.create({
-      data: {
+      data: withOrg(auth, {
         ...validatedData,
         currentBalance: validatedData.openingBalance,
-      },
+      }),
       include: {
         group: {
           select: {

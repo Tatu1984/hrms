@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const ledgerGroups = await prisma.ledgerGroup.findMany({
+      where: { ...orgWhere(session) },
       include: {
         parent: {
           select: {
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ledgerGroup = await prisma.ledgerGroup.create({
-      data: validatedData,
+      data: withOrg(auth, validatedData),
       include: {
         parent: {
           select: {

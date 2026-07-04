@@ -525,6 +525,7 @@ model Invoice {
 
 model Account {
   id              String          @id @default(cuid())
+  organizationId  String?
   type            AccountType
   categoryId      String
   amount          Float
@@ -541,6 +542,8 @@ model Account {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   category        AccountCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([organizationId])
 }
 
 model AccountCategory {
@@ -1780,6 +1783,7 @@ model ExchangeRate {
 
 model FiscalYear {
   id        String    @id @default(cuid())
+  organizationId String?
   name      String    @unique // "2024-25"
   startDate DateTime
   endDate   DateTime
@@ -1793,6 +1797,7 @@ model FiscalYear {
   vouchers Voucher[]
   budgets  AcctBudget[]
 
+  @@index([organizationId])
   @@map("fiscal_years")
 }
 
@@ -1819,6 +1824,7 @@ model FiscalPeriod {
 
 model LedgerGroup {
   id                 String   @id @default(cuid())
+  organizationId     String?
   parentId           String?
   name               String   @unique
   nature             String // ASSETS, LIABILITIES, INCOME, EXPENSES, EQUITY
@@ -1832,11 +1838,13 @@ model LedgerGroup {
   children LedgerGroup[] @relation("LedgerGroupHierarchy")
   ledgers  Ledger[]
 
+  @@index([organizationId])
   @@map("ledger_groups")
 }
 
 model Ledger {
   id                  String   @id @default(cuid())
+  organizationId      String?
   groupId             String
   partyId             String?
   bankAccountId       String?
@@ -1864,6 +1872,7 @@ model Ledger {
   budgetLines    BudgetLine[]
 
   @@index([groupId])
+  @@index([organizationId])
   @@map("ledgers")
 }
 
@@ -1873,6 +1882,7 @@ model Ledger {
 
 model VoucherType {
   id               String   @id @default(cuid())
+  organizationId   String?
   name             String
   code             String   @unique
   nature           String // PAYMENT, RECEIPT, CONTRA, JOURNAL, SALES, PURCHASE, DEBIT_NOTE, CREDIT_NOTE
@@ -1886,11 +1896,13 @@ model VoucherType {
 
   vouchers Voucher[]
 
+  @@index([organizationId])
   @@map("voucher_types")
 }
 
 model Voucher {
   id            String    @id @default(cuid())
+  organizationId String?
   fiscalYearId  String
   currencyId    String?
   voucherTypeId String
@@ -1921,11 +1933,13 @@ model Voucher {
   @@unique([voucherTypeId, voucherNumber, fiscalYearId])
   @@index([date])
   @@index([status])
+  @@index([organizationId])
   @@map("vouchers")
 }
 
 model VoucherEntry {
   id           String    @id @default(cuid())
+  organizationId String?
   voucherId    String
   ledgerId     String
   costCenterId String?
@@ -1944,6 +1958,7 @@ model VoucherEntry {
 
   @@index([voucherId])
   @@index([ledgerId])
+  @@index([organizationId])
   @@map("voucher_entries")
 }
 
@@ -1953,6 +1968,7 @@ model VoucherEntry {
 
 model AcctCostCenter {
   id        String   @id @default(cuid())
+  organizationId String?
   parentId  String?
   name      String   @unique
   code      String?
@@ -1964,6 +1980,7 @@ model AcctCostCenter {
   children       AcctCostCenter[] @relation("CostCenterHierarchy")
   voucherEntries VoucherEntry[]
 
+  @@index([organizationId])
   @@map("acct_cost_centers")
 }
 
@@ -1973,6 +1990,7 @@ model AcctCostCenter {
 
 model Party {
   id                  String   @id @default(cuid())
+  organizationId      String?
   type                String // CUSTOMER, VENDOR, BOTH
   name                String   @unique
   code                String?
@@ -2020,6 +2038,7 @@ model Party {
   acctPayments   AcctPayment[]
 
   @@index([type])
+  @@index([organizationId])
   @@map("parties")
 }
 
@@ -2047,6 +2066,7 @@ model ItemCategory {
 
 model Item {
   id              String   @id @default(cuid())
+  organizationId  String?
   categoryId      String?
   name            String   @unique
   sku             String?  @unique
@@ -2090,6 +2110,7 @@ model Item {
   billItems          BillItem[]
 
   @@index([categoryId])
+  @@index([organizationId])
   @@map("items")
 }
 
@@ -2614,6 +2635,7 @@ model InvoicePayment {
 
 model AcctBankAccount {
   id             String   @id @default(cuid())
+  organizationId String?
   name           String   @unique
   bankName       String
   branch         String?
@@ -2633,6 +2655,7 @@ model AcctBankAccount {
   bankTransactions BankTransaction[]
   reconciliations  BankReconciliation[]
 
+  @@index([organizationId])
   @@map("acct_bank_accounts")
 }
 

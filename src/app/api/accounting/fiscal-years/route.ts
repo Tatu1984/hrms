@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     const fiscalYears = await prisma.fiscalYear.findMany({
+      where: { ...orgWhere(session) },
       orderBy: { startDate: "desc" },
     });
 
@@ -56,11 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     const fiscalYear = await prisma.fiscalYear.create({
-      data: {
+      data: withOrg(auth, {
         name: validatedData.name,
         startDate: new Date(validatedData.startDate),
         endDate: new Date(validatedData.endDate),
-      },
+      }),
     });
 
     return NextResponse.json(fiscalYear, { status: 201 });

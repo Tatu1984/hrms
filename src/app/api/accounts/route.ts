@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere, withOrg } from '@/lib/tenant';
+import type { JWTPayload } from '@/lib/jwt';
 
 // Helper function to create a voucher entry for the accounting system
 async function createVoucherForAccountEntry(
+  session: JWTPayload,
   type: 'INCOME' | 'EXPENSE',
   amount: number,
   date: Date,
@@ -12,9 +15,10 @@ async function createVoucherForAccountEntry(
   categoryName?: string
 ) {
   try {
-    // Get or create fiscal year
+    // Get or create fiscal year (scoped to caller's org)
     let fiscalYear = await prisma.fiscalYear.findFirst({
       where: {
+        ...orgWhere(session),
         startDate: { lte: date },
         endDate: { gte: date },
       },
@@ -27,60 +31,60 @@ async function createVoucherForAccountEntry(
       // Indian fiscal year: April to March
       const fyStartYear = month >= 3 ? year : year - 1;
       fiscalYear = await prisma.fiscalYear.create({
-        data: {
+        data: withOrg(session, {
           name: `${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`,
           startDate: new Date(fyStartYear, 3, 1), // April 1
           endDate: new Date(fyStartYear + 1, 2, 31), // March 31
-        },
+        }),
       });
     }
 
-    // Get or create voucher type
+    // Get or create voucher type (scoped to caller's org)
     const voucherTypeCode = type === 'INCOME' ? 'RCPT' : 'PYMT';
-    let voucherType = await prisma.voucherType.findUnique({
-      where: { code: voucherTypeCode },
+    let voucherType = await prisma.voucherType.findFirst({
+      where: { code: voucherTypeCode, ...orgWhere(session) },
     });
 
     if (!voucherType) {
       voucherType = await prisma.voucherType.create({
-        data: {
+        data: withOrg(session, {
           name: type === 'INCOME' ? 'Receipt' : 'Payment',
           code: voucherTypeCode,
           nature: type === 'INCOME' ? 'RECEIPT' : 'PAYMENT',
           numberingPrefix: voucherTypeCode,
           autoNumbering: true,
-        },
+        }),
       });
     }
 
     // Get or create ledgers
     // 1. Cash/Bank ledger (default)
     let cashLedger = await prisma.ledger.findFirst({
-      where: { name: 'Cash' },
+      where: { name: 'Cash', ...orgWhere(session) },
     });
 
     if (!cashLedger) {
       // Create Cash & Bank ledger group first
       let cashGroup = await prisma.ledgerGroup.findFirst({
-        where: { name: 'Cash & Bank' },
+        where: { name: 'Cash & Bank', ...orgWhere(session) },
       });
 
       if (!cashGroup) {
         cashGroup = await prisma.ledgerGroup.create({
-          data: {
+          data: withOrg(session, {
             name: 'Cash & Bank',
             nature: 'ASSETS',
             isSystem: true,
-          },
+          }),
         });
       }
 
       cashLedger = await prisma.ledger.create({
-        data: {
+        data: withOrg(session, {
           name: 'Cash',
           groupId: cashGroup.id,
           isActive: true,
-        },
+        }),
       });
     }
 
@@ -89,16 +93,16 @@ async function createVoucherForAccountEntry(
     const ledgerGroupName = type === 'INCOME' ? 'Direct Income' : 'Direct Expenses';
 
     let transactionGroup = await prisma.ledgerGroup.findFirst({
-      where: { nature: ledgerGroupNature },
+      where: { nature: ledgerGroupNature, ...orgWhere(session) },
     });
 
     if (!transactionGroup) {
       transactionGroup = await prisma.ledgerGroup.create({
-        data: {
+        data: withOrg(session, {
           name: ledgerGroupName,
           nature: ledgerGroupNature,
           isSystem: true,
-        },
+        }),
       });
     }
 
@@ -107,22 +111,23 @@ async function createVoucherForAccountEntry(
       where: {
         name: ledgerName,
         groupId: transactionGroup.id,
+        ...orgWhere(session),
       },
     });
 
     if (!transactionLedger) {
       transactionLedger = await prisma.ledger.create({
-        data: {
+        data: withOrg(session, {
           name: ledgerName,
           groupId: transactionGroup.id,
           isActive: true,
-        },
+        }),
       });
     }
 
-    // Generate voucher number
+    // Generate voucher number (numbering is per-tenant)
     const lastVoucher = await prisma.voucher.findFirst({
-      where: { voucherTypeId: voucherType.id },
+      where: { voucherTypeId: voucherType.id, ...orgWhere(session) },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -136,7 +141,7 @@ async function createVoucherForAccountEntry(
     // For INCOME: Debit Cash, Credit Income
     // For EXPENSE: Debit Expense, Credit Cash
     const voucher = await prisma.voucher.create({
-      data: {
+      data: withOrg(session, {
         voucherTypeId: voucherType.id,
         fiscalYearId: fiscalYear.id,
         voucherNumber,
@@ -149,17 +154,18 @@ async function createVoucherForAccountEntry(
         isPosted: true,
         postedAt: new Date(),
         entries: {
+          // Stamp org on each child entry so children carry the tenant too.
           create: type === 'INCOME'
             ? [
-                { ledgerId: cashLedger.id, debitAmount: amount, creditAmount: 0, sequence: 1 },
-                { ledgerId: transactionLedger.id, debitAmount: 0, creditAmount: amount, sequence: 2 },
+                withOrg(session, { ledgerId: cashLedger.id, debitAmount: amount, creditAmount: 0, sequence: 1 }),
+                withOrg(session, { ledgerId: transactionLedger.id, debitAmount: 0, creditAmount: amount, sequence: 2 }),
               ]
             : [
-                { ledgerId: transactionLedger.id, debitAmount: amount, creditAmount: 0, sequence: 1 },
-                { ledgerId: cashLedger.id, debitAmount: 0, creditAmount: amount, sequence: 2 },
+                withOrg(session, { ledgerId: transactionLedger.id, debitAmount: amount, creditAmount: 0, sequence: 1 }),
+                withOrg(session, { ledgerId: cashLedger.id, debitAmount: 0, creditAmount: amount, sequence: 2 }),
               ],
         },
-      },
+      }),
     });
 
     // Update ledger balances
@@ -203,7 +209,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type'); // INCOME or EXPENSE
     const categoryId = searchParams.get('categoryId');
 
-    const where: any = {};
+    const where: any = { ...orgWhere(session) };
 
     if (type) {
       where.type = type;
@@ -270,7 +276,7 @@ export async function POST(request: NextRequest) {
     });
 
     const account = await prisma.account.create({
-      data: {
+      data: withOrg(session, {
         type,
         categoryId,
         amount: parseFloat(amount),
@@ -284,7 +290,7 @@ export async function POST(request: NextRequest) {
         bankInfo: bankInfo || null,
         paymentTo: paymentTo || null,
         paymentCategory: paymentCategory || null,
-      },
+      }),
       include: {
         category: {
           select: {
@@ -299,6 +305,7 @@ export async function POST(request: NextRequest) {
     // Also create a voucher entry in the accounting system
     // This connects the quick entry to the full double-entry accounting
     const voucher = await createVoucherForAccountEntry(
+      session,
       type as 'INCOME' | 'EXPENSE',
       parseFloat(amount),
       new Date(date),
@@ -327,6 +334,16 @@ export async function PUT(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    // Ensure the account belongs to the caller's org before updating.
+    const existingAccount = await prisma.account.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existingAccount) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
     const updateData: any = {};
@@ -372,6 +389,16 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    // Ensure the account belongs to the caller's org before deleting.
+    const existingAccount = await prisma.account.findFirst({
+      where: { id, ...orgWhere(session) },
+      select: { id: true },
+    });
+
+    if (!existingAccount) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
     await prisma.account.delete({

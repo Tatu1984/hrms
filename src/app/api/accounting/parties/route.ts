@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       isActive: true,
+      ...orgWhere(session),
     };
 
     if (type && type !== "all") {
@@ -124,10 +126,10 @@ export async function POST(request: NextRequest) {
     }
 
     const party = await prisma.party.create({
-      data: {
+      data: withOrg(auth, {
         ...data,
         currentBalance: data.openingBalance || 0,
-      },
+      }),
     });
 
     return NextResponse.json(party, { status: 201 });

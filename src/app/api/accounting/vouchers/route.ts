@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { requireRole } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
+import { orgWhere, withOrg } from "@/lib/tenant";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { ...orgWhere(session) };
 
     if (voucherTypeId) {
       where.voucherTypeId = voucherTypeId;
@@ -146,9 +147,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get voucher type for numbering
-    const voucherType = await prisma.voucherType.findUnique({
-      where: { id: validatedData.voucherTypeId },
+    // Get voucher type for numbering (scoped to caller's org)
+    const voucherType = await prisma.voucherType.findFirst({
+      where: { id: validatedData.voucherTypeId, ...orgWhere(auth) },
     });
 
     if (!voucherType) {
@@ -158,9 +159,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate voucher number
+    // Generate voucher number (numbering is per-tenant)
     const lastVoucher = await prisma.voucher.findFirst({
-      where: { voucherTypeId: validatedData.voucherTypeId },
+      where: { voucherTypeId: validatedData.voucherTypeId, ...orgWhere(auth) },
       orderBy: { createdAt: "desc" },
     });
 
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
     // Create voucher with entries in transaction and update ledger balances
     const voucher = await prisma.$transaction(async (tx) => {
       const newVoucher = await tx.voucher.create({
-        data: {
+        data: withOrg(auth, {
           voucherTypeId: validatedData.voucherTypeId,
           fiscalYearId: validatedData.fiscalYearId,
           voucherNumber,
@@ -186,7 +187,8 @@ export async function POST(request: NextRequest) {
           isPosted: true,
           postedAt: new Date(),
           entries: {
-            create: validatedData.entries.map((entry, index) => ({
+            // Stamp org on each child entry so children carry the tenant too.
+            create: validatedData.entries.map((entry, index) => withOrg(auth, {
               ledgerId: entry.ledgerId,
               debitAmount: entry.debitAmount,
               creditAmount: entry.creditAmount,
@@ -195,7 +197,7 @@ export async function POST(request: NextRequest) {
               sequence: index + 1,
             })),
           },
-        },
+        }),
         include: {
           voucherType: true,
           entries: {
@@ -208,8 +210,8 @@ export async function POST(request: NextRequest) {
 
       // Update ledger balances
       for (const entry of validatedData.entries) {
-        const ledger = await tx.ledger.findUnique({
-          where: { id: entry.ledgerId },
+        const ledger = await tx.ledger.findFirst({
+          where: { id: entry.ledgerId, ...orgWhere(auth) },
           include: { group: true },
         });
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { verifyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { orgWhere } from "@/lib/tenant";
+import type { JWTPayload } from "@/lib/jwt";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +29,13 @@ export async function GET(request: NextRequest) {
 
     switch (reportType) {
       case "trial-balance":
-        return await getTrialBalance();
+        return await getTrialBalance(session);
       case "profit-loss":
-        return await getProfitLoss(startDate, endDate);
+        return await getProfitLoss(session, startDate, endDate);
       case "balance-sheet":
-        return await getBalanceSheet();
+        return await getBalanceSheet(session);
       case "ledger-summary":
-        return await getLedgerSummary();
+        return await getLedgerSummary(session);
       default:
         return NextResponse.json(
           { error: "Invalid report type" },
@@ -49,9 +51,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function getTrialBalance() {
+async function getTrialBalance(session: JWTPayload) {
   const ledgers = await prisma.ledger.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...orgWhere(session) },
     include: {
       group: {
         select: {
@@ -115,11 +117,11 @@ async function getTrialBalance() {
   });
 }
 
-async function getProfitLoss(startDate: string | null, endDate: string | null) {
+async function getProfitLoss(session: JWTPayload, startDate: string | null, endDate: string | null) {
   // The P&L must reflect activity within the requested period, NOT the lifetime
   // ledger `currentBalance`. We therefore aggregate posted VoucherEntry
   // debit/credit amounts for INCOME/EXPENSES ledgers over the date range.
-  const voucherFilter: Prisma.VoucherWhereInput = { isPosted: true };
+  const voucherFilter: Prisma.VoucherWhereInput = { isPosted: true, ...orgWhere(session) };
 
   if (startDate && endDate) {
     voucherFilter.date = {
@@ -132,6 +134,7 @@ async function getProfitLoss(startDate: string | null, endDate: string | null) {
   const ledgers = await prisma.ledger.findMany({
     where: {
       isActive: true,
+      ...orgWhere(session),
       group: { nature: { in: ["INCOME", "EXPENSES"] } },
     },
     select: {
@@ -147,6 +150,7 @@ async function getProfitLoss(startDate: string | null, endDate: string | null) {
   const grouped = await prisma.voucherEntry.groupBy({
     by: ["ledgerId"],
     where: {
+      ...orgWhere(session),
       ledgerId: { in: ledgers.map((l) => l.id) },
       voucher: voucherFilter,
     },
@@ -195,9 +199,10 @@ async function getProfitLoss(startDate: string | null, endDate: string | null) {
   });
 }
 
-async function getBalanceSheet() {
+async function getBalanceSheet(session: JWTPayload) {
   const ledgerGroups = await prisma.ledgerGroup.findMany({
     where: {
+      ...orgWhere(session),
       nature: { in: ["ASSETS", "LIABILITIES", "EQUITY"] },
     },
     include: {
@@ -244,6 +249,7 @@ async function getBalanceSheet() {
   const pnlLedgers = await prisma.ledger.findMany({
     where: {
       isActive: true,
+      ...orgWhere(session),
       group: { nature: { in: ["INCOME", "EXPENSES"] } },
     },
     select: {
@@ -281,8 +287,9 @@ async function getBalanceSheet() {
   });
 }
 
-async function getLedgerSummary() {
+async function getLedgerSummary(session: JWTPayload) {
   const summary = await prisma.ledgerGroup.findMany({
+    where: { ...orgWhere(session) },
     include: {
       _count: {
         select: { ledgers: true },
