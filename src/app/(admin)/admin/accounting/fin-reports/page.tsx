@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { downloadCsv, printReport } from '@/lib/export';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -94,6 +95,74 @@ export default function FinancialReportsPage() {
     }).format(amount);
   };
 
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  const num = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+  const activeReportData = (): { title: string; empty: boolean } => {
+    if (activeTab === 'trial-balance') return { title: 'Trial Balance', empty: !trialBalance?.data.length };
+    if (activeTab === 'profit-loss')
+      return { title: 'Profit & Loss', empty: !profitLoss || (!profitLoss.income.length && !profitLoss.expenses.length) };
+    return { title: 'Balance Sheet', empty: !balanceSheet };
+  };
+
+  const handleExportCsv = () => {
+    if (activeTab === 'trial-balance' && trialBalance) {
+      downloadCsv(`trial-balance-${stamp()}`, trialBalance.data, [
+        { key: 'name', label: 'Ledger' },
+        { key: 'group', label: 'Group' },
+        { key: 'nature', label: 'Nature' },
+        { key: 'debit', label: 'Debit' },
+        { key: 'credit', label: 'Credit' },
+      ]);
+    } else if (activeTab === 'profit-loss' && profitLoss) {
+      const rows = [
+        ...profitLoss.income.map((i) => ({ section: 'Income', account: i.name, amount: i.amount })),
+        ...profitLoss.expenses.map((e) => ({ section: 'Expense', account: e.name, amount: e.amount })),
+        { section: 'Total', account: 'Net Profit', amount: profitLoss.totals.netProfit },
+      ];
+      downloadCsv(`profit-loss-${stamp()}`, rows, [
+        { key: 'section', label: 'Section' },
+        { key: 'account', label: 'Account' },
+        { key: 'amount', label: 'Amount' },
+      ]);
+    } else if (activeTab === 'balance-sheet' && balanceSheet) {
+      const rows = [
+        ...balanceSheet.assets.map((a) => ({ section: 'Asset', account: a.name, amount: a.amount })),
+        ...balanceSheet.liabilities.map((l) => ({ section: 'Liability', account: l.name, amount: l.amount })),
+        ...balanceSheet.equity.map((e) => ({ section: 'Equity', account: e.name, amount: e.amount })),
+      ];
+      downloadCsv(`balance-sheet-${stamp()}`, rows, [
+        { key: 'section', label: 'Section' },
+        { key: 'account', label: 'Account' },
+        { key: 'amount', label: 'Amount' },
+      ]);
+    }
+  };
+
+  const handleExportPdf = () => {
+    const rowsHtml = (items: { name: string; amount: number }[]) =>
+      items.map((i) => `<tr><td>${i.name}</td><td class="num">${num(i.amount)}</td></tr>`).join('');
+    let body = `<h1>${activeReportData().title}</h1><div class="meta">Generated ${new Date().toLocaleString('en-IN')}</div>`;
+
+    if (activeTab === 'trial-balance' && trialBalance) {
+      body += `<table><thead><tr><th>Ledger</th><th>Group</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${trialBalance.data
+        .map((t) => `<tr><td>${t.name}</td><td>${t.group}</td><td class="num">${num(t.debit)}</td><td class="num">${num(t.credit)}</td></tr>`)
+        .join('')}</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">${num(trialBalance.totals.debit)}</td><td class="num">${num(trialBalance.totals.credit)}</td></tr></tfoot></table>`;
+    } else if (activeTab === 'profit-loss' && profitLoss) {
+      body += `<table><thead><tr><th>Income</th><th class="num">Amount</th></tr></thead><tbody>${rowsHtml(profitLoss.income)}</tbody>
+        <tfoot><tr><td>Total Income</td><td class="num">${num(profitLoss.totals.totalIncome)}</td></tr></tfoot></table>
+        <table style="margin-top:16px"><thead><tr><th>Expenses</th><th class="num">Amount</th></tr></thead><tbody>${rowsHtml(profitLoss.expenses)}</tbody>
+        <tfoot><tr><td>Total Expenses</td><td class="num">${num(profitLoss.totals.totalExpenses)}</td></tr>
+        <tr><td>Net Profit</td><td class="num">${num(profitLoss.totals.netProfit)}</td></tr></tfoot></table>`;
+    } else if (activeTab === 'balance-sheet' && balanceSheet) {
+      body += `<table><thead><tr><th>Assets</th><th class="num">Amount</th></tr></thead><tbody>${rowsHtml(balanceSheet.assets)}</tbody>
+        <tfoot><tr><td>Total Assets</td><td class="num">${num(balanceSheet.totals.totalAssets)}</td></tr></tfoot></table>
+        <table style="margin-top:16px"><thead><tr><th>Liabilities &amp; Equity</th><th class="num">Amount</th></tr></thead><tbody>${rowsHtml([...balanceSheet.liabilities, ...balanceSheet.equity])}</tbody>
+        <tfoot><tr><td>Total Liabilities &amp; Equity</td><td class="num">${num(balanceSheet.totals.liabilitiesAndEquity)}</td></tr></tfoot></table>`;
+    }
+    printReport(activeReportData().title, body);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -106,10 +175,16 @@ export default function FinancialReportsPage() {
           </div>
           <p className="text-gray-600">View financial statements and reports</p>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportCsv} disabled={loading || activeReportData().empty}>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={handleExportPdf} disabled={loading || activeReportData().empty}>
+            <FileText className="w-4 h-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -14,6 +14,7 @@ import {
   Building2,
   Phone,
   Mail,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +48,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { downloadCsv } from "@/lib/export";
 
 interface Party {
   id: string;
@@ -300,6 +302,25 @@ export default function PartiesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Parties</h1>
           <p className="text-gray-500">Manage your customers and vendors</p>
         </div>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          disabled={filteredParties.length === 0}
+          onClick={() =>
+            downloadCsv("parties", filteredParties, [
+              { key: "name", label: "Name" },
+              { key: "type", label: "Type" },
+              { key: "email", label: "Email" },
+              { key: "phone", label: "Phone" },
+              { key: "gstNo", label: "GST No", format: (p) => p.gstNo ?? "" },
+              { key: "outstandingReceivable", label: "Receivable", format: (p) => p.outstandingReceivable },
+              { key: "outstandingPayable", label: "Payable", format: (p) => p.outstandingPayable },
+            ])
+          }
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export CSV
+        </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />Add Party</Button>
@@ -361,6 +382,7 @@ export default function PartiesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Summary Cards */}

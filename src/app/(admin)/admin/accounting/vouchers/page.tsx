@@ -38,9 +38,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Download
 } from 'lucide-react';
 import Link from 'next/link';
+import { downloadCsv } from '@/lib/export';
 
 interface VoucherType {
   id: string;
@@ -282,6 +284,25 @@ export default function VouchersPage() {
           </div>
           <p className="text-gray-600">Manage journal entries and vouchers</p>
         </div>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          disabled={vouchers.length === 0}
+          onClick={() =>
+            downloadCsv("vouchers", vouchers, [
+              { key: "voucherNumber", label: "Voucher No" },
+              { key: "date", label: "Date", format: (v) => new Date(v.date).toISOString().slice(0, 10) },
+              { key: "type", label: "Type", format: (v) => v.voucherType?.name ?? "" },
+              { key: "narration", label: "Narration", format: (v) => v.narration ?? "" },
+              { key: "totalDebit", label: "Debit", format: (v) => Number(v.totalDebit) },
+              { key: "totalCredit", label: "Credit", format: (v) => Number(v.totalCredit) },
+              { key: "status", label: "Status" },
+            ])
+          }
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-orange-600 hover:bg-orange-700">
@@ -448,6 +469,7 @@ export default function VouchersPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters */}

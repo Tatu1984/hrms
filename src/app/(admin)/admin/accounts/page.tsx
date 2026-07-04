@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { AccountEntryDialog } from '@/components/forms/account-entry-dialog';
+import { ExportCsvButton } from '@/components/shared/export-csv-button';
 import { FileText, AlertCircle, DollarSign, TrendingUp, Calendar } from 'lucide-react';
 
 export default async function AccountsPage() {
@@ -67,7 +68,21 @@ export default async function AccountsPage() {
           <h1 className="text-3xl font-bold">Accounts & Finances</h1>
           <p className="text-gray-600">Track income, expenses, invoices and pending payments</p>
         </div>
-        <AccountEntryDialog categories={categories} />
+        <div className="flex items-center gap-2">
+          <ExportCsvButton
+            filename={`account-entries-${new Date().toISOString().slice(0, 10)}`}
+            data={accounts as any[]}
+            columns={[
+              { key: 'date', label: 'Date', format: (r: any) => new Date(r.date).toISOString().slice(0, 10) },
+              { key: 'type', label: 'Type' },
+              { key: 'category', label: 'Category', format: (r: any) => r.category?.name ?? '' },
+              { key: 'description', label: 'Description' },
+              { key: 'reference', label: 'Reference', format: (r: any) => r.reference ?? '' },
+              { key: 'amount', label: 'Amount', format: (r: any) => r.amount },
+            ]}
+          />
+          <AccountEntryDialog categories={categories} />
+        </div>
       </div>
 
       {/* Primary Summary Cards */}

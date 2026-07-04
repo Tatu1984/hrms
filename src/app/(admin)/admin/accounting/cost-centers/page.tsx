@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, PieChart, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, PieChart, Plus, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/export";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -105,6 +106,20 @@ export default function CostCentersPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Link>
+          </Button>
+          <Button
+            variant="outline"
+            disabled={costCenters.length === 0}
+            onClick={() =>
+              downloadCsv("cost-centers", costCenters, [
+                { key: "name", label: "Name" },
+                { key: "code", label: "Code", format: (c) => c.code ?? "" },
+                { key: "parent", label: "Parent", format: (c) => c.parent?.name ?? "" },
+              ])
+            }
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
           </Button>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />

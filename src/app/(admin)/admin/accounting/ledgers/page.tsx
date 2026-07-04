@@ -56,6 +56,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { downloadCsv } from "@/lib/export";
 
 interface LedgerGroup {
   id: string;
@@ -446,9 +447,20 @@ export default function LedgersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            disabled={filteredLedgers.length === 0}
+            onClick={() =>
+              downloadCsv("ledgers", filteredLedgers, [
+                { key: "name", label: "Name" },
+                { key: "group", label: "Group", format: (l) => l.group?.name ?? "" },
+                { key: "nature", label: "Nature", format: (l) => l.group?.nature ?? "" },
+                { key: "currentBalance", label: "Current Balance", format: (l) => l.currentBalance },
+              ])
+            }
+          >
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Export CSV
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);

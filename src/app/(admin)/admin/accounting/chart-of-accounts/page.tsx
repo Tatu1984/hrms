@@ -12,8 +12,10 @@ import {
   Wallet,
   DollarSign,
   CreditCard,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/export";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -350,6 +352,20 @@ export default function ChartOfAccountsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={allGroups.length === 0}
+            onClick={() =>
+              downloadCsv("chart-of-accounts", allGroups, [
+                { key: "name", label: "Name" },
+                { key: "nature", label: "Nature" },
+                { key: "ledgers", label: "Ledgers", format: (g) => g._count?.ledgers ?? 0 },
+              ])
+            }
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/admin/accounting/ledgers">
               <BookOpen className="mr-2 h-4 w-4" />

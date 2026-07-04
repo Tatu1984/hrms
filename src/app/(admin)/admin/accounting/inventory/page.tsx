@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Package, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Package, Plus, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/export";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -62,6 +63,24 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={items.length === 0}
+            onClick={() =>
+              downloadCsv("inventory-items", items, [
+                { key: "name", label: "Item Name" },
+                { key: "sku", label: "SKU", format: (i) => i.sku ?? "" },
+                { key: "type", label: "Type" },
+                { key: "category", label: "Category", format: (i) => i.category?.name ?? "" },
+                { key: "purchasePrice", label: "Purchase Price", format: (i) => i.purchasePrice ?? "" },
+                { key: "sellingPrice", label: "Selling Price", format: (i) => i.sellingPrice ?? "" },
+                { key: "stock", label: "Stock", format: (i) => getTotalStock(i) },
+              ])
+            }
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/admin/accounting">
               <ArrowLeft className="mr-2 h-4 w-4" />

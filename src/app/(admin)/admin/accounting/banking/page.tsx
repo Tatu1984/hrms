@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, Plus, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/export";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -122,6 +123,24 @@ export default function BankingPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Link>
+          </Button>
+          <Button
+            variant="outline"
+            disabled={accounts.length === 0}
+            onClick={() =>
+              downloadCsv("bank-accounts", accounts, [
+                { key: "name", label: "Account Name" },
+                { key: "bankName", label: "Bank" },
+                { key: "branch", label: "Branch", format: (a) => a.branch ?? "" },
+                { key: "accountNumber", label: "Account Number" },
+                { key: "ifscCode", label: "IFSC", format: (a) => a.ifscCode ?? "" },
+                { key: "accountType", label: "Type" },
+                { key: "currentBalance", label: "Current Balance", format: (a) => a.currentBalance },
+              ])
+            }
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
           </Button>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
