@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { orgWhere, withOrg } from '@/lib/tenant';
-import { isFriday, isMonday, isSaturday, isSunday } from '@/lib/attendance-utils';
-import { computeStatutoryDeductions, type DeductionToggles } from '@/lib/payroll-calc';
+import { computeStatutoryDeductions, computeAbsentDays, type DeductionToggles } from '@/lib/payroll-calc';
 
 // GET /api/payroll - Get payroll records
 export async function GET(request: NextRequest) {
@@ -167,13 +166,19 @@ export async function POST(request: NextRequest) {
       dbg(`Effective start: ${effectiveStart.toISOString().split('T')[0]}`);
       dbg(`Effective end: ${effectiveEnd.toISOString().split('T')[0]}`);
 
-      // Get attendance records
+      // Get attendance records. Fetch a few days either side of the month so the
+      // weekend cascade can see the adjacent weekday when a Sat/Sun falls on the
+      // month boundary (e.g. the 1st is a Saturday whose Friday is last month).
+      const attnStart = new Date(monthStartDate);
+      attnStart.setDate(attnStart.getDate() - 3);
+      const attnEnd = new Date(monthEndDate);
+      attnEnd.setDate(attnEnd.getDate() + 3);
       const attendance = await prisma.attendance.findMany({
         where: {
           employeeId: emp.id,
           date: {
-            gte: monthStartDate,
-            lte: monthEndDate,
+            gte: attnStart,
+            lte: attnEnd,
           },
           ...orgWhere(session),
         },
@@ -182,102 +187,27 @@ export async function POST(request: NextRequest) {
 
       dbg(`Total attendance records found: ${attendance.length}`);
 
-      // Calculate present_days
-      let presentDays = 0;
+      // Absent-day payroll model (the manual Excel method): the full monthly
+      // salary is divided by a FIXED 30 and one day's pay is docked for each
+      // ABSENT day. Present days, approved paid leave, holidays, and "off"
+      // weekends are not deducted. Weekend cascade (Sat docked iff Fri absent;
+      // Sun docked iff Mon absent) and join/leave handling live in the
+      // unit-tested computeAbsentDays helper.
+      const absentDays =
+        effectiveEnd < effectiveStart
+          ? 30 // employed for none of the period -> full deduction (no pay)
+          : computeAbsentDays({
+              monthStart: monthStartDate,
+              through: effectiveEnd,
+              joinDate,
+              leaveDate,
+              attendance,
+            });
 
-      // Helper function to check if a weekend should be marked absent due to cascade rule
-      const isWeekendCascadedAbsent = (date: Date): boolean => {
-        // Saturday: check if Friday was absent
-        if (isSaturday(date)) {
-          const fridayDate = new Date(date);
-          fridayDate.setDate(fridayDate.getDate() - 1);
-          fridayDate.setHours(0, 0, 0, 0);
-          const fridayAttendance = attendance.find(a => {
-            const aDate = new Date(a.date);
-            aDate.setHours(0, 0, 0, 0);
-            return aDate.getTime() === fridayDate.getTime();
-          });
-          if (fridayAttendance?.status === 'ABSENT') {
-            return true;
-          }
-        }
+      // Days actually paid out of the 30-day basis (never negative or above 30).
+      const payableDays = Math.max(0, 30 - absentDays);
 
-        // Sunday: check if Monday was absent
-        if (isSunday(date)) {
-          const mondayDate = new Date(date);
-          mondayDate.setDate(mondayDate.getDate() + 1);
-          mondayDate.setHours(0, 0, 0, 0);
-          const mondayAttendance = attendance.find(a => {
-            const aDate = new Date(a.date);
-            aDate.setHours(0, 0, 0, 0);
-            return aDate.getTime() === mondayDate.getTime();
-          });
-          if (mondayAttendance?.status === 'ABSENT') {
-            return true;
-          }
-        }
-
-        return false;
-      };
-
-      // If effective_end < effective_start, present_days = 0
-      if (effectiveEnd < effectiveStart) {
-        dbg('Warning: effective_end < effective_start, present_days = 0');
-        presentDays = 0;
-      } else {
-        // Count days - iterate through each day in the effective window
-        let fullPresentDays = 0;
-        let halfDays = 0;
-        let cascadedAbsentDays = 0;
-
-        const currentDate = new Date(effectiveStart);
-        while (currentDate <= effectiveEnd) {
-          const dayOfWeek = currentDate.getDay();
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
-
-          // Check if there's an attendance record for this day
-          const dayAttendance = attendance.find(a => {
-            const aDate = new Date(a.date);
-            aDate.setHours(0, 0, 0, 0);
-            return aDate.getTime() === currentDate.getTime();
-          });
-
-          if (dayAttendance) {
-            // Use the explicit attendance record
-            if (dayAttendance.status === 'PRESENT' ||
-                dayAttendance.status === 'LEAVE' ||
-                dayAttendance.status === 'WEEKEND' ||
-                dayAttendance.status === 'HOLIDAY') {
-              fullPresentDays += 1;
-            } else if (dayAttendance.status === 'HALF_DAY') {
-              halfDays += 1;
-            }
-            // ABSENT status counts as 0
-          } else {
-            // No attendance record - check if it's a weekend
-            if (isWeekend) {
-              // Check weekend cascade rule:
-              // - Saturday is absent if Friday was absent
-              // - Sunday is absent if Monday was absent
-              if (isWeekendCascadedAbsent(currentDate)) {
-                cascadedAbsentDays += 1;
-                // Do not count as present
-              } else {
-                // Weekends are paid days even without attendance record
-                fullPresentDays += 1;
-              }
-            }
-            // Weekdays without attendance record count as 0 (absent)
-          }
-
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        presentDays = fullPresentDays + (0.5 * halfDays);
-        dbg(`Full present days: ${fullPresentDays}, Half days: ${halfDays}, Cascaded absent weekends: ${cascadedAbsentDays}`);
-      }
-
-      dbg(`Present days (calculated): ${presentDays}`);
+      dbg(`Absent days: ${absentDays}, Payable days (of 30): ${payableDays}`);
 
       // Salary calculation based on salaryType
       const isVariable = emp.salaryType === 'VARIABLE';
@@ -300,7 +230,7 @@ export async function POST(request: NextRequest) {
         variablePay = variablePart;
 
         // Calculate fixed paid based on attendance (fixed 30-day-month divisor).
-        fixedPaid = (fixedPart / 30) * presentDays;
+        fixedPaid = (fixedPart / 30) * payableDays;
 
         // Calculate gross target and required upfront
         const grossTarget = monthlySalary / 10;
@@ -334,7 +264,8 @@ export async function POST(request: NextRequest) {
           monthlySalary,
           fixedPart,
           variablePart,
-          presentDays,
+          absentDays,
+          payableDays,
           fixedPaid: fixedPaid.toFixed(2),
           grossTarget,
           requiredUpfront,
@@ -344,9 +275,10 @@ export async function POST(request: NextRequest) {
           totalPaid: totalPaid.toFixed(2),
         });
       } else {
-        // Fixed salary employee (fixed 30-day-month divisor, no month-length proration).
+        // Fixed salary employee: salary/30 per day, paid for the payable days
+        // (30 minus absent days).
         const perDayRate = monthlySalary / 30;
-        totalPaid = perDayRate * presentDays;
+        totalPaid = perDayRate * payableDays;
 
         basicSalary = monthlySalary;
         variablePay = 0;
@@ -356,7 +288,8 @@ export async function POST(request: NextRequest) {
         dbg(`Fixed salary calculation:`, {
           monthlySalary,
           perDayRate,
-          presentDays,
+          absentDays,
+          payableDays,
           totalPaid: totalPaid.toFixed(2),
         });
       }
@@ -391,18 +324,16 @@ export async function POST(request: NextRequest) {
       dbg(`Total deductions: ${totalDeductions}`);
       dbg(`Net salary: ${netSalary}\n`);
 
-      // Calculate working days and absent days for display
-      const workingDays = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const daysAbsent = Math.max(0, workingDays - presentDays);
-
+      // Stored for display against the fixed 30-day basis:
+      // workingDays = 30, daysPresent = payable (30 - absent), daysAbsent = absent.
       const payrollRecord = await prisma.payroll.create({
         data: withOrg(session, {
           employeeId: emp.id,
           month: parseInt(month),
           year: parseInt(year),
-          workingDays: workingDays,
-          daysPresent: Math.round(presentDays * 10) / 10,
-          daysAbsent: Math.round(daysAbsent * 10) / 10,
+          workingDays: 30,
+          daysPresent: Math.round(payableDays * 10) / 10,
+          daysAbsent: Math.round(absentDays * 10) / 10,
 
           basicSalary,
           variablePay,

@@ -1,5 +1,61 @@
 import { describe, it, expect } from 'vitest';
-import { computeStatutoryDeductions, computeMonthlyTds } from './payroll-calc';
+import { computeStatutoryDeductions, computeMonthlyTds, computeAbsentDays } from './payroll-calc';
+
+// January 2024: Jan 1 is a Monday, so weekdays/weekends are deterministic.
+const JAN = (day: number) => new Date(2024, 0, day);
+const WEEKDAYS = [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30, 31];
+const present = (days: number[], status = 'PRESENT') => days.map((d) => ({ date: JAN(d), status }));
+const monthBase = { monthStart: JAN(1), through: JAN(31), joinDate: JAN(1), leaveDate: null as Date | null };
+
+describe('computeAbsentDays (Excel model: /30, deduct absent; weekend cascade)', () => {
+  it('full month of present weekdays => 0 absent (weekends paid via cascade)', () => {
+    expect(computeAbsentDays({ ...monthBase, attendance: present(WEEKDAYS) })).toBe(0);
+  });
+
+  it('Friday absent => that Friday AND the following Saturday are absent (2)', () => {
+    const att = present(WEEKDAYS.filter((d) => d !== 5)).concat([{ date: JAN(5), status: 'ABSENT' }]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(2);
+  });
+
+  it('Monday absent => that Monday AND the preceding Sunday are absent (2)', () => {
+    const att = present(WEEKDAYS.filter((d) => d !== 8)).concat([{ date: JAN(8), status: 'ABSENT' }]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(2);
+  });
+
+  it('a half day docks 0.5', () => {
+    const att = present(WEEKDAYS.filter((d) => d !== 3)).concat([{ date: JAN(3), status: 'HALF_DAY' }]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(0.5);
+  });
+
+  it('no attendance at all => every weekday absent and every weekend cascaded (31)', () => {
+    expect(computeAbsentDays({ ...monthBase, attendance: [] })).toBe(31);
+  });
+
+  it('a weekend actually worked is not deducted even if the adjacent weekday is absent', () => {
+    // Fri absent (1) but Sat worked (0); Sun paid (Mon present) => total 1
+    const att = present(WEEKDAYS.filter((d) => d !== 5)).concat([
+      { date: JAN(5), status: 'ABSENT' },
+      { date: JAN(6), status: 'PRESENT' },
+    ]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(1);
+  });
+
+  it('days before joining are unpaid (mid-month joiner)', () => {
+    // Joins Jan 15; Jan 1-14 (14 days) are pre-join => absent, rest present.
+    expect(computeAbsentDays({ ...monthBase, joinDate: JAN(15), attendance: present(WEEKDAYS) })).toBe(14);
+  });
+
+  it('approved paid leave and holidays are not deducted', () => {
+    const att = present(WEEKDAYS.filter((d) => d !== 4 && d !== 11))
+      .concat([{ date: JAN(4), status: 'LEAVE' }, { date: JAN(11), status: 'HOLIDAY' }]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(0);
+  });
+
+  it('unpaid leave IS deducted', () => {
+    const att = present(WEEKDAYS.filter((d) => d !== 4)).concat([{ date: JAN(4), status: 'LEAVE_UNPAID' }]);
+    expect(computeAbsentDays({ ...monthBase, attendance: att })).toBe(1);
+  });
+});
 
 const baseConfig = {
   pfPercentage: 12,
