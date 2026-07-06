@@ -27,12 +27,12 @@ export async function POST(request: NextRequest) {
         if (!query) {
           return NextResponse.json({ error: 'Query is required' }, { status: 400 });
         }
-        const result = await advancedAnalytics.processNLQuery(auth.userId, query);
+        const result = await advancedAnalytics.processNLQuery(auth.userId, query, auth.organizationId);
         return NextResponse.json(result);
       }
 
       case 'generate-insights': {
-        const insights = await advancedAnalytics.generateInsights();
+        const insights = await advancedAnalytics.generateInsights(auth.organizationId);
         return NextResponse.json({ insights });
       }
 

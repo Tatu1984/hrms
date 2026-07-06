@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         if (!employeeId) {
           return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });
         }
-        const anomalies = await intelligentAutomation.detectAttendanceAnomalies(employeeId);
+        const anomalies = await intelligentAutomation.detectAttendanceAnomalies(employeeId, auth.organizationId);
         return NextResponse.json({ anomalies });
       }
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         if (!accountId) {
           return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
-        const anomaly = await intelligentAutomation.detectExpenseAnomalies(accountId);
+        const anomaly = await intelligentAutomation.detectExpenseAnomalies(accountId, auth.organizationId);
         return NextResponse.json({ anomaly });
       }
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         if (!rule) {
           return NextResponse.json({ error: 'Rule configuration is required' }, { status: 400 });
         }
-        const created = await intelligentAutomation.createRule(rule);
+        const created = await intelligentAutomation.createRule(rule, auth.organizationId);
         return NextResponse.json(created);
       }
 

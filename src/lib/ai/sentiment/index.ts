@@ -85,7 +85,8 @@ Return JSON:
   async analyzeTeamSentiment(
     department?: string,
     startDate?: Date,
-    endDate?: Date
+    endDate?: Date,
+    organizationId?: string
   ): Promise<TeamSentimentReport> {
     // Fetch messages and feedback (using messages as proxy for feedback)
     const messages = await prisma.message.findMany({
@@ -180,6 +181,7 @@ Return JSON:
         data: {
           sourceType: 'MESSAGE',
           sourceId: messages[sentiments.indexOf(sentiment)]?.id || '',
+          organizationId,
           text: sentiment.text,
           sentiment: sentiment.sentiment,
           score: sentiment.score,

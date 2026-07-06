@@ -255,6 +255,7 @@ export async function POST(request: NextRequest) {
         await prisma.aILearningRecommendation.create({
           data: {
             employeeId,
+            organizationId: auth.organizationId,
             courseName,
             provider,
             skillsCovered: skills || [],

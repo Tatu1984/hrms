@@ -253,7 +253,8 @@ export async function POST(request: NextRequest) {
       sessionId || crypto.randomUUID(),
       auth.userId,
       message,
-      auth.employeeId
+      auth.employeeId,
+      auth.organizationId
     );
 
     return NextResponse.json(result);

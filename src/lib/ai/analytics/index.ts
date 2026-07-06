@@ -41,7 +41,8 @@ export class AdvancedAnalyticsEngine {
   // Process natural language query
   async processNLQuery(
     userId: string,
-    query: string
+    query: string,
+    organizationId?: string
   ): Promise<NLQuery> {
     const startTime = Date.now();
 
@@ -56,6 +57,7 @@ export class AdvancedAnalyticsEngine {
       await prisma.aINLQuery.create({
         data: {
           userId,
+          organizationId,
           originalQuery: query,
           parsedIntent: parsedQuery.intent,
           generatedSQL: result.sql,
@@ -81,6 +83,7 @@ export class AdvancedAnalyticsEngine {
       await prisma.aINLQuery.create({
         data: {
           userId,
+          organizationId,
           originalQuery: query,
           success: false,
           error: (error as Error).message,
@@ -429,7 +432,7 @@ ${SCHEMA_DESCRIPTION}`,
   }
 
   // Generate automated insights
-  async generateInsights(): Promise<AutoInsight[]> {
+  async generateInsights(organizationId?: string): Promise<AutoInsight[]> {
     const insights: AutoInsight[] = [];
 
     // 1. Headcount insight
@@ -527,6 +530,7 @@ ${SCHEMA_DESCRIPTION}`,
       await prisma.aIInsight.create({
         data: {
           type: INSIGHT_TYPE_TO_PRISMA[insight.type],
+          organizationId,
           category: insight.category,
           title: insight.title,
           description: insight.description,

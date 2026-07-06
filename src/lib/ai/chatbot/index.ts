@@ -29,7 +29,8 @@ export class HRChatbot {
     sessionId: string,
     userId: string,
     userMessage: string,
-    employeeId?: string
+    employeeId?: string,
+    organizationId?: string
   ): Promise<{
     response: string;
     action?: ChatAction;
@@ -47,6 +48,7 @@ export class HRChatbot {
           id: sessionId,
           userId,
           employeeId,
+          organizationId,
           context: {},
           status: 'ACTIVE',
         },

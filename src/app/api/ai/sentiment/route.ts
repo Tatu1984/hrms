@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
         const report = await sentimentAnalyzer.analyzeTeamSentiment(
           department,
           startDate ? new Date(startDate) : undefined,
-          endDate ? new Date(endDate) : undefined
+          endDate ? new Date(endDate) : undefined,
+          auth.organizationId
         );
         return NextResponse.json(report);
       }

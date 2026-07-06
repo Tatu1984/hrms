@@ -118,7 +118,7 @@ export class IntelligentAutomation {
   }
 
   // Detect anomalies in attendance patterns
-  async detectAttendanceAnomalies(employeeId: string): Promise<AnomalyDetection[]> {
+  async detectAttendanceAnomalies(employeeId: string, organizationId?: string): Promise<AnomalyDetection[]> {
     const anomalies: AnomalyDetection[] = [];
 
     const attendance = await prisma.attendance.findMany({
@@ -190,6 +190,7 @@ export class IntelligentAutomation {
           severity: anomaly.severity,
           entityType: anomaly.entityType,
           entityId: anomaly.entityId,
+          organizationId,
           description: anomaly.description,
           data: anomaly.data as Prisma.InputJsonValue,
           status: 'OPEN',
@@ -201,7 +202,7 @@ export class IntelligentAutomation {
   }
 
   // Detect expense anomalies
-  async detectExpenseAnomalies(accountId: string): Promise<AnomalyDetection | null> {
+  async detectExpenseAnomalies(accountId: string, organizationId?: string): Promise<AnomalyDetection | null> {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
       include: { category: true },
@@ -250,6 +251,7 @@ export class IntelligentAutomation {
           severity: anomaly.severity,
           entityType: anomaly.entityType,
           entityId: anomaly.entityId,
+          organizationId,
           description: anomaly.description,
           data: anomaly.data as Prisma.InputJsonValue,
           status: 'OPEN',
@@ -400,12 +402,13 @@ Return JSON array with: type, message, entityId, priority, reason`,
   }
 
   // Create or update automation rule
-  async createRule(rule: Omit<AutoApprovalRule, 'id'>): Promise<AutoApprovalRule> {
+  async createRule(rule: Omit<AutoApprovalRule, 'id'>, organizationId?: string): Promise<AutoApprovalRule> {
     const created = await prisma.aIAutomationRule.create({
       data: {
         name: `${rule.type}_rule`,
         type: rule.type === 'leave' ? 'LEAVE_APPROVAL' :
               rule.type === 'expense' ? 'EXPENSE_APPROVAL' : 'ATTENDANCE_ALERT',
+        organizationId,
         conditions: rule.conditions as unknown as Prisma.InputJsonValue,
         actions: { action: rule.action },
         priority: rule.priority,

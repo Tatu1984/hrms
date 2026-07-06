@@ -362,6 +362,7 @@ Return JSON: {"courses": [{"name": "", "provider": "", "duration": "", "type": "
         data: {
           mentorId: match.mentorId,
           menteeId: match.menteeId,
+          organizationId: mentee.organizationId,
           matchScore: match.matchScore,
           matchReasons: match.matchReasons,
           topics: match.suggestedTopics,
@@ -442,9 +443,17 @@ Return JSON: {"courses": [{"name": "", "provider": "", "duration": "", "type": "
     skills: string[],
     reason: string
   ): Promise<void> {
+    // Derive the org from the recommendation's subject employee so the row is
+    // stamped and shows up in org-scoped dashboards.
+    const { organizationId } = (await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { organizationId: true },
+    })) ?? {};
+
     await prisma.aILearningRecommendation.create({
       data: {
         employeeId,
+        organizationId,
         courseName,
         provider,
         skillsCovered: skills,
