@@ -204,6 +204,12 @@ export async function DELETE(
         where: { employeeId },
       });
 
+      // 7b. Delete leave balances (relation has no onDelete: Cascade, so
+      // leaving these would fail the final employee.delete() with an FK error)
+      await tx.leaveBalance.deleteMany({
+        where: { employeeId },
+      });
+
       // 8. Delete messages (Message has senderId, not employeeId)
       await tx.message.deleteMany({
         where: { senderId: employeeId },
@@ -239,6 +245,11 @@ export async function DELETE(
       await tx.employee.delete({
         where: { id: employeeId },
       });
+    }, {
+      // Employees with lots of attendance/activity history can exceed Prisma's
+      // default 5s interactive-transaction timeout, aborting the whole delete.
+      timeout: 20000,
+      maxWait: 10000,
     });
 
     return NextResponse.json({
