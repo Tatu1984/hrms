@@ -7,8 +7,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const ROLLBACK = Symbol('rollback');
 
-// Faithful copy of src/lib/tenant.ts orgWhere()
-const orgWhere = (s) => (s?.organizationId ? { organizationId: s.organizationId } : {});
+// Faithful copy of src/lib/tenant.ts orgWhere() — FAIL CLOSED (throws with no org).
+const orgWhere = (s) => {
+  if (!s?.organizationId) throw new Error('TenantScopeError: no organizationId');
+  return { organizationId: s.organizationId };
+};
 
 let pass = 0, fail = 0;
 const check = (name, cond) => {
@@ -74,10 +77,14 @@ async function main() {
       const bVisible = await tx.iAMRole.findMany({ where: { name: { contains: S }, OR: [{ isSystem: true }, { organizationId: orgB.id }] } });
       check('B sees the system role but NOT A’s custom role', bVisible.some(r => r.id === sysRole.id) && !bVisible.some(r => r.id === aRole.id));
 
-      console.log('\n— DANGER: org-less session (orgWhere returns {}) —');
-      const leak = await tx.employee.findMany({ where: { name: { contains: 'Person' }, ...orgWhere(sessNone) } });
-      const seesBoth = leak.some(e => e.id === empA.id) && leak.some(e => e.id === empB.id);
-      check('org-less session sees BOTH tenants (documents the fallback risk)', seesBoth);
+      console.log('\n— Fail-closed: org-less session is REJECTED, not widened —');
+      let rejected = false;
+      try {
+        await tx.employee.findMany({ where: { name: { contains: 'Person' }, ...orgWhere(sessNone) } });
+      } catch {
+        rejected = true;
+      }
+      check('org-less session throws instead of seeing all tenants', rejected);
 
       throw ROLLBACK;
     }, { timeout: 30000, maxWait: 30000 });

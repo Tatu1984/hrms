@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { orgWhere, withOrg, orgId } from './tenant';
+import { orgWhere, withOrg, orgId, TenantScopeError } from './tenant';
 
-describe('tenant scoping helpers', () => {
+describe('tenant scoping helpers (fail-closed)', () => {
   it('orgWhere returns the org filter when present', () => {
     expect(orgWhere({ organizationId: 'org_a' })).toEqual({ organizationId: 'org_a' });
   });
 
-  it('orgWhere returns empty scope with no org (legacy/system)', () => {
-    expect(orgWhere(null)).toEqual({});
-    expect(orgWhere({ organizationId: null })).toEqual({});
-    expect(orgWhere(undefined)).toEqual({});
+  it('orgWhere THROWS when the session has no org (never widens to all tenants)', () => {
+    expect(() => orgWhere(null)).toThrow(TenantScopeError);
+    expect(() => orgWhere({ organizationId: null })).toThrow(TenantScopeError);
+    expect(() => orgWhere(undefined)).toThrow(TenantScopeError);
   });
 
   it('withOrg stamps org onto create data', () => {
@@ -19,12 +19,13 @@ describe('tenant scoping helpers', () => {
     });
   });
 
-  it('withOrg leaves data unchanged when no org', () => {
-    expect(withOrg(null, { name: 'x' })).toEqual({ name: 'x' });
+  it('withOrg THROWS rather than creating an org-less row', () => {
+    expect(() => withOrg(null, { name: 'x' })).toThrow(TenantScopeError);
+    expect(() => withOrg({ organizationId: null }, { name: 'x' })).toThrow(TenantScopeError);
   });
 
-  it('orgId extracts the org id or null', () => {
+  it('orgId returns the id or throws', () => {
     expect(orgId({ organizationId: 'org_a' })).toBe('org_a');
-    expect(orgId(null)).toBeNull();
+    expect(() => orgId(null)).toThrow(TenantScopeError);
   });
 });
