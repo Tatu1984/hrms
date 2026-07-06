@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {};
+    // Tenant isolation: scope to connections owned by the caller's org
+    if (session.organizationId) {
+      where.connection = { organizationId: session.organizationId };
+    }
     if (connectionId) where.connectionId = connectionId;
     if (spaceKey) where.spaceKey = spaceKey;
 

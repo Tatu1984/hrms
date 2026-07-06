@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     // Get all active employees
     const employees = await prisma.employee.findMany({
-      select: { id: true, name: true, employeeId: true, dateOfJoining: true },
+      select: { id: true, name: true, employeeId: true, dateOfJoining: true, organizationId: true },
     });
 
     for (const employee of employees) {
@@ -119,11 +119,17 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        // Holiday applies only if it belongs to this employee's own org.
+        const isEmployeeHoliday = holidays.some(
+          (h) => h.organizationId === employee.organizationId
+        );
+
         // Auto-mark based on day type
         if (isWeekend) {
           // Mark weekend as PRESENT (weekly off)
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'PRESENT',
@@ -134,10 +140,11 @@ export async function GET(request: NextRequest) {
             },
           });
           results.weekendsMarked++;
-        } else if (isHoliday) {
+        } else if (isEmployeeHoliday) {
           // Mark holiday as PRESENT
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'HOLIDAY',
@@ -152,6 +159,7 @@ export async function GET(request: NextRequest) {
           // Weekday with no attendance = ABSENT
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'ABSENT',
@@ -265,7 +273,7 @@ export async function POST(request: NextRequest) {
     const isHoliday = !!holiday;
 
     const employees = await prisma.employee.findMany({
-      select: { id: true, name: true, employeeId: true, dateOfJoining: true },
+      select: { id: true, name: true, employeeId: true, dateOfJoining: true, organizationId: true },
     });
 
     for (const employee of employees) {
@@ -294,9 +302,15 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Holiday applies only if it belongs to this employee's own org.
+        const isEmployeeHoliday = holidays.some(
+          (h) => h.organizationId === employee.organizationId
+        );
+
         if (isWeekend) {
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'PRESENT',
@@ -307,9 +321,10 @@ export async function POST(request: NextRequest) {
             },
           });
           results.weekendsMarked++;
-        } else if (isHoliday) {
+        } else if (isEmployeeHoliday) {
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'HOLIDAY',
@@ -323,6 +338,7 @@ export async function POST(request: NextRequest) {
         } else {
           await prisma.attendance.create({
             data: {
+              organizationId: employee.organizationId,
               employeeId: employee.id,
               date: targetDate,
               status: 'ABSENT',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,12 +37,12 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Employee filter
-    if (employeeId) {
-      where.attendance = {
-        employeeId,
-      };
-    }
+    // Scope to caller's org via the parent attendance relation (ActivityLog has no org column).
+    // Optionally narrow by employee.
+    where.attendance = {
+      ...orgWhere(session),
+      ...(employeeId ? { employeeId } : {}),
+    };
 
     // Fetch suspicious activity logs
     const suspiciousLogs = await prisma.activityLog.findMany({

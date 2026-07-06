@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * Admin API to force punch-out an employee
@@ -24,11 +25,11 @@ export async function POST(request: NextRequest) {
     let employee;
     if (employeeCode) {
       employee = await prisma.employee.findFirst({
-        where: { employeeId: employeeCode },
+        where: { employeeId: employeeCode, ...orgWhere(auth) },
       });
     } else {
-      employee = await prisma.employee.findUnique({
-        where: { id: employeeId },
+      employee = await prisma.employee.findFirst({
+        where: { id: employeeId, ...orgWhere(auth) },
       });
     }
 
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
     // Find today's attendance record
     const attendance = await prisma.attendance.findFirst({
       where: {
+        ...orgWhere(auth),
         employeeId: employee.id,
         date: {
           gte: today,
@@ -113,6 +115,7 @@ export async function GET(request: NextRequest) {
     // Find all employees with active (not punched out) attendance
     const activeAttendance = await prisma.attendance.findMany({
       where: {
+        ...orgWhere(auth),
         date: {
           gte: today,
           lt: tomorrow,

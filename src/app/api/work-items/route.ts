@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 // GET /api/work-items - Get work items from all integrations
 export async function GET(request: NextRequest) {
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
     const employeeId = searchParams.get('employeeId'); // For manager viewing team member's work
 
     const where: any = {};
+
+    // Tenant isolation: scope to connections owned by the caller's org
+    if (session.organizationId) {
+      where.connection = { organizationId: session.organizationId };
+    }
 
     // Role-based filtering
     if (session.role === 'EMPLOYEE') {
@@ -98,9 +104,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Connection ID required' }, { status: 400 });
     }
 
-    // Get the integration connection
-    const connection = await prisma.integrationConnection.findUnique({
-      where: { id: connectionId },
+    // Get the integration connection (scoped to the caller's org)
+    const connection = await prisma.integrationConnection.findFirst({
+      where: { id: connectionId, ...orgWhere(session) },
     });
 
     if (!connection) {

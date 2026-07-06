@@ -37,23 +37,23 @@ model Organization {
 }
 
 model User {
-  id                 String        @id @default(cuid())
-  email              String        @unique
-  username           String        @unique
-  password           String
-  role               Role          @default(EMPLOYEE)
-  employeeId         String?       @unique
-  organizationId     String?
-  permissions        Json?
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  username            String               @unique
+  password            String
+  role                Role                 @default(EMPLOYEE)
+  employeeId          String?              @unique
+  organizationId      String?
+  permissions         Json?
   // Force a password change on next login (e.g. after admin-created temp password).
-  mustChangePassword Boolean       @default(false)
+  mustChangePassword  Boolean              @default(false)
   // Platform super-admin: cross-org console access (org provisioning, activate/deactivate).
-  isSuperAdmin       Boolean       @default(false)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  employee           Employee?     @relation(fields: [employeeId], references: [id])
-  organization       Organization? @relation(fields: [organizationId], references: [id])
-  userRoles          UserRole[]
+  isSuperAdmin        Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  employee            Employee?            @relation(fields: [employeeId], references: [id])
+  organization        Organization?        @relation(fields: [organizationId], references: [id])
+  userRoles           UserRole[]
   passwordResetTokens PasswordResetToken[]
 
   @@index([email])
@@ -81,18 +81,23 @@ model PasswordResetToken {
 // ==========================================
 
 model IAMRole {
-  id          String     @id @default(cuid())
-  name        String     @unique // "HR_MANAGER", "FINANCE_LEAD", etc.
-  displayName String // "HR Manager", "Finance Lead"
-  description String?
-  isSystem    Boolean    @default(false) // true for ADMIN, MANAGER, EMPLOYEE
-  permissions Json // Array of permission codes ["employees.view", "payroll.manage"]
-  color       String? // Badge color for UI
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  users       UserRole[]
+  id             String     @id @default(cuid())
+  organizationId String?
+  name           String // "HR_MANAGER", "FINANCE_LEAD", etc.
+  displayName    String // "HR Manager", "Finance Lead"
+  description    String?
+  isSystem       Boolean    @default(false) // true for ADMIN, MANAGER, EMPLOYEE
+  permissions    Json // Array of permission codes ["employees.view", "payroll.manage"]
+  color          String? // Badge color for UI
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  users          UserRole[]
 
+  // System roles (ADMIN/MANAGER/EMPLOYEE) are global (organizationId NULL);
+  // custom roles are per-org. Name is unique within an org.
+  @@unique([organizationId, name])
   @@index([isSystem])
+  @@index([organizationId])
 }
 
 model UserRole {
@@ -989,23 +994,25 @@ model Department {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String
-  userName   String
-  userRole   String
-  action     String
-  entityType String
-  entityId   String
-  entityName String?
-  changes    Json?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String
+  userName       String
+  userRole       String
+  action         String
+  entityType     String
+  entityId       String
+  entityName     String?
+  changes        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
 
   @@index([userId])
   @@index([entityType])
   @@index([action])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 model BrowserActivityLog {
@@ -1101,15 +1108,16 @@ enum AuthEventType {
 // Geo-aware authentication audit log. One row per login/logout/failure with the
 // network location, device fingerprint, and any anomalies detected at that time.
 model AuthEvent {
-  id            String        @id @default(cuid())
-  eventType     AuthEventType
-  userId        String?
-  employeeId    String?
-  userName      String?
-  userRole      String?
-  sessionId     String?
-  emailTried    String? // captured even when the user does not exist (failed logins)
-  failureReason String?
+  id             String        @id @default(cuid())
+  organizationId String?
+  eventType      AuthEventType
+  userId         String?
+  employeeId     String?
+  userName       String?
+  userRole       String?
+  sessionId      String?
+  emailTried     String? // captured even when the user does not exist (failed logins)
+  failureReason  String?
 
   // Network + geolocation
   ipAddress    String?
@@ -1152,6 +1160,7 @@ model AuthEvent {
   @@index([sessionId])
   @@index([createdAt])
   @@index([riskScore])
+  @@index([organizationId])
 }
 
 // Admin-approved "this login is fine" allowlist. When an admin reviews a flagged
@@ -1406,6 +1415,7 @@ model AIDocumentExtraction {
 // AI Predictions (Attrition, Performance, etc.)
 model AIPrediction {
   id              String         @id @default(cuid())
+  organizationId  String?
   employeeId      String
   predictionType  PredictionType
   riskScore       Float
@@ -1422,24 +1432,27 @@ model AIPrediction {
   @@index([predictionType])
   @@index([riskLevel])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 // AI Chat Sessions
 model AIChatSession {
-  id            String            @id @default(cuid())
-  userId        String
-  employeeId    String?
-  context       Json?
-  status        ChatSessionStatus @default(ACTIVE)
-  messageCount  Int               @default(0)
-  lastMessageAt DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  messages      AIChatMessage[]
+  id             String            @id @default(cuid())
+  organizationId String?
+  userId         String
+  employeeId     String?
+  context        Json?
+  status         ChatSessionStatus @default(ACTIVE)
+  messageCount   Int               @default(0)
+  lastMessageAt  DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  messages       AIChatMessage[]
 
   @@index([userId])
   @@index([employeeId])
   @@index([status])
+  @@index([organizationId])
 }
 
 // AI Chat Messages
@@ -1462,80 +1475,88 @@ model AIChatMessage {
 
 // Sentiment Analysis Results
 model AISentimentAnalysis {
-  id         String              @id @default(cuid())
-  sourceType SentimentSourceType
-  sourceId   String
-  text       String
-  sentiment  String
-  score      Float
-  confidence Float
-  aspects    Json?
-  emotions   Json?
-  createdAt  DateTime            @default(now())
+  id             String              @id @default(cuid())
+  organizationId String?
+  sourceType     SentimentSourceType
+  sourceId       String
+  text           String
+  sentiment      String
+  score          Float
+  confidence     Float
+  aspects        Json?
+  emotions       Json?
+  createdAt      DateTime            @default(now())
 
   @@index([sourceType])
   @@index([sourceId])
   @@index([sentiment])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 // Resume Parsing Results
 model AIResumeAnalysis {
-  id           String             @id @default(cuid())
-  candidateId  String?
-  fileName     String
-  filePath     String?
-  parsedData   Json
-  skills       Json
-  experience   Json
-  education    Json
-  overallScore Float?
-  matchScores  Json?
-  biasFlags    Json?
-  status       AIProcessingStatus @default(PENDING)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id             String             @id @default(cuid())
+  organizationId String?
+  candidateId    String?
+  fileName       String
+  filePath       String?
+  parsedData     Json
+  skills         Json
+  experience     Json
+  education      Json
+  overallScore   Float?
+  matchScores    Json?
+  biasFlags      Json?
+  status         AIProcessingStatus @default(PENDING)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([candidateId])
   @@index([status])
+  @@index([organizationId])
 }
 
 // Skill Gap Analysis
 model AISkillGap {
-  id           String   @id @default(cuid())
-  employeeId   String
-  currentRole  String
-  targetRole   String?
-  gaps         Json
-  overallScore Float
-  learningPath Json?
-  priority     String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String?
+  employeeId     String
+  currentRole    String
+  targetRole     String?
+  gaps           Json
+  overallScore   Float
+  learningPath   Json?
+  priority       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([employeeId])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 // AI Automation Rules
 model AIAutomationRule {
-  id            String            @id @default(cuid())
-  name          String
-  type          AutomationType
-  conditions    Json
-  actions       Json
-  priority      Int               @default(0)
-  isActive      Boolean           @default(true)
-  triggerCount  Int               @default(0)
-  lastTriggered DateTime?
-  createdBy     String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  logs          AIAutomationLog[]
+  id             String            @id @default(cuid())
+  organizationId String?
+  name           String
+  type           AutomationType
+  conditions     Json
+  actions        Json
+  priority       Int               @default(0)
+  isActive       Boolean           @default(true)
+  triggerCount   Int               @default(0)
+  lastTriggered  DateTime?
+  createdBy      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  logs           AIAutomationLog[]
 
   @@index([type])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 // AI Automation Logs
@@ -1557,107 +1578,117 @@ model AIAutomationLog {
 
 // Anomaly Detection
 model AIAnomaly {
-  id          String        @id @default(cuid())
-  type        String
-  severity    String
-  entityType  String
-  entityId    String
-  description String
-  data        Json
-  status      AnomalyStatus @default(OPEN)
-  reviewedBy  String?
-  reviewedAt  DateTime?
-  resolution  String?
-  createdAt   DateTime      @default(now())
+  id             String        @id @default(cuid())
+  organizationId String?
+  type           String
+  severity       String
+  entityType     String
+  entityId       String
+  description    String
+  data           Json
+  status         AnomalyStatus @default(OPEN)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  resolution     String?
+  createdAt      DateTime      @default(now())
 
   @@index([type])
   @@index([severity])
   @@index([entityType])
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 // AI Generated Insights
 model AIInsight {
-  id          String      @id @default(cuid())
-  type        InsightType
-  category    String
-  title       String
-  description String
-  data        Json
-  importance  Float
-  actionable  Boolean     @default(false)
-  actions     Json?
-  dismissed   Boolean     @default(false)
-  dismissedBy String?
-  createdAt   DateTime    @default(now())
+  id             String      @id @default(cuid())
+  organizationId String?
+  type           InsightType
+  category       String
+  title          String
+  description    String
+  data           Json
+  importance     Float
+  actionable     Boolean     @default(false)
+  actions        Json?
+  dismissed      Boolean     @default(false)
+  dismissedBy    String?
+  createdAt      DateTime    @default(now())
 
   @@index([type])
   @@index([category])
   @@index([importance])
   @@index([dismissed])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 // Natural Language Queries
 model AINLQuery {
-  id            String   @id @default(cuid())
-  userId        String
-  originalQuery String
-  parsedIntent  String?
-  generatedSQL  String?
-  result        Json?
-  executionTime Int?
-  success       Boolean  @default(false)
-  error         String?
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String
+  originalQuery  String
+  parsedIntent   String?
+  generatedSQL   String?
+  result         Json?
+  executionTime  Int?
+  success        Boolean  @default(false)
+  error          String?
+  createdAt      DateTime @default(now())
 
   @@index([userId])
   @@index([success])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 // Learning Recommendations
 model AILearningRecommendation {
-  id            String         @id @default(cuid())
-  employeeId    String
-  courseId      String?
-  courseName    String
-  provider      String?
-  skillsCovered Json
-  reason        String
-  priority      Int            @default(0)
-  status        LearningStatus @default(RECOMMENDED)
-  completedAt   DateTime?
-  feedback      String?
-  rating        Int?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  organizationId String?
+  employeeId     String
+  courseId       String?
+  courseName     String
+  provider       String?
+  skillsCovered  Json
+  reason         String
+  priority       Int            @default(0)
+  status         LearningStatus @default(RECOMMENDED)
+  completedAt    DateTime?
+  feedback       String?
+  rating         Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([employeeId])
   @@index([status])
   @@index([priority])
+  @@index([organizationId])
 }
 
 // Mentor Matching
 model AIMentorMatch {
-  id           String            @id @default(cuid())
-  mentorId     String
-  menteeId     String
-  matchScore   Float
-  matchReasons Json
-  topics       Json?
-  status       MentorMatchStatus @default(SUGGESTED)
-  acceptedAt   DateTime?
-  completedAt  DateTime?
-  feedback     Json?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  organizationId String?
+  mentorId       String
+  menteeId       String
+  matchScore     Float
+  matchReasons   Json
+  topics         Json?
+  status         MentorMatchStatus @default(SUGGESTED)
+  acceptedAt     DateTime?
+  completedAt    DateTime?
+  feedback       Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@unique([mentorId, menteeId])
   @@index([mentorId])
   @@index([menteeId])
   @@index([status])
+  @@index([organizationId])
 }
 
 // AI Enums
@@ -1786,16 +1817,16 @@ model ExchangeRate {
 // ============================================
 
 model FiscalYear {
-  id        String    @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String?
-  name      String    @unique // "2024-25"
-  startDate DateTime
-  endDate   DateTime
-  isClosed  Boolean   @default(false)
-  closedAt  DateTime?
-  closedBy  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  name           String    @unique // "2024-25"
+  startDate      DateTime
+  endDate        DateTime
+  isClosed       Boolean   @default(false)
+  closedAt       DateTime?
+  closedBy       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   periods  FiscalPeriod[]
   vouchers Voucher[]
@@ -1905,28 +1936,28 @@ model VoucherType {
 }
 
 model Voucher {
-  id            String    @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String?
-  fiscalYearId  String
-  currencyId    String?
-  voucherTypeId String
-  voucherNumber String
-  date          DateTime
-  referenceNo   String?
-  narration     String?
-  exchangeRate  Decimal   @default(1) @db.Decimal(18, 8)
-  totalDebit    Decimal   @db.Decimal(18, 4)
-  totalCredit   Decimal   @db.Decimal(18, 4)
-  status        String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED
-  isPosted      Boolean   @default(false)
-  postedAt      DateTime?
-  createdById   String?
-  approvedById  String?
-  approvedAt    DateTime?
-  attachments   Json?
-  metadata      Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  fiscalYearId   String
+  currencyId     String?
+  voucherTypeId  String
+  voucherNumber  String
+  date           DateTime
+  referenceNo    String?
+  narration      String?
+  exchangeRate   Decimal   @default(1) @db.Decimal(18, 8)
+  totalDebit     Decimal   @db.Decimal(18, 4)
+  totalCredit    Decimal   @db.Decimal(18, 4)
+  status         String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED
+  isPosted       Boolean   @default(false)
+  postedAt       DateTime?
+  createdById    String?
+  approvedById   String?
+  approvedAt     DateTime?
+  attachments    Json?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   fiscalYear      FiscalYear       @relation(fields: [fiscalYearId], references: [id])
   currency        Currency?        @relation(fields: [currencyId], references: [id])
@@ -1942,19 +1973,19 @@ model Voucher {
 }
 
 model VoucherEntry {
-  id           String    @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String?
-  voucherId    String
-  ledgerId     String
-  costCenterId String?
-  debitAmount  Decimal   @default(0) @db.Decimal(18, 4)
-  creditAmount Decimal   @default(0) @db.Decimal(18, 4)
-  narration    String?
-  billRef      String?
-  dueDate      DateTime?
-  sequence     Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  voucherId      String
+  ledgerId       String
+  costCenterId   String?
+  debitAmount    Decimal   @default(0) @db.Decimal(18, 4)
+  creditAmount   Decimal   @default(0) @db.Decimal(18, 4)
+  narration      String?
+  billRef        String?
+  dueDate        DateTime?
+  sequence       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   voucher    Voucher         @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   ledger     Ledger          @relation(fields: [ledgerId], references: [id])
@@ -1971,14 +2002,14 @@ model VoucherEntry {
 // ============================================
 
 model AcctCostCenter {
-  id        String   @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String?
-  parentId  String?
-  name      String   @unique
-  code      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  parentId       String?
+  name           String   @unique
+  code           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   parent         AcctCostCenter?  @relation("CostCenterHierarchy", fields: [parentId], references: [id])
   children       AcctCostCenter[] @relation("CostCenterHierarchy")

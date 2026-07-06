@@ -41,16 +41,21 @@ export async function POST() {
 
     const createdRoles = [];
     for (const role of systemRoles) {
-      const result = await prisma.iAMRole.upsert({
-        where: { name: role.name },
-        update: {
-          displayName: role.displayName,
-          description: role.description,
-          permissions: role.permissions,
-          color: role.color,
-        },
-        create: role,
+      // System roles are global (organizationId = null); a null-org compound
+      // unique can't be used as an upsert selector, so find-then-write by name.
+      const existing = await prisma.iAMRole.findFirst({
+        where: { name: role.name, isSystem: true },
+        select: { id: true },
       });
+      const data = {
+        displayName: role.displayName,
+        description: role.description,
+        permissions: role.permissions,
+        color: role.color,
+      };
+      const result = existing
+        ? await prisma.iAMRole.update({ where: { id: existing.id }, data })
+        : await prisma.iAMRole.create({ data: role });
       createdRoles.push(result);
     }
 

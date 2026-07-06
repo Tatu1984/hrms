@@ -44,6 +44,7 @@ export async function DELETE(request: NextRequest) {
 
     await recordAuthEvent({
       eventType: 'SESSION_REVOKED',
+      organizationId: session.organizationId ?? null,
       sessionId,
       userId: session.userId,
       userName: session.name,

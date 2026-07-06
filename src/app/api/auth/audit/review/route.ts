@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { approveLoginEvent } from '@/lib/auth-audit';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * POST /api/auth/audit/review - approve a flagged login (admin only).
@@ -26,8 +27,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'eventId is required' }, { status: 400 });
     }
 
-    const event = await prisma.authEvent.findUnique({
-      where: { id: eventId },
+    const event = await prisma.authEvent.findFirst({
+      where: { id: eventId, ...orgWhere(session) },
       select: {
         userId: true,
         userName: true,

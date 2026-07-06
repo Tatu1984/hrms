@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth, isAdmin } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
+
+// Auth/session context threaded into each handler so queries stay org-scoped.
+type AuthCtx = Awaited<ReturnType<typeof verifyAuth>>;
 
 // Pre-built analytics queries that work without OpenAI
-const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promise<unknown>> = {
+const QUERY_HANDLERS: Record<string, (auth: AuthCtx) => Promise<unknown>> = {
   // Employee Analytics
-  'employee-count': async () => {
-    const total = await prisma.employee.count();
-    const active = await prisma.employee.count({ where: { isActive: true } });
+  'employee-count': async (auth) => {
+    const total = await prisma.employee.count({ where: { ...orgWhere(auth) } });
+    const active = await prisma.employee.count({ where: { ...orgWhere(auth), isActive: true } });
     const inactive = total - active;
     return { total, active, inactive, title: 'Employee Count' };
   },
 
-  'employees-by-department': async () => {
+  'employees-by-department': async (auth) => {
     const data = await prisma.employee.groupBy({
       by: ['department'],
-      where: { isActive: true },
+      where: { ...orgWhere(auth), isActive: true },
       _count: true,
     });
     return {
@@ -25,10 +29,10 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'employees-by-designation': async () => {
+  'employees-by-designation': async (auth) => {
     const data = await prisma.employee.groupBy({
       by: ['designation'],
-      where: { isActive: true },
+      where: { ...orgWhere(auth), isActive: true },
       _count: true,
     });
     return {
@@ -38,25 +42,25 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'new-employees-this-month': async () => {
+  'new-employees-this-month': async (auth) => {
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
     const count = await prisma.employee.count({
-      where: { dateOfJoining: { gte: startOfMonth } },
+      where: { ...orgWhere(auth), dateOfJoining: { gte: startOfMonth } },
     });
     return { count, title: 'New Employees This Month' };
   },
 
   // Attendance Analytics
-  'attendance-today': async () => {
+  'attendance-today': async (auth) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const data = await prisma.attendance.groupBy({
       by: ['status'],
-      where: { date: { gte: today } },
+      where: { ...orgWhere(auth), date: { gte: today } },
       _count: true,
     });
 
@@ -67,7 +71,7 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'attendance-this-week': async () => {
+  'attendance-this-week': async (auth) => {
     const today = new Date();
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - today.getDay());
@@ -75,7 +79,7 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
 
     const data = await prisma.attendance.groupBy({
       by: ['status'],
-      where: { date: { gte: startOfWeek } },
+      where: { ...orgWhere(auth), date: { gte: startOfWeek } },
       _count: true,
     });
 
@@ -90,7 +94,7 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'late-arrivals-this-month': async () => {
+  'late-arrivals-this-month': async (auth) => {
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -99,6 +103,7 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     // (Time-of-day can't be filtered portably in the query, so evaluate in JS.)
     const punchIns = await prisma.attendance.findMany({
       where: {
+        ...orgWhere(auth),
         date: { gte: startOfMonth },
         punchIn: { not: null },
       },
@@ -114,9 +119,9 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
   },
 
   // Leave Analytics
-  'pending-leaves': async () => {
+  'pending-leaves': async (auth) => {
     const leaves = await prisma.leave.findMany({
-      where: { status: 'PENDING' },
+      where: { ...orgWhere(auth), status: 'PENDING' },
       include: { employee: { select: { name: true, department: true } } },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -135,13 +140,14 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'leaves-by-type': async () => {
+  'leaves-by-type': async (auth) => {
     const year = new Date().getFullYear();
     const startOfYear = new Date(year, 0, 1);
 
     const data = await prisma.leave.groupBy({
       by: ['leaveType'],
       where: {
+        ...orgWhere(auth),
         status: 'APPROVED',
         startDate: { gte: startOfYear },
       },
@@ -160,15 +166,16 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'leave-balance-summary': async () => {
+  'leave-balance-summary': async (auth) => {
     const year = new Date().getFullYear();
     const startOfYear = new Date(year, 0, 1);
 
-    const employees = await prisma.employee.count({ where: { isActive: true } });
+    const employees = await prisma.employee.count({ where: { ...orgWhere(auth), isActive: true } });
 
     const usedLeaves = await prisma.leave.groupBy({
       by: ['leaveType'],
       where: {
+        ...orgWhere(auth),
         status: 'APPROVED',
         startDate: { gte: startOfYear },
       },
@@ -192,13 +199,13 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
   },
 
   // Payroll Analytics
-  'payroll-this-month': async () => {
+  'payroll-this-month': async (auth) => {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
     const data = await prisma.payroll.aggregate({
-      where: { month, year },
+      where: { ...orgWhere(auth), month, year },
       _sum: { grossSalary: true, netSalary: true, totalDeductions: true },
       _count: true,
     });
@@ -212,10 +219,10 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'payroll-pending': async () => {
-    const pending = await prisma.payroll.count({ where: { status: 'PENDING' } });
-    const approved = await prisma.payroll.count({ where: { status: 'APPROVED' } });
-    const paid = await prisma.payroll.count({ where: { status: 'PAID' } });
+  'payroll-pending': async (auth) => {
+    const pending = await prisma.payroll.count({ where: { ...orgWhere(auth), status: 'PENDING' } });
+    const approved = await prisma.payroll.count({ where: { ...orgWhere(auth), status: 'APPROVED' } });
+    const paid = await prisma.payroll.count({ where: { ...orgWhere(auth), status: 'PAID' } });
 
     return {
       title: 'Payroll Status',
@@ -229,9 +236,9 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
   },
 
   // Project Analytics
-  'active-projects': async () => {
+  'active-projects': async (auth) => {
     const projects = await prisma.project.findMany({
-      where: { status: 'ACTIVE' },
+      where: { ...orgWhere(auth), status: 'ACTIVE' },
       include: {
         members: { include: { employee: { select: { name: true } } } },
         tasks: { select: { status: true } },
@@ -252,9 +259,10 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'tasks-summary': async () => {
+  'tasks-summary': async (auth) => {
     const data = await prisma.task.groupBy({
       by: ['status'],
+      where: { ...orgWhere(auth) },
       _count: true,
     });
 
@@ -265,9 +273,10 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'overdue-tasks': async () => {
+  'overdue-tasks': async (auth) => {
     const overdue = await prisma.task.findMany({
       where: {
+        ...orgWhere(auth),
         status: { not: 'COMPLETED' },
         dueDate: { lt: new Date() },
       },
@@ -292,12 +301,13 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
   },
 
   // Sales Analytics
-  'sales-this-month': async () => {
+  'sales-this-month': async (auth) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const data = await prisma.sale.aggregate({
       where: {
+        ...orgWhere(auth),
         createdAt: { gte: startOfMonth },
         status: { in: ['CONFIRMED', 'DELIVERED', 'PAID'] },
       },
@@ -312,9 +322,10 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
     };
   },
 
-  'leads-pipeline': async () => {
+  'leads-pipeline': async (auth) => {
     const data = await prisma.lead.groupBy({
       by: ['status'],
+      where: { ...orgWhere(auth) },
       _count: true,
     });
 
@@ -326,20 +337,21 @@ const QUERY_HANDLERS: Record<string, (params?: Record<string, string>) => Promis
   },
 
   // Quick insights
-  'quick-insights': async () => {
+  'quick-insights': async (auth) => {
     const [
       employeeCount,
       pendingLeaves,
       overdueTasksCount,
       todayAbsent,
     ] = await Promise.all([
-      prisma.employee.count({ where: { isActive: true } }),
-      prisma.leave.count({ where: { status: 'PENDING' } }),
+      prisma.employee.count({ where: { ...orgWhere(auth), isActive: true } }),
+      prisma.leave.count({ where: { ...orgWhere(auth), status: 'PENDING' } }),
       prisma.task.count({
-        where: { status: { not: 'COMPLETED' }, dueDate: { lt: new Date() } },
+        where: { ...orgWhere(auth), status: { not: 'COMPLETED' }, dueDate: { lt: new Date() } },
       }),
       prisma.attendance.count({
         where: {
+          ...orgWhere(auth),
           date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
           status: 'ABSENT',
         },
@@ -460,7 +472,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const result = await QUERY_HANDLERS[matchedQueryId]();
+    const result = await QUERY_HANDLERS[matchedQueryId](auth);
 
     return NextResponse.json({
       queryId: matchedQueryId,

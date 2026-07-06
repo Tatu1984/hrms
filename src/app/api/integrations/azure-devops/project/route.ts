@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { decryptSecret } from '@/lib/crypto';
+import { orgWhere } from '@/lib/tenant';
 
 // GET /api/integrations/azure-devops/project - Get detailed project information
 export async function GET(request: NextRequest) {
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the connection
-    const connection = await prisma.integrationConnection.findUnique({
-      where: { id: connectionId },
+    // Get the connection (scoped to the caller's org before decrypting the PAT)
+    const connection = await prisma.integrationConnection.findFirst({
+      where: { id: connectionId, ...orgWhere(session) },
     });
 
     if (!connection || connection.platform !== 'AZURE_DEVOPS') {
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
         where: {
           connectionId,
           projectName,
+          connection: { ...orgWhere(session) },
         },
         include: {
           commits: {

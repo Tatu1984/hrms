@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * POST /api/attendance/activity
@@ -137,9 +138,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the attendance record to check permissions
-    const attendance = await prisma.attendance.findUnique({
-      where: { id: attendanceId },
+    // Get the attendance record to check permissions (org-scoped so a
+    // cross-tenant attendanceId resolves to null → 404)
+    const attendance = await prisma.attendance.findFirst({
+      where: { id: attendanceId, ...orgWhere(session) },
       include: { employee: true },
     });
 

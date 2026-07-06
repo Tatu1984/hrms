@@ -19,6 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       where: { id: params.id },
       include: {
         users: {
+          where: { user: { organizationId: session.organizationId } },
           include: {
             user: {
               select: {
@@ -39,7 +40,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
 
-    if (!role) {
+    // Allow reading system roles or roles owned by this tenant only.
+    if (!role || (!role.isSystem && role.organizationId !== session.organizationId)) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
 
@@ -67,7 +69,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       where: { id: params.id },
     });
 
-    if (!existingRole) {
+    // Tenants cannot mutate system roles or other tenants' roles.
+    if (
+      !existingRole ||
+      existingRole.isSystem ||
+      existingRole.organizationId !== session.organizationId
+    ) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
 
@@ -113,7 +120,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       },
     });
 
-    if (!existingRole) {
+    // Hide other tenants' roles as not-found.
+    if (
+      !existingRole ||
+      (!existingRole.isSystem && existingRole.organizationId !== session.organizationId)
+    ) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
 

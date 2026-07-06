@@ -15,14 +15,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userRoles = await prisma.userRole.findMany({
-      where: { userId: params.id },
-      include: {
-        role: true,
-      },
-    });
-
-    // Get the user info as well
+    // Load the target user first and verify it belongs to the caller's tenant.
     const user = await prisma.user.findUnique({
       where: { id: params.id },
       select: {
@@ -30,6 +23,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         username: true,
         email: true,
         role: true,
+        organizationId: true,
         employee: {
           select: {
             name: true,
@@ -40,9 +34,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
 
-    if (!user) {
+    if (!user || user.organizationId !== session.organizationId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const userRoles = await prisma.userRole.findMany({
+      where: { userId: params.id },
+      include: {
+        role: true,
+      },
+    });
 
     return NextResponse.json({
       user,
@@ -70,12 +71,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
     }
 
-    // Check if user exists
+    // Check if user exists and belongs to the caller's tenant
     const user = await prisma.user.findUnique({
       where: { id: params.id },
     });
 
-    if (!user) {
+    if (!user || user.organizationId !== session.organizationId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -135,6 +136,16 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     if (!roleId) {
       return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
+    }
+
+    // Verify the target user belongs to the caller's tenant before removing.
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { id: true, organizationId: true },
+    });
+
+    if (!user || user.organizationId !== session.organizationId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Check if assignment exists

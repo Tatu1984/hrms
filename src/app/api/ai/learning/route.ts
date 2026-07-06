@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, isAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isOpenAIConfigured } from '@/lib/ai/is-configured';
+import { orgWhere } from '@/lib/tenant';
+
+// Auth/session context so fallback queries stay org-scoped.
+type AuthCtx = Awaited<ReturnType<typeof verifyAuth>>;
 
 // Role-based required skills (fallback data)
 const ROLE_SKILLS: Record<string, { skill: string; level: number }[]> = {
@@ -39,9 +43,9 @@ function getNextRole(currentRole: string): string {
 }
 
 // Calculate skill gaps
-async function analyzeSkillGapFallback(employeeId: string, targetRole?: string) {
-  const employee = await prisma.employee.findUnique({
-    where: { id: employeeId },
+async function analyzeSkillGapFallback(employeeId: string, targetRole: string | undefined, auth: AuthCtx) {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, ...orgWhere(auth) },
   });
 
   if (!employee) {
@@ -75,9 +79,9 @@ async function analyzeSkillGapFallback(employeeId: string, targetRole?: string) 
 }
 
 // Find mentor matches
-async function findMentorsFallback(menteeId: string) {
-  const mentee = await prisma.employee.findUnique({
-    where: { id: menteeId },
+async function findMentorsFallback(menteeId: string, auth: AuthCtx) {
+  const mentee = await prisma.employee.findFirst({
+    where: { id: menteeId, ...orgWhere(auth) },
   });
 
   if (!mentee) return { matches: [] };
@@ -85,6 +89,7 @@ async function findMentorsFallback(menteeId: string) {
   // Find potential mentors
   const potentialMentors = await prisma.employee.findMany({
     where: {
+      ...orgWhere(auth),
       id: { not: menteeId },
       isActive: true,
       OR: [
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const analysis = await analyzeSkillGapFallback(empId, targetRole);
+          const analysis = await analyzeSkillGapFallback(empId, targetRole, auth);
           return NextResponse.json(analysis);
         } catch {
           // Employee not found — return an honest empty result, not fabricated gaps.
@@ -218,7 +223,7 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const result = await findMentorsFallback(empId);
+          const result = await findMentorsFallback(empId, auth);
           return NextResponse.json(result);
         } catch {
           // No real mentor matches available — return an empty list, not a fake mentor.
@@ -272,7 +277,7 @@ export async function POST(request: NextRequest) {
         }
 
         const employees = await prisma.employee.findMany({
-          where: { department, isActive: true },
+          where: { ...orgWhere(auth), department, isActive: true },
           take: 20,
         });
 

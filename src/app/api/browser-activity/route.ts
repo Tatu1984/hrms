@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
+import { orgWhere } from '@/lib/tenant';
 import { BrowserEventType } from '@prisma/client';
 
 // POST /api/browser-activity - Log browser activity event
@@ -96,10 +97,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const where: any = {};
+    // Scope to the caller's org: BrowserActivityLog has no org column, so
+    // resolve this org's user ids and constrain every query below to them.
+    const orgUserIds = (
+      await prisma.user.findMany({ where: orgWhere(session), select: { id: true } })
+    ).map((u) => u.id);
+
+    const where: any = { userId: { in: orgUserIds } };
 
     if (userId) {
-      where.userId = userId;
+      // Keep the requested user within the caller's org (avoid cross-tenant lookup).
+      where.userId = orgUserIds.includes(userId) ? userId : { in: [] };
     }
 
     if (employeeId) {
@@ -139,7 +147,7 @@ export async function GET(request: NextRequest) {
 
     // Get unique users for filter dropdown
     const uniqueUsers = await prisma.browserActivityLog.findMany({
-      where: {},
+      where: { userId: { in: orgUserIds } },
       select: {
         userId: true,
         userName: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * Recalculate attendance records with the correct formula:
@@ -18,15 +19,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { employeeId, attendanceId, all } = body;
 
-    // Build query for attendance records to recalculate
-    const where: any = {};
+    // Build query for attendance records to recalculate (always org-scoped)
+    const where: any = { ...orgWhere(session) };
 
     if (attendanceId) {
       where.id = attendanceId;
     } else if (employeeId) {
       // Find employee by employeeId (string like "emp007")
       const employee = await prisma.employee.findFirst({
-        where: { employeeId },
+        where: { employeeId, ...orgWhere(session) },
       });
       if (employee) {
         where.employeeId = employee.id;

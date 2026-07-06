@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
 
       await recordAuthEvent({
         eventType: 'LOGOUT',
+        organizationId: session.organizationId ?? null,
         userId: session.userId,
         employeeId: session.employeeId ?? null,
         userName: session.name,

@@ -12,8 +12,12 @@ export async function GET() {
     }
 
     const roles = await prisma.iAMRole.findMany({
+      where: {
+        OR: [{ isSystem: true }, { organizationId: session.organizationId }],
+      },
       include: {
         users: {
+          where: { user: { organizationId: session.organizationId } },
           include: {
             user: {
               select: {
@@ -61,9 +65,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if role name already exists
-    const existingRole = await prisma.iAMRole.findUnique({
-      where: { name: name.toUpperCase().replace(/\s+/g, '_') },
+    const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
+
+    // Check if role name already exists (within this tenant, or as a system role)
+    const existingRole = await prisma.iAMRole.findFirst({
+      where: {
+        name: normalizedName,
+        OR: [{ isSystem: true }, { organizationId: session.organizationId }],
+      },
     });
 
     if (existingRole) {
@@ -75,12 +84,13 @@ export async function POST(request: NextRequest) {
 
     const role = await prisma.iAMRole.create({
       data: {
-        name: name.toUpperCase().replace(/\s+/g, '_'),
+        name: normalizedName,
         displayName,
         description,
         permissions: permissions || [],
         color,
         isSystem: false,
+        organizationId: session.organizationId,
       },
     });
 
@@ -121,16 +131,24 @@ export async function seedSystemRoles() {
   ];
 
   for (const role of systemRoles) {
-    await prisma.iAMRole.upsert({
-      where: { name: role.name },
-      update: {
-        displayName: role.displayName,
-        description: role.description,
-        permissions: role.permissions,
-        color: role.color,
-      },
-      create: role,
+    // System roles are global (organizationId = null); match by name + isSystem.
+    const existing = await prisma.iAMRole.findFirst({
+      where: { name: role.name, isSystem: true },
     });
+
+    if (existing) {
+      await prisma.iAMRole.update({
+        where: { id: existing.id },
+        data: {
+          displayName: role.displayName,
+          description: role.description,
+          permissions: role.permissions,
+          color: role.color,
+        },
+      });
+    } else {
+      await prisma.iAMRole.create({ data: role });
+    }
   }
 
   return systemRoles;

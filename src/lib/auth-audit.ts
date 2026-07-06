@@ -29,6 +29,7 @@ const SEVERITY_WEIGHT: Record<AnomalySeverity, number> = {
 
 export interface AuthEventInput {
   eventType: AuthEventType;
+  organizationId?: string | null;
   userId?: string | null;
   employeeId?: string | null;
   userName?: string | null;
@@ -51,6 +52,7 @@ export async function recordAuthEvent(input: AuthEventInput): Promise<void> {
     await prisma.authEvent.create({
       data: {
         eventType: input.eventType,
+        organizationId: input.organizationId ?? null,
         userId: input.userId ?? null,
         employeeId: input.employeeId ?? null,
         userName: input.userName ?? null,

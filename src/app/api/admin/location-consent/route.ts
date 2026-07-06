@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * GET /api/admin/location-consent - location-sharing consent across all users
@@ -14,17 +15,21 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const [users, consents] = await Promise.all([
-      prisma.user.findMany({
-        select: {
-          id: true,
-          username: true,
-          role: true,
-          employee: { select: { name: true, employeeId: true, department: true, designation: true } },
-        },
-      }),
-      prisma.locationConsent.findMany(),
-    ]);
+    const users = await prisma.user.findMany({
+      where: orgWhere(session),
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        employee: { select: { name: true, employeeId: true, department: true, designation: true } },
+      },
+    });
+
+    // LocationConsent has no org column; scope it to this org's user ids.
+    const orgUserIds = users.map((u) => u.id);
+    const consents = await prisma.locationConsent.findMany({
+      where: { userId: { in: orgUserIds } },
+    });
 
     const byUser = new Map(consents.map((c) => [c.userId, c]));
 

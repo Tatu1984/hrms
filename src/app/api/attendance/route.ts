@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
       // Create audit log
       await prisma.auditLog.create({
         data: {
+          organizationId: session.organizationId ?? null,
           userId: session.userId,
           userName: session.name,
           userRole: session.role,
@@ -659,6 +660,7 @@ export async function PUT(request: NextRequest) {
     // Create audit log
     await prisma.auditLog.create({
       data: {
+        organizationId: session.organizationId ?? null,
         userId: session.userId,
         userName: session.name,
         userRole: session.role,

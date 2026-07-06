@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 // Get real AI Hub statistics from database
 export async function GET(request: NextRequest) {
@@ -27,39 +28,41 @@ export async function GET(request: NextRequest) {
       attendanceStats,
     ] = await Promise.all([
       // AI Chat stats
-      prisma.aIChatSession.count(),
-      prisma.aIChatMessage.count(),
+      prisma.aIChatSession.count({ where: { ...orgWhere(auth) } }),
+      // AIChatMessage has no org column — scope via its parent session.
+      prisma.aIChatMessage.count({ where: { session: { ...orgWhere(auth) } } }),
 
       // Predictions
-      prisma.aIPrediction.count({ where: { isActive: true } }),
+      prisma.aIPrediction.count({ where: { ...orgWhere(auth), isActive: true } }),
 
       // Anomalies
-      prisma.aIAnomaly.count({ where: { status: 'OPEN' } }),
+      prisma.aIAnomaly.count({ where: { ...orgWhere(auth), status: 'OPEN' } }),
 
       // Insights
-      prisma.aIInsight.count({ where: { dismissed: false } }),
+      prisma.aIInsight.count({ where: { ...orgWhere(auth), dismissed: false } }),
 
       // Resume analyses
-      prisma.aIResumeAnalysis.count(),
+      prisma.aIResumeAnalysis.count({ where: { ...orgWhere(auth) } }),
 
       // Sentiment
-      prisma.aISentimentAnalysis.count(),
+      prisma.aISentimentAnalysis.count({ where: { ...orgWhere(auth) } }),
 
       // Skill gaps
-      prisma.aISkillGap.count({ where: { isActive: true } }),
+      prisma.aISkillGap.count({ where: { ...orgWhere(auth), isActive: true } }),
 
       // Learning recommendations
-      prisma.aILearningRecommendation.count(),
+      prisma.aILearningRecommendation.count({ where: { ...orgWhere(auth) } }),
 
       // Mentor matches
-      prisma.aIMentorMatch.count(),
+      prisma.aIMentorMatch.count({ where: { ...orgWhere(auth) } }),
 
       // Employee stats for calculations
-      prisma.employee.count({ where: { isActive: true } }),
+      prisma.employee.count({ where: { ...orgWhere(auth), isActive: true } }),
 
       // Leave stats (for team health)
       prisma.leave.groupBy({
         by: ['status'],
+        where: { ...orgWhere(auth) },
         _count: true,
       }),
 
@@ -67,6 +70,7 @@ export async function GET(request: NextRequest) {
       prisma.attendance.groupBy({
         by: ['status'],
         where: {
+          ...orgWhere(auth),
           date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
         },
         _count: true,

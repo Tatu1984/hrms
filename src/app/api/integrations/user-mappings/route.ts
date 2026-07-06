@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 // GET /api/integrations/user-mappings - Get user mappings and unmapped users
 export async function GET(request: NextRequest) {
@@ -15,6 +16,14 @@ export async function GET(request: NextRequest) {
 
     if (!connectionId) {
       return NextResponse.json({ error: 'Connection ID required' }, { status: 400 });
+    }
+
+    // Tenant isolation: verify the connection belongs to the caller's org
+    const connection = await prisma.integrationConnection.findFirst({
+      where: { id: connectionId, ...orgWhere(session) },
+    });
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
     }
 
     // Get existing mappings
@@ -97,6 +106,14 @@ export async function POST(request: NextRequest) {
 
     if (!connectionId || !Array.isArray(mappings)) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
+
+    // Tenant isolation: verify the connection belongs to the caller's org
+    const connection = await prisma.integrationConnection.findFirst({
+      where: { id: connectionId, ...orgWhere(session) },
+    });
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
     }
 
     // Delete existing mappings for this connection

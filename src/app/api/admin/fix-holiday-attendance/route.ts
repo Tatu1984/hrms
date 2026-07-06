@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { orgWhere } from '@/lib/tenant';
 
 /**
  * API to fix attendance records that were incorrectly marked as ABSENT on holiday dates.
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { startDate, endDate } = body;
 
     // Get all holidays
-    const holidayWhere: any = {};
+    const holidayWhere: any = { ...orgWhere(session) };
     if (startDate) {
       holidayWhere.date = { ...holidayWhere.date, gte: new Date(startDate) };
     }
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const holidays = await prisma.holiday.findMany({
-      where: Object.keys(holidayWhere).length > 0 ? holidayWhere : undefined,
+      where: holidayWhere,
       select: { date: true, name: true },
     });
 
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
       // Find all ABSENT records on this holiday date
       const absentRecords = await prisma.attendance.findMany({
         where: {
+          ...orgWhere(session),
           status: 'ABSENT',
           OR: [
             {
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest) {
         // Update all ABSENT records to HOLIDAY
         const result = await prisma.attendance.updateMany({
           where: {
+            ...orgWhere(session),
             id: { in: absentRecords.map(r => r.id) },
           },
           data: {
@@ -114,6 +117,7 @@ export async function POST(request: NextRequest) {
     if (totalFixed > 0) {
       await prisma.auditLog.create({
         data: {
+          organizationId: session.organizationId ?? null,
           userId: session.userId,
           userName: session.name,
           userRole: session.role,
@@ -166,7 +170,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     // Get all holidays
-    const holidayWhere: any = {};
+    const holidayWhere: any = { ...orgWhere(session) };
     if (startDate) {
       holidayWhere.date = { ...holidayWhere.date, gte: new Date(startDate) };
     }
@@ -175,7 +179,7 @@ export async function GET(request: NextRequest) {
     }
 
     const holidays = await prisma.holiday.findMany({
-      where: Object.keys(holidayWhere).length > 0 ? holidayWhere : undefined,
+      where: holidayWhere,
       select: { date: true, name: true },
     });
 
@@ -196,6 +200,7 @@ export async function GET(request: NextRequest) {
 
       const absentRecords = await prisma.attendance.findMany({
         where: {
+          ...orgWhere(session),
           status: 'ABSENT',
           OR: [
             {

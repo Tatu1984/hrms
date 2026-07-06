@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       const geo = await resolveGeo(request, ip).catch(() => ({ source: 'unknown' as const }));
       await recordAuthEvent({
         eventType: 'LOGIN_FAILED',
+        organizationId: user?.organizationId ?? null,
         userId: user?.id ?? null,
         employeeId: user?.employeeId ?? null,
         userName: user?.employee?.name || user?.username || null,
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
 
     await recordAuthEvent({
       eventType: 'LOGIN_SUCCESS',
+      organizationId: user.organizationId,
       userId: user.id,
       employeeId: user.employeeId,
       userName: user.employee?.name || user.username,

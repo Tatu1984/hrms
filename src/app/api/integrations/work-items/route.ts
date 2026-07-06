@@ -21,6 +21,11 @@ export async function GET(request: NextRequest) {
     // Build query filters
     const where: any = {};
 
+    // Tenant isolation: scope to connections owned by the caller's org
+    if (session.organizationId) {
+      where.connection = { organizationId: session.organizationId };
+    }
+
     // Role-based access
     if (session.role === 'EMPLOYEE') {
       // Employees can only see their own work items

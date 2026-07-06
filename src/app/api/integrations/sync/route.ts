@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { IntegrationSyncService } from '@/lib/integrations/sync-service';
+import { orgWhere } from '@/lib/tenant';
 
 // POST /api/integrations/sync - Trigger manual sync for a connection
 export async function POST(request: NextRequest) {
@@ -21,9 +22,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify connection exists and user has access
-    const connection = await prisma.integrationConnection.findUnique({
-      where: { id: connectionId },
+    // Verify connection exists and belongs to the caller's org
+    const connection = await prisma.integrationConnection.findFirst({
+      where: { id: connectionId, ...orgWhere(session) },
     });
 
     if (!connection) {
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
       },
       where: {
         isActive: true,
+        ...orgWhere(session),
       },
     });
 

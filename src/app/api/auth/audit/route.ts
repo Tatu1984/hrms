@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { trustedKeysFor } from '@/lib/auth-audit';
+import { orgWhere } from '@/lib/tenant';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), format === 'csv' ? 5000 : 500);
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const where: Prisma.AuthEventWhereInput = {};
+    const where: Prisma.AuthEventWhereInput = { ...orgWhere(session) };
     if (userId) where.userId = userId;
     if (employeeId) where.employeeId = employeeId;
     if (eventType) where.eventType = eventType as Prisma.AuthEventWhereInput['eventType'];
