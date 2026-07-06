@@ -2,6 +2,7 @@
  * Confluence API Client
  * Handles interactions with Confluence Cloud REST API
  */
+import { assertPublicHttpsUrl, INTEGRATION_ALLOWED_HOSTS } from '@/lib/url-guard';
 
 export interface ConfluenceConfig {
   siteUrl: string; // e.g., https://your-domain.atlassian.net
@@ -254,6 +255,9 @@ export class ConfluenceClient {
  * Create a Confluence client instance
  */
 export function createConfluenceClient(siteUrl: string, email: string, apiToken: string, spaceKey?: string): ConfluenceClient {
+  // Single choke point for every caller (test/save/sync): reject any non-Confluence
+  // host before an outbound request is made, incl. the otherwise-unguarded sync path.
+  assertPublicHttpsUrl(siteUrl, INTEGRATION_ALLOWED_HOSTS.CONFLUENCE);
   return new ConfluenceClient({
     siteUrl,
     email,

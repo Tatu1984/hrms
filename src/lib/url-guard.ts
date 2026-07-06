@@ -41,7 +41,15 @@ function isPrivateIpv6(host: string): boolean {
   return false;
 }
 
-export function assertPublicHttpsUrl(raw: string): URL {
+/**
+ * Optionally, restrict the host to a set of expected integration hosts. Each
+ * entry is either an exact host ("dev.azure.com") or a dot-prefixed suffix that
+ * also matches subdomains (".atlassian.net" → any `*.atlassian.net`). This is
+ * the real defense against DNS rebinding: a static IP/host check can't stop an
+ * attacker hostname that resolves to a private IP only at fetch time, but an
+ * allow-list of known SaaS hosts never contains that hostname in the first place.
+ */
+export function assertPublicHttpsUrl(raw: string, allowedHosts?: readonly string[]): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -87,5 +95,20 @@ export function assertPublicHttpsUrl(raw: string): URL {
     throw new Error('URL host is not allowed');
   }
 
+  if (allowedHosts && allowedHosts.length) {
+    const ok = allowedHosts.some((entry) =>
+      entry.startsWith('.') ? host === entry.slice(1) || host.endsWith(entry) : host === entry,
+    );
+    if (!ok) {
+      throw new Error('URL host is not an allowed integration host');
+    }
+  }
+
   return url;
 }
+
+/** Allow-listed hosts per integration platform (closes the DNS-rebinding gap). */
+export const INTEGRATION_ALLOWED_HOSTS: Record<string, readonly string[]> = {
+  AZURE_DEVOPS: ['dev.azure.com', '.visualstudio.com'],
+  CONFLUENCE: ['.atlassian.net'],
+};

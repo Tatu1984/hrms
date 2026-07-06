@@ -3,6 +3,7 @@
  * Handles authentication and API calls to Azure DevOps REST API
  * Documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/
  */
+import { assertPublicHttpsUrl, INTEGRATION_ALLOWED_HOSTS } from '@/lib/url-guard';
 
 export interface AzureDevOpsConfig {
   organizationUrl: string; // e.g., https://dev.azure.com/orgname
@@ -496,6 +497,10 @@ export function createAzureDevOpsClient(
   organizationUrl: string,
   accessToken: string
 ): AzureDevOpsClient {
+  // Single choke point for every caller (test/save/sync/project): reject any
+  // non-Azure host before an outbound request is ever made. This is where the
+  // stored-URL sync path — otherwise unguarded — gets SSRF protection.
+  assertPublicHttpsUrl(organizationUrl, INTEGRATION_ALLOWED_HOSTS.AZURE_DEVOPS);
   return new AzureDevOpsClient({
     organizationUrl,
     accessToken,

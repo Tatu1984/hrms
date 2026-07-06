@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { orgWhere, withOrg } from '@/lib/tenant';
-import { assertPublicHttpsUrl } from '@/lib/url-guard';
+import { assertPublicHttpsUrl, INTEGRATION_ALLOWED_HOSTS } from '@/lib/url-guard';
 import { createAzureDevOpsClient } from '@/lib/integrations/azure-devops-client';
 import { createAsanaClient } from '@/lib/integrations/asana-client';
 import { encryptSecret } from '@/lib/crypto';
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         );
       }
       try {
-        assertPublicHttpsUrl(organizationUrl);
+        assertPublicHttpsUrl(organizationUrl, INTEGRATION_ALLOWED_HOSTS.AZURE_DEVOPS);
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : 'Invalid organization URL' },
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         );
       }
       try {
-        assertPublicHttpsUrl(organizationUrl);
+        assertPublicHttpsUrl(organizationUrl, INTEGRATION_ALLOWED_HOSTS.CONFLUENCE);
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : 'Invalid organization URL' },
