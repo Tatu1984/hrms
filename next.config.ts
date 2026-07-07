@@ -6,10 +6,13 @@ const nextConfig: NextConfig = {
 
   // Image optimization
   images: {
+    // Restrict remote images to Vercel Blob (the only remote source — profile
+    // pictures / uploads). Local uploads are served from relative /uploads/*.
+    // A wide-open '**' host lets the Next image optimizer proxy arbitrary URLs.
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '**.public.blob.vercel-storage.com',
       },
     ],
     formats: ['image/avif', 'image/webp'],
