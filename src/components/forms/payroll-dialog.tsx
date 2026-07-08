@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -21,99 +22,90 @@ interface PayrollDialogProps {
   employees: Employee[];
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const ALL = 'ALL';
+
 export function PayrollDialog({ employees }: PayrollDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    employeeId: '',
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    baseSalary: 0,
-    allowances: 0,
-    deductions: 0,
-    overtimeHours: 0,
-    overtimeRate: 0,
-  });
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [target, setTarget] = useState<string>(ALL);
+  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [overwrite, setOverwrite] = useState(false);
 
-  const selectedEmployee = employees.find(e => e.id === formData.employeeId);
-  const baseSalary = selectedEmployee?.salary || 0;
-  const overtimePay = formData.overtimeHours * formData.overtimeRate;
-  const grossSalary = baseSalary + formData.allowances + overtimePay;
-  const netSalary = grossSalary - formData.deductions;
-
+  // Payroll is computed from attendance + salary config on the server. The UI
+  // only chooses WHO and WHICH month — it never sends salary numbers.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setResult(null);
 
     try {
       const res = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employeeId: formData.employeeId,
-          month: formData.month,
-          year: formData.year,
-          baseSalary,
-          allowances: formData.allowances,
-          deductions: formData.deductions,
-          overtimeHours: formData.overtimeHours,
-          overtimeRate: formData.overtimeRate,
-          grossSalary,
-          netSalary,
+          month,
+          year,
+          // Empty array => every employee in the org.
+          employeeIds: target === ALL ? [] : [target],
+          overwrite,
         }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Failed to generate payroll');
       }
 
-      setOpen(false);
-      setFormData({
-        employeeId: '',
-        month: new Date().getMonth() + 1,
-        year: new Date().getFullYear(),
-        baseSalary: 0,
-        allowances: 0,
-        deductions: 0,
-        overtimeHours: 0,
-        overtimeRate: 0,
-      });
+      setResult({ ok: true, message: data.message || 'Payroll generated.' });
       router.refresh();
     } catch (error: any) {
-      alert(error.message);
+      setResult({ ok: false, message: error.message });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setResult(null);
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="bg-blue-600">
           <Calculator className="w-4 h-4 mr-2" />
-          Calculate Payroll
+          Generate Payroll
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Generate Payroll</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Salary is calculated automatically from attendance and your salary
+            settings (PF/ESI/PT/TDS). Choose who and which month.
+          </p>
+
           <div className="space-y-2">
-            <Label htmlFor="employee">Employee *</Label>
-            <Select
-              value={formData.employeeId}
-              onValueChange={(value) => {
-                const emp = employees.find(e => e.id === value);
-                setFormData({ ...formData, employeeId: value, baseSalary: emp?.salary || 0 });
-              }}
-            >
+            <Label htmlFor="employee">Employee</Label>
+            <Select value={target} onValueChange={setTarget}>
               <SelectTrigger>
-                <SelectValue placeholder="Select employee" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL}>All employees</SelectItem>
                 {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.employeeId} - {emp.name} ({emp.department})
@@ -126,20 +118,14 @@ export function PayrollDialog({ employees }: PayrollDialogProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="month">Month *</Label>
-              <Select
-                value={formData.month.toString()}
-                onValueChange={(value) => setFormData({ ...formData, month: parseInt(value) })}
-              >
+              <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    'January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'
-                  ].map((month, idx) => (
+                  {MONTHS.map((m, idx) => (
                     <SelectItem key={idx} value={(idx + 1).toString()}>
-                      {month}
+                      {m}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -151,104 +137,47 @@ export function PayrollDialog({ employees }: PayrollDialogProps) {
               <Input
                 id="year"
                 type="number"
-                value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                value={year}
+                onChange={(e) => setYear(parseInt(e.target.value) || year)}
                 required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="baseSalary">Base Salary</Label>
-              <Input
-                id="baseSalary"
-                type="number"
-                value={baseSalary}
-                disabled
-                className="bg-gray-50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="allowances">Allowances</Label>
-              <Input
-                id="allowances"
-                type="number"
-                value={formData.allowances}
-                onChange={(e) => setFormData({ ...formData, allowances: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="overtimeHours">Overtime Hours</Label>
-              <Input
-                id="overtimeHours"
-                type="number"
-                value={formData.overtimeHours}
-                onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="overtimeRate">Overtime Rate (per hour)</Label>
-              <Input
-                id="overtimeRate"
-                type="number"
-                value={formData.overtimeRate}
-                onChange={(e) => setFormData({ ...formData, overtimeRate: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="deductions">Deductions</Label>
-            <Input
-              id="deductions"
-              type="number"
-              value={formData.deductions}
-              onChange={(e) => setFormData({ ...formData, deductions: parseFloat(e.target.value) || 0 })}
+          <div className="flex items-start gap-3 rounded-lg border p-3">
+            <Checkbox
+              id="overwrite"
+              checked={overwrite}
+              onCheckedChange={(v) => setOverwrite(v === true)}
             />
+            <div className="space-y-1">
+              <Label htmlFor="overwrite" className="cursor-pointer">
+                Regenerate if payroll already exists
+              </Label>
+              <p className="text-xs text-gray-500">
+                Recomputes from current attendance. Manual penalties/advances are
+                kept; records already marked <strong>Paid</strong> are never touched.
+              </p>
+            </div>
           </div>
 
-          {/* Calculation Summary */}
-          {formData.employeeId && (
-            <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-              <h4 className="font-semibold mb-2">Payroll Summary</h4>
-              <div className="flex justify-between text-sm">
-                <span>Base Salary:</span>
-                <span className="font-semibold">₹{baseSalary.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Allowances:</span>
-                <span className="font-semibold">₹{formData.allowances.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Overtime Pay:</span>
-                <span className="font-semibold">₹{overtimePay.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm pt-2 border-t">
-                <span>Gross Salary:</span>
-                <span className="font-semibold">₹{grossSalary.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm text-red-600">
-                <span>Deductions:</span>
-                <span className="font-semibold">-₹{formData.deductions.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                <span>Net Salary:</span>
-                <span className="text-green-600">₹{netSalary.toLocaleString()}</span>
-              </div>
+          {result && (
+            <div
+              className={`rounded-lg p-3 text-sm ${
+                result.ok
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              {result.message}
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              Close
             </Button>
-            <Button type="submit" disabled={loading || !formData.employeeId}>
+            <Button type="submit" disabled={loading}>
               {loading ? 'Generating...' : 'Generate Payroll'}
             </Button>
           </div>

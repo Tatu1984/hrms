@@ -81,16 +81,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { month, year, employeeIds } = body;
+    const { month, year } = body;
 
     if (!month || !year) {
       return NextResponse.json({ error: 'Month and year required' }, { status: 400 });
     }
 
+    // Target employees: accept either `employeeIds` (array) or a single
+    // `employeeId`. Empty/absent => every employee in the org.
+    const targetIds: string[] = Array.isArray(body.employeeIds)
+      ? body.employeeIds
+      : body.employeeId
+        ? [body.employeeId]
+        : [];
+
+    // When true, recompute and overwrite an existing (non-PAID) record instead
+    // of skipping it. Lets admins regenerate after attendance edits.
+    const overwrite: boolean = body.overwrite === true;
+
     // Get employees to process
     const where: any = { ...orgWhere(session) };
-    if (employeeIds && employeeIds.length > 0) {
-      where.id = { in: employeeIds };
+    if (targetIds.length > 0) {
+      where.id = { in: targetIds };
     }
 
     const employees = await prisma.employee.findMany({ where });
@@ -101,6 +113,9 @@ export async function POST(request: NextRequest) {
     const deductionOverrides: DeductionToggles | undefined = body.applyDeductions;
 
     const payrollRecords = [];
+    let skipped = 0; // already existed, overwrite not requested
+    let skippedPaid = 0; // already existed and already PAID — never touched
+    let overwritten = 0; // existing non-PAID record recomputed
 
     for (const emp of employees) {
       // Check if payroll already exists
@@ -113,7 +128,17 @@ export async function POST(request: NextRequest) {
       });
 
       if (existing) {
-        continue; // Skip if already exists
+        // A finalized (PAID) payroll is immutable — never regenerate it.
+        if (existing.status === 'PAID') {
+          skippedPaid++;
+          continue;
+        }
+        // Existing but not overwriting => leave it as-is.
+        if (!overwrite) {
+          skipped++;
+          continue;
+        }
+        // else: fall through and recompute, updating the existing row below.
       }
 
       // AUTHORITATIVE PAYROLL LOGIC
@@ -309,9 +334,12 @@ export async function POST(request: NextRequest) {
       const esi = statutory.esi;
       const professionalTax = statutory.professionalTax;
       const tds = statutory.tds;
-      const penalties = 0; // admin-editable post-generation (PUT)
-      const advancePayment = 0; // admin-editable post-generation (PUT)
-      const otherDeductions = 0; // admin-editable post-generation (PUT)
+      // Manual, admin-entered deductions (set post-generation via PUT). On a
+      // fresh record these start at 0; on an overwrite we PRESERVE whatever the
+      // admin already keyed in so regenerating attendance never wipes them.
+      const penalties = existing ? existing.penalties : 0;
+      const advancePayment = existing ? existing.advancePayment : 0;
+      const otherDeductions = existing ? existing.otherDeductions : 0;
 
       const totalDeductions =
         pf + esi + professionalTax + tds + penalties + advancePayment + otherDeductions;
@@ -326,60 +354,92 @@ export async function POST(request: NextRequest) {
 
       // Stored for display against the fixed 30-day basis:
       // workingDays = 30, daysPresent = payable (30 - absent), daysAbsent = absent.
-      const payrollRecord = await prisma.payroll.create({
-        data: withOrg(session, {
-          employeeId: emp.id,
-          month: parseInt(month),
-          year: parseInt(year),
-          workingDays: 30,
-          daysPresent: Math.round(payableDays * 10) / 10,
-          daysAbsent: Math.round(absentDays * 10) / 10,
+      // All attendance-derived fields; preserve the existing status on overwrite.
+      const computed = {
+        workingDays: 30,
+        daysPresent: Math.round(payableDays * 10) / 10,
+        daysAbsent: Math.round(absentDays * 10) / 10,
 
-          basicSalary,
-          variablePay,
-          salesTarget: salesTargetUSD,
-          targetAchieved: achievedUpfront,
+        basicSalary,
+        variablePay,
+        salesTarget: salesTargetUSD,
+        targetAchieved: achievedUpfront,
 
-          basicPayable,
-          variablePayable,
-          grossSalary,
+        basicPayable,
+        variablePayable,
+        grossSalary,
 
-          pf,
-          esi,
-          professionalTax,
-          tds,
-          penalties,
-          advancePayment,
-          otherDeductions,
-          totalDeductions,
+        pf,
+        esi,
+        professionalTax,
+        tds,
+        penalties,
+        advancePayment,
+        otherDeductions,
+        totalDeductions,
 
-          netSalary,
-          status: 'PENDING',
-        }),
-        include: {
-          employee: {
-            select: {
-              id: true,
-              employeeId: true,
-              name: true,
-              designation: true,
-              department: true,
-              employeeType: true,
-            },
+        netSalary,
+      };
+
+      const includeEmployee = {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            designation: true,
+            department: true,
+            employeeType: true,
           },
         },
-      });
+      };
 
-      dbg(`✓ Payroll record created for ${emp.name}`);
+      let payrollRecord;
+      if (existing) {
+        // Overwrite path: recompute in place, keep the row's current status.
+        payrollRecord = await prisma.payroll.update({
+          where: { id: existing.id },
+          data: computed,
+          include: includeEmployee,
+        });
+        overwritten++;
+        dbg(`✓ Payroll record recomputed for ${emp.name}`);
+      } else {
+        payrollRecord = await prisma.payroll.create({
+          data: withOrg(session, {
+            employeeId: emp.id,
+            month: parseInt(month),
+            year: parseInt(year),
+            ...computed,
+            status: 'PENDING',
+          }),
+          include: includeEmployee,
+        });
+        dbg(`✓ Payroll record created for ${emp.name}`);
+      }
       payrollRecords.push(payrollRecord);
     }
 
     dbg(`\n=== PAYROLL GENERATION COMPLETE ===`);
-    dbg(`Total records generated: ${payrollRecords.length}`);
+    dbg(`Records written: ${payrollRecords.length} (overwritten: ${overwritten})`);
+
+    // Build a precise, human-readable summary so a "nothing happened" outcome
+    // (everything already existed) is never silent.
+    const created = payrollRecords.length - overwritten;
+    const parts: string[] = [];
+    if (created) parts.push(`generated ${created}`);
+    if (overwritten) parts.push(`regenerated ${overwritten}`);
+    if (skipped) parts.push(`skipped ${skipped} already-generated`);
+    if (skippedPaid) parts.push(`skipped ${skippedPaid} already-paid`);
+    const message =
+      parts.length > 0
+        ? `Payroll: ${parts.join(', ')}.`
+        : 'No employees matched — nothing to generate.';
 
     return NextResponse.json({
       success: true,
-      message: `Generated ${payrollRecords.length} payroll records`,
+      message,
+      counts: { created, overwritten, skipped, skippedPaid },
       payroll: payrollRecords,
     }, { status: 201 });
   } catch (error) {
