@@ -99,13 +99,21 @@ export async function POST(request: NextRequest) {
     // of skipping it. Lets admins regenerate after attendance edits.
     const overwrite: boolean = body.overwrite === true;
 
-    // Get employees to process
-    const where: any = { ...orgWhere(session) };
+    // Get employees to process. Inactive (offboarded) employees never get
+    // salary generated — they are excluded even when explicitly targeted.
+    const where: any = { ...orgWhere(session), isActive: true };
     if (targetIds.length > 0) {
       where.id = { in: targetIds };
     }
 
     const employees = await prisma.employee.findMany({ where });
+
+    // If specific employees were requested, surface how many were dropped for
+    // being inactive so the outcome is never silently smaller than requested.
+    let skippedInactive = 0;
+    if (targetIds.length > 0) {
+      skippedInactive = targetIds.length - employees.length;
+    }
 
     // Deduction config + optional per-run toggle overrides (admin's choice).
     // Scope to the caller's org so each tenant uses its own PF/ESI/TDS/PT rates.
@@ -431,15 +439,16 @@ export async function POST(request: NextRequest) {
     if (overwritten) parts.push(`regenerated ${overwritten}`);
     if (skipped) parts.push(`skipped ${skipped} already-generated`);
     if (skippedPaid) parts.push(`skipped ${skippedPaid} already-paid`);
+    if (skippedInactive) parts.push(`skipped ${skippedInactive} inactive`);
     const message =
       parts.length > 0
         ? `Payroll: ${parts.join(', ')}.`
-        : 'No employees matched — nothing to generate.';
+        : 'No active employees matched — nothing to generate.';
 
     return NextResponse.json({
       success: true,
       message,
-      counts: { created, overwritten, skipped, skippedPaid },
+      counts: { created, overwritten, skipped, skippedPaid, skippedInactive },
       payroll: payrollRecords,
     }, { status: 201 });
   } catch (error) {
