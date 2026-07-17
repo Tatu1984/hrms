@@ -10,10 +10,11 @@ export default async function ManagerAttendancePage() {
     redirect('/login');
   }
 
-  // Fetch team members (subordinates)
+  // Fetch active team members (subordinates); inactive employees never appear on the attendance tab
   const teamMembers = await prisma.employee.findMany({
     where: {
       reportingHeadId: session.employeeId,
+      isActive: true,
     },
     select: {
       id: true,

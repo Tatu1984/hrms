@@ -87,8 +87,9 @@ export async function GET(request: NextRequest) {
 
     const isHoliday = !!holiday;
 
-    // Get all active employees
+    // Get all active employees (inactive employees are excluded from attendance entirely)
     const employees = await prisma.employee.findMany({
+      where: { isActive: true },
       select: { id: true, name: true, employeeId: true, dateOfJoining: true, organizationId: true },
     });
 
@@ -273,6 +274,7 @@ export async function POST(request: NextRequest) {
     const isHoliday = !!holiday;
 
     const employees = await prisma.employee.findMany({
+      where: { isActive: true },
       select: { id: true, name: true, employeeId: true, dateOfJoining: true, organizationId: true },
     });
 

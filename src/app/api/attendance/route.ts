@@ -76,6 +76,13 @@ export async function GET(request: NextRequest) {
     // Build query
     const where: any = { ...orgWhere(session) };
 
+    // Attendance tab only ever shows active employees. Filtering here (the single
+    // source of truth for the calendar) guarantees that records belonging to a
+    // now-inactive employee disappear everywhere — admin, manager, and self views —
+    // without depending on each caller to filter. Payroll/reports read prisma.attendance
+    // directly and are unaffected.
+    where.employee = { isActive: true };
+
     if (employeeId) {
       where.employeeId = employeeId;
     } else if (session.role === 'EMPLOYEE') {
